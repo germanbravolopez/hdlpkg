@@ -1,0 +1,30 @@
+[package]
+vendor      = "acme"
+library     = "comm"
+name        = "uart"
+version     = "1.2.0"
+description = "8N1 UART with a FIFO-buffered receive path"
+license     = "Apache-2.0"
+authors     = ["HDL IP Packager Examples <examples@hdl-ip-packager.dev>"]
+top         = "uart_top"
+keywords    = ["uart", "serial", "comm"]
+
+[dependencies]
+"acme:common:fifo" = "^1.0.0"
+
+[filesets.rtl]
+files = ["rtl/uart_top.sv", "rtl/uart_rx.sv", "rtl/uart_tx.sv"]
+type  = "systemVerilogSource"
+
+[filesets.tb]
+files = ["tb/uart_tb.sv"]
+type  = "systemVerilogSource"
+
+[targets.sim]
+toolflow = "verilator"
+filesets = ["rtl", "tb"]
+top      = "uart_tb"
+
+[targets.synth]
+toolflow = "vivado"
+filesets = ["rtl"]

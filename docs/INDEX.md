@@ -41,7 +41,8 @@ quick-find reference.
 | `scripts/render_test_summary.py` | Renders a foldable Markdown test report from JUnit XML into the GitHub step summary (and stdout locally) |
 | `.github/workflows/ci.yml` | CI: pytest + coverage + ruff + mypy across Python 3.11/3.12, renders the test summary |
 | `.gitignore` / `.gitattributes` | Ignore rules (incl. `.hdlpkg/` cache) + line-ending normalization |
-| `.claude/commands/` | Slash-command skills (`/coding-guidelines`, `/update-docs`) |
+| `.claude/commands/` | Slash-command skills (`/coding-guidelines`, `/update-docs`, `/tackle-issue`) |
+| `examples/` | Bundled example IP cores (`fifo`, `uart`) with real `ip.toml` manifests + HDL |
 
 ## Tests
 
@@ -54,6 +55,7 @@ quick-find reference.
 | `tests/unit/test_cli.py` | CLI commands, exit codes, output |
 | `tests/unit/test_planned_stubs.py` | Resolver/registry seams import and fail loudly |
 | `tests/integration/test_manifest_cli_flow.py` | Manifest-on-disk → CLI end to end |
+| `tests/integration/test_examples.py` | Bundled `examples/` cores validate, file paths exist, deps stay in-tree |
 
 ## CLI commands
 

@@ -16,7 +16,8 @@ tests/
 │   ├── test_cli.py
 │   └── test_planned_stubs.py
 └── integration/                multi-module / filesystem tests            - marker: integration
-    └── test_manifest_cli_flow.py
+    ├── test_manifest_cli_flow.py
+    └── test_examples.py         validates the bundled examples/ cores
 ```
 
 There are intentionally **no `__init__.py`** files: the suite runs under pytest's

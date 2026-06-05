@@ -97,6 +97,14 @@ filesets = ["rtl"]
 top      = "uart_top"
 ```
 
+Two complete, working cores live under [`examples/`](examples/) — a FIFO
+(`acme:common:fifo`) and a UART (`acme:comm:uart`) that depends on it:
+
+```powershell
+hdlpkg info examples/uart/ip.toml
+hdlpkg validate examples/fifo/ip.toml
+```
+
 ---
 
 ## Tests

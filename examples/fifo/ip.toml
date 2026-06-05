@@ -1,0 +1,27 @@
+[package]
+vendor      = "acme"
+library     = "common"
+name        = "fifo"
+version     = "1.0.0"
+description = "Synchronous first-word-fall-through FIFO with configurable depth and width"
+license     = "Apache-2.0"
+authors     = ["HDL IP Packager Examples <examples@hdl-ip-packager.dev>"]
+top         = "sync_fifo"
+keywords    = ["fifo", "buffer", "synchronous"]
+
+[filesets.rtl]
+files = ["rtl/sync_fifo.sv"]
+type  = "systemVerilogSource"
+
+[filesets.tb]
+files = ["tb/sync_fifo_tb.sv"]
+type  = "systemVerilogSource"
+
+[targets.sim]
+toolflow = "verilator"
+filesets = ["rtl", "tb"]
+top      = "sync_fifo_tb"
+
+[targets.synth]
+toolflow = "vivado"
+filesets = ["rtl"]

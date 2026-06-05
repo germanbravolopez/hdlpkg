@@ -65,7 +65,6 @@ _None._
 |-------|------|-------|
 | `hdlpkg init` scaffolder | `cli.py` | Generate a starter `ip.toml` from prompts/flags. Small, high-value DX win; can land before M1. |
 | `hdlpkg tree` dependency view | `cli.py` | Pretty-print the dependency graph once the resolver (M1) exists. |
-| Example IP cores under `examples/` | `examples/` | A couple of real `ip.toml` cores (a FIFO, a UART) to drive integration tests and docs. |
 | Coverage gate ratchet | `pyproject.toml` | Raise `fail_under` from 85 toward ~95 as the implemented surface grows; it sits at ~96% today. |
 | Pre-commit hooks (ruff + mypy) | `.pre-commit-config.yaml` | Run `ruff check` / `ruff format` / `mypy` on commit so issues are caught before CI. High value, low effort. |
 | Property-based tests (Hypothesis) | `tests/unit/`, dev extra | Excellent fit for `version.py`: invariants like `Version.parse(str(v)) == v` and "sorted order matches SemVer precedence", plus fuzzing the constraint grammar. |
@@ -86,6 +85,22 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Examples and developer experience — June 2026
+- [x] **Bundled example IP cores under `examples/`.** Added two real cores with
+  valid `ip.toml` manifests: `acme:common:fifo:1.0.0` (a synchronous FWFT FIFO,
+  leaf) and `acme:comm:uart:1.2.0` (an 8N1 UART whose receive path buffers bytes
+  in the FIFO, so it declares `"acme:common:fifo" = "^1.0.0"`). Together they form
+  a minimal self-contained two-node dependency graph that will exercise the
+  resolver (M1) once it lands. Each core ships small synthesizable SystemVerilog
+  (`rtl/`) plus a smoke testbench (`tb/`) so every fileset path resolves to a real
+  file. A new `tests/integration/test_examples.py` guards three properties in CI:
+  every manifest validates (via `Manifest` and the `hdlpkg validate` path), every
+  fileset-referenced file exists on disk, and every `acme` dependency points at
+  another bundled example. Rationale: gives the docs concrete cores to point at
+  and replaces inline-only fixtures with on-disk manifests, catching schema drift
+  and dangling source paths automatically. Files: `examples/`, `examples/README.md`,
+  `tests/integration/test_examples.py`.
 
 ### Project bootstrap — June 2026
 - [x] **Repository, Python project scaffolding, and conventions established.**
