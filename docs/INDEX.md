@@ -54,6 +54,7 @@ quick-find reference.
 |------|--------|
 | `tests/conftest.py` | Shared fixtures (`sample_manifest_toml`, `write_manifest`) + local per-module summary hook |
 | `tests/unit/test_version.py` | SemVer parsing/precedence, constraint grammar, pre-release rules |
+| `tests/unit/test_version_properties.py` | Hypothesis property tests: round-trip, total order, constraint containment, grammar fuzzing |
 | `tests/unit/test_vlnv.py` | `PackageRef` / `Vlnv` parse, validate, round-trip |
 | `tests/unit/test_manifest.py` | `ip.toml` happy paths + every validation error |
 | `tests/unit/test_scaffold.py` | `init` scaffolder: rendered manifest round-trips, validation errors |

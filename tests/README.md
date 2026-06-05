@@ -11,10 +11,13 @@ tests/
 ├── conftest.py                 shared fixtures + the local per-module summary hook
 ├── unit/                       fast, isolated tests (no I/O, no network)  - marker: unit
 │   ├── test_version.py
+│   ├── test_version_properties.py  Hypothesis property tests for version.py invariants
 │   ├── test_vlnv.py
 │   ├── test_manifest.py
+│   ├── test_scaffold.py
 │   ├── test_cli.py
 │   ├── test_planned_stubs.py
+│   ├── test_precommit_config.py    .pre-commit-config.yaml parses + keeps CI hooks
 │   └── test_docs_site.py       mkdocs.yml parses + every nav page exists
 └── integration/                multi-module / filesystem tests            - marker: integration
     ├── test_manifest_cli_flow.py
@@ -87,6 +90,17 @@ Plus pytest built-ins you'll use a lot: `tmp_path`, `monkeypatch`, `capsys`.
 5. Keep unit tests pure — if you need files, use `tmp_path`/`write_manifest` and
    mark the test `integration`.
 6. Run `pytest` and keep coverage at/above the gate.
+
+## Property-based tests (Hypothesis)
+
+`test_version_properties.py` uses [Hypothesis](https://hypothesis.readthedocs.io)
+to assert *invariants* over generated inputs (round-trip `Version.parse(str(v)) ==
+v`, total-order/`sorted` consistency, constraint containment, and grammar fuzzing)
+rather than fixed examples. Hypothesis ships in the `dev` extra. Use a shared
+`settings(max_examples=..., deadline=None)` decorator to keep the loop fast and to
+avoid wall-clock-per-example flakiness on AV-throttled machines (see `CLAUDE.md`).
+Reach for it when a module has algebraic invariants; keep example-based tests for
+specific, named edge cases.
 
 ## Testability rule (from the AI instructions)
 

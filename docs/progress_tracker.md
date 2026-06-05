@@ -64,7 +64,6 @@ _None._
 | Issue | File | Notes |
 |-------|------|-------|
 | `hdlpkg tree` dependency view | `cli.py` | Pretty-print the dependency graph once the resolver (M1) exists. |
-| Property-based tests (Hypothesis) | `tests/unit/`, dev extra | Excellent fit for `version.py`: invariants like `Version.parse(str(v)) == v` and "sorted order matches SemVer precedence", plus fuzzing the constraint grammar. |
 | Release automation (tag -> PyPI) | `.github/workflows/` | On an `X.Y.Z` tag: build wheel + sdist and publish to PyPI via OIDC trusted publishing (mirrors the reference project's tag-driven release). |
 
 ---
@@ -81,6 +80,21 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Property-based tests (Hypothesis) — June 2026
+- [x] **Added Hypothesis property tests for `version.py`.** New
+  `tests/unit/test_version_properties.py` asserts the invariants that must hold for
+  every input, complementing the example-based `test_version.py`: the parse/render
+  round-trip (`Version.parse(str(v)) == v` and exact string round-trip), that
+  ordering is a genuine total order (trichotomy + antisymmetry) and that `sorted`
+  agrees with it, that a constraint built from a version contains/excludes that
+  version per its operator (`^`/`~`/`=`/`>=`/`<=` include, `>`/`<` exclude, and `^`
+  excludes the next major), and grammar fuzzing that `Version.parse` /
+  `VersionConstraint.parse` only ever raise their declared error type on arbitrary
+  text. A shared `settings(max_examples=60, deadline=None)` keeps the loop fast and
+  sidesteps wall-clock-per-example flakiness on the AV-throttled paths noted in
+  `CLAUDE.md`. Added `hypothesis` to the `dev` extra. Files:
+  `tests/unit/test_version_properties.py`, `pyproject.toml`.
 
 ### Pre-commit hooks — June 2026
 - [x] **Added `.pre-commit-config.yaml` mirroring the CI gates.** Contributors can

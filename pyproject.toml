@@ -33,6 +33,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "pytest-randomly>=3.15",   # shuffles test order to surface inter-test coupling
+    "hypothesis>=6.100",       # property-based testing (version.py invariants + grammar fuzzing)
     "ruff>=0.6",               # linter + formatter
     "mypy>=1.11",              # static type checker
     "pre-commit>=3.7",         # runs ruff + mypy as git hooks (.pre-commit-config.yaml)
