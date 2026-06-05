@@ -40,7 +40,9 @@ quick-find reference.
 |------|---------|
 | `pyproject.toml` | Project metadata, deps, and all tool config (pytest, coverage, ruff, mypy) — single source of truth |
 | `scripts/render_test_summary.py` | Renders a foldable Markdown test report from JUnit XML into the GitHub step summary (and stdout locally) |
+| `scripts/check_release_version.py` | Release guard: fails if a git tag does not match `[project].version` in `pyproject.toml` |
 | `.github/workflows/ci.yml` | CI: pytest + coverage + ruff + mypy across Python 3.11/3.12, renders the test summary |
+| `.github/workflows/release.yml` | Tag-driven release: build wheel + sdist and publish to PyPI via OIDC trusted publishing |
 | `.pre-commit-config.yaml` | Local git hooks mirroring CI (ruff lint + format, mypy on `src/`) + hygiene hooks |
 | `mkdocs.yml` | MkDocs Material config for the docs site (nav over `docs/`, theme, validation) |
 | `.github/workflows/docs.yml` | Builds the MkDocs site and publishes it to GitHub Pages on push to `main` |
@@ -62,6 +64,7 @@ quick-find reference.
 | `tests/unit/test_planned_stubs.py` | Resolver/registry seams import and fail loudly |
 | `tests/unit/test_docs_site.py` | `mkdocs.yml` parses and every `nav` page exists under `docs/` |
 | `tests/unit/test_precommit_config.py` | `.pre-commit-config.yaml` parses and keeps the CI-mirroring hooks |
+| `tests/unit/test_check_release_version.py` | Release version guard: tag-to-version parsing + tag/package match check |
 | `tests/integration/test_manifest_cli_flow.py` | Manifest-on-disk → CLI end to end |
 | `tests/integration/test_examples.py` | Bundled `examples/` cores validate, file paths exist, deps stay in-tree |
 

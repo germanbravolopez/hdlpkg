@@ -64,7 +64,6 @@ _None._
 | Issue | File | Notes |
 |-------|------|-------|
 | `hdlpkg tree` dependency view | `cli.py` | Pretty-print the dependency graph once the resolver (M1) exists. |
-| Release automation (tag -> PyPI) | `.github/workflows/` | On an `X.Y.Z` tag: build wheel + sdist and publish to PyPI via OIDC trusted publishing (mirrors the reference project's tag-driven release). |
 
 ---
 
@@ -80,6 +79,22 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Release automation (tag -> PyPI) — June 2026
+- [x] **Added a tag-driven PyPI release workflow.** New
+  `.github/workflows/release.yml` fires on an `X.Y.Z` (or `X.Y.Z-rc.N`) tag, builds
+  the wheel + sdist with `python -m build`, and publishes them to PyPI via OIDC
+  "trusted publishing" (`pypa/gh-action-pypi-publish`, `id-token: write`, a `pypi`
+  environment) so no API token is stored in the repo. The build job first runs a
+  new `scripts/check_release_version.py` guard that fails the release if the git
+  tag disagrees with `[project].version` in `pyproject.toml`, preventing a
+  mislabelled artifact. The guard's comparison logic is pure (it takes the ref and
+  the `pyproject.toml` text as arguments) and unit-tested in
+  `tests/unit/test_check_release_version.py`; only its `main` touches the
+  environment/filesystem. Both files are stdlib-only (`tomllib`). One-time setup is
+  required on PyPI (register the repo + workflow as a trusted publisher and create
+  the `pypi` environment). Files: `.github/workflows/release.yml`,
+  `scripts/check_release_version.py`, `tests/unit/test_check_release_version.py`.
 
 ### Property-based tests (Hypothesis) — June 2026
 - [x] **Added Hypothesis property tests for `version.py`.** New

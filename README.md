@@ -172,6 +172,16 @@ commit directly to `main`.** Work happens on a branch and merges via pull reques
    each commit so these are caught locally before CI.
 4. Open a PR into `main` and merge with a merge commit.
 
+### Releasing
+
+Releases are tag-driven. Bump `[project].version` in `pyproject.toml`, then push a
+matching `X.Y.Z` tag: `.github/workflows/release.yml` builds the wheel + sdist and
+publishes them to PyPI via OIDC trusted publishing. A guard
+(`scripts/check_release_version.py`) fails the run if the tag and the packaged
+version disagree, so the tag is the single source of truth for the published
+version. (One-time: register the repo as a PyPI trusted publisher and create the
+`pypi` environment.)
+
 See [docs/ai_agent_instructions.md](./docs/ai_agent_instructions.md) for the full
 agent obligations and coding conventions.
 
