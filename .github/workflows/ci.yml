@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, "feature/**"]
+  pull_request:
+    branches: [main, develop, "feature/**"]
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-type:
+    name: Lint & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install (dev extras)
+        run: python -m pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check . --output-format=github
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Mypy (strict, src/)
+        run: mypy
+
+  test:
+    name: Test (py${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install (dev extras)
+        run: python -m pip install -e ".[dev]"
+
+      # Run the suite (coverage gate comes from [tool.coverage.report] fail_under
+      # in pyproject.toml). Capture pytest's exit code, render the foldable
+      # Markdown summary into the run page either way, then propagate the code so a
+      # test failure still fails the job.
+      - name: Test
+        shell: bash
+        run: |
+          set +e
+          pytest --cov=hdl_ip_packager --cov-report=xml --cov-report=term-missing \
+                 --junitxml=test-results.xml
+          code=$?
+          python scripts/render_test_summary.py \
+                 --title "Test results (py${{ matrix.python-version }}, ${{ matrix.os }})"
+          exit $code
+
+      - name: Upload test + coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-py${{ matrix.python-version }}-${{ matrix.os }}
+          path: |
+            test-results.xml
+            coverage.xml
+          if-no-files-found: ignore

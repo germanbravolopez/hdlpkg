@@ -1,0 +1,119 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hdl-ip-packager"
+version = "0.0.1"
+description = "An IP packager and dependency manager for HDL (Verilog/VHDL/SystemVerilog) design reuse."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "German Bravo Lopez", email = "gebralo@hotmail.com" }]
+keywords = ["hdl", "fpga", "asic", "ip", "package-manager", "verilog", "vhdl", "systemverilog", "eda"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+
+# Runtime dependencies are intentionally minimal for the foundation slice.
+# tomllib (TOML reader) is in the stdlib since 3.11, so no parser dependency
+# is needed yet. Add new runtime deps here as modules land (see
+# docs/progress_tracker.md for the roadmap).
+dependencies = []
+
+[project.optional-dependencies]
+# Everything needed to develop and test the project. Install with:
+#   pip install -e ".[dev]"
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-randomly>=3.15",   # shuffles test order to surface inter-test coupling
+    "ruff>=0.6",               # linter + formatter
+    "mypy>=1.11",              # static type checker
+]
+
+[project.scripts]
+# The `hdlpkg` command-line entry point.
+hdlpkg = "hdl_ip_packager.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/germanbravolopez/hdl-ip-packager"
+Documentation = "https://github.com/germanbravolopez/hdl-ip-packager/tree/main/docs"
+Repository = "https://github.com/germanbravolopez/hdl-ip-packager"
+Issues = "https://github.com/germanbravolopez/hdl-ip-packager/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hdl_ip_packager"]
+
+# --------------------------------------------------------------------------- #
+# Tooling configuration — single source of truth lives in this file (PEP 518). #
+# --------------------------------------------------------------------------- #
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+# Point pytest at the src/ layout and the tests/ tree.
+pythonpath = ["src"]
+testpaths = ["tests"]
+# -ra: show a short summary of all non-passing outcomes at the end of the run.
+# --strict-markers: typo'd @pytest.mark.* names become errors, not silent skips.
+# --import-mode=importlib: the modern, src-layout-friendly import mode.
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--import-mode=importlib",
+]
+# Register custom markers here so --strict-markers can validate them. This is
+# how the suite stays scalable: new test categories declare a marker and CI can
+# select them with `-m`.
+markers = [
+    "unit: fast, isolated unit tests (no I/O, no network).",
+    "integration: tests that exercise multiple modules or touch the filesystem.",
+    "slow: tests that take more than ~1s; excluded from the default fast loop with -m 'not slow'.",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["hdl_ip_packager"]
+# __main__.py is a 3-line `python -m` shim exercised only via subprocess; not
+# worth measuring. Everything else in the package is.
+omit = ["*/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+# Fail CI if coverage of the implemented code regresses. Raise this number as
+# the implemented surface grows (see docs/ai_agent_instructions.md).
+fail_under = 85
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py311"
+
+[tool.ruff.lint]
+# A pragmatic, strict-but-not-noisy default set. E/F=pyflakes+pycodestyle,
+# I=isort, UP=pyupgrade, B=bugbear, SIM=simplify, RUF=ruff-specific.
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_configs = true
+# Strict typing is enforced on the library (src/). The tests are intentionally
+# left out of the type gate: pytest fixtures + parametrize tables make full
+# strictness noisy, and the tests package has no __init__.py (pytest importlib
+# mode), so mypy can't address it as `tests.*`. Tests are validated by pytest and
+# ruff instead. Run `mypy src/tests` ad hoc if you want to type-check a test.
+files = ["src"]

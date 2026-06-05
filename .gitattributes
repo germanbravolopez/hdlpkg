@@ -1,0 +1,30 @@
+# Normalize line endings: let Git decide text vs binary, store text as LF.
+* text=auto eol=lf
+
+# Python and config are always text.
+*.py     text
+*.toml   text
+*.cfg    text
+*.ini    text
+*.md     text
+*.yml    text
+*.yaml   text
+*.json   text
+
+# Windows-only scripts keep CRLF so they run natively under PowerShell.
+*.ps1    text eol=crlf
+*.bat    text eol=crlf
+
+# HDL sources are text (kept for when example/test IP cores are added).
+*.v      text
+*.vh     text
+*.sv     text
+*.svh    text
+*.vhd    text
+*.vhdl   text
+
+# Binary assets — never apply line-ending or diff munging.
+*.png    binary
+*.ico    binary
+*.zip    binary
+*.gz     binary
