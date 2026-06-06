@@ -154,6 +154,92 @@ filesets = ["rtl"]
     assert [f.path for f in design.files] == ["l/leaf.sv", "m/mid.sv", "t/top.sv"]
 
 
+def test_fileset_depend_is_pulled_in_before_the_fileset() -> None:
+    # rtl declares depend = ["pkg"]; selecting rtl must emit pkg first.
+    toml = """\
+[package]
+vendor = "acme"
+library = "x"
+name = "withpkg"
+version = "1.0.0"
+top = "core"
+[filesets.pkg]
+files = ["pkg.sv"]
+type = "systemVerilogSource"
+[filesets.rtl]
+files = ["core.sv"]
+type = "systemVerilogSource"
+depend = ["pkg"]
+[targets.synth]
+toolflow = "vivado"
+filesets = ["rtl"]
+"""
+    design = build_eda_design(_core(toml, "w"), "synth", [])
+    assert [f.path for f in design.files] == ["w/pkg.sv", "w/core.sv"]
+
+
+def test_dependency_export_honors_fileset_depend() -> None:
+    # A dependency's rtl depends on a pkg fileset; the export must include pkg too.
+    dep = """\
+[package]
+vendor = "acme"
+library = "x"
+name = "lib"
+version = "1.0.0"
+[filesets.pkg]
+files = ["lib_pkg.sv"]
+type = "systemVerilogSource"
+[filesets.rtl]
+files = ["lib.sv"]
+type = "systemVerilogSource"
+depend = ["pkg"]
+"""
+    root = """\
+[package]
+vendor = "acme"
+library = "x"
+name = "app"
+version = "1.0.0"
+top = "app"
+[dependencies]
+"acme:x:lib" = "^1.0.0"
+[filesets.rtl]
+files = ["app.sv"]
+type = "systemVerilogSource"
+[targets.synth]
+toolflow = "vivado"
+filesets = ["rtl"]
+"""
+    design = build_eda_design(_core(root, "a"), "synth", [_core(dep, "l")])
+    assert [f.path for f in design.files] == ["l/lib_pkg.sv", "l/lib.sv", "a/app.sv"]
+
+
+def test_fileset_depend_cycle_is_safe() -> None:
+    # Mutually-dependent filesets must not loop; both still appear once.
+    toml = """\
+[package]
+vendor = "acme"
+library = "x"
+name = "cyc"
+version = "1.0.0"
+top = "a"
+[filesets.a]
+files = ["a.sv"]
+type = "systemVerilogSource"
+depend = ["b"]
+[filesets.b]
+files = ["b.sv"]
+type = "systemVerilogSource"
+depend = ["a"]
+[targets.synth]
+toolflow = "vivado"
+filesets = ["a"]
+"""
+    paths = [f.path for f in build_eda_design(_core(toml, "c"), "synth", []).files]
+    assert sorted(paths) == ["c/a.sv", "c/b.sv"]
+    assert len(paths) == 2  # no duplication despite the cycle
+
+
 def test_duplicate_paths_are_deduplicated() -> None:
     # A dependency whose rtl file resolves to the same path as another's is kept once.
     a = """\

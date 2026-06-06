@@ -18,6 +18,9 @@ non-blocking issue on richer selection):
 * A **dependency** contributes its synthesizable surface only: its fileset named
   ``rtl`` if present, otherwise every fileset whose name is not a known testbench
   name. A dependency's testbench is never compiled into a dependent's build.
+* Any selected fileset also pulls in its declared ``depend`` filesets (transitively,
+  emitted before it), so a core can state exactly what a fileset needs instead of
+  relying on the ``rtl``/``tb`` naming convention alone.
 
 Cores are emitted **dependencies first** (topologically ordered, dependents after
 their dependencies, ties broken by VLNV) so file order is valid for tools that
@@ -95,14 +98,43 @@ class CoreSource:
     root: str
 
 
+def _expand_fileset_names(manifest: Manifest, names: Sequence[str]) -> list[str]:
+    """Expand *names* with each fileset's ``depend`` closure.
+
+    A fileset may declare ``depend = [...]`` naming other filesets it needs; those
+    are emitted **before** it (and transitively), de-duplicated, so a core controls
+    exactly what a selected fileset drags in instead of relying on naming alone.
+    Unknown names and dependency cycles are skipped safely.
+    """
+    ordered: list[str] = []
+    placed: set[str] = set()
+    visiting: set[str] = set()
+
+    def visit(name: str) -> None:
+        if name in placed or name in visiting:
+            return  # already emitted, or a cycle -- stop
+        fileset = manifest.filesets.get(name)
+        if fileset is None:
+            return  # a target/depend may name a fileset that does not exist
+        visiting.add(name)
+        for dependency in fileset.depend:
+            visit(dependency)
+        visiting.discard(name)
+        placed.add(name)
+        ordered.append(name)
+
+    for name in names:
+        visit(name)
+    return ordered
+
+
 def _fileset_files(core: CoreSource, fileset_names: Sequence[str]) -> list[EdaFile]:
-    """Resolve the files of the named filesets of *core* into ordered EdaFiles."""
+    """Resolve the files of the named filesets of *core* (plus their ``depend``
+    closure) into ordered EdaFiles."""
     out: list[EdaFile] = []
     vlnv = str(core.manifest.vlnv)
-    for name in fileset_names:
-        fileset = core.manifest.filesets.get(name)
-        if fileset is None:
-            continue
+    for name in _expand_fileset_names(core.manifest, fileset_names):
+        fileset = core.manifest.filesets[name]  # _expand only yields existing names
         file_type = normalize_file_type(fileset.type)
         for rel in fileset.files:
             out.append(
