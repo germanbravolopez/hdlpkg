@@ -16,18 +16,20 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
+from .cache import ContentAddressedCache, default_cache_root
 from .exceptions import HdlPackagerError, ManifestError
 from .lockfile import LOCKFILE_FILENAME, Lockfile, sha256_digest
 from .manifest import MANIFEST_FILENAME, Manifest
+from .registry import LocalDirectoryRegistry, available_from_registry
+from .resolver import Resolution
 from .resolver import resolve as resolve_deps
 from .scaffold import DEFAULT_VERSION, ScaffoldOptions, render_manifest
-from .vlnv import PackageRef, Vlnv
+from .vlnv import Vlnv
 
 # Commands that have a real implementation today. Everything else is a planned
 # stub (see docs/progress_tracker.md) and reports as much instead of pretending.
 _PLANNED = {
     "add": "add a dependency to ip.toml",
-    "install": "resolve + fetch dependencies into the local cache",
     "pack": "package this core into a distributable .ipkg artifact",
     "publish": "publish this core to a registry",
     "pull": "download a core from a registry by VLNV",
@@ -100,6 +102,29 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"where to write the lockfile (default: ./{LOCKFILE_FILENAME} next to the manifest)",
     )
     p_resolve.set_defaults(func=_cmd_resolve)
+
+    p_install = sub.add_parser(
+        "install", help="resolve dependencies and fetch them into the local cache"
+    )
+    p_install.add_argument(
+        "path",
+        nargs="?",
+        default=MANIFEST_FILENAME,
+        help=f"path to the root manifest (default: ./{MANIFEST_FILENAME})",
+    )
+    p_install.add_argument(
+        "--search",
+        action="append",
+        metavar="DIR",
+        help="directory to scan for available cores (repeatable)",
+    )
+    p_install.add_argument(
+        "--cache-dir", metavar="DIR", help="cache root (default: ~/.hdlpkg/cache)"
+    )
+    p_install.add_argument(
+        "--output", help=f"where to write the lockfile (default: ./{LOCKFILE_FILENAME})"
+    )
+    p_install.set_defaults(func=_cmd_install)
 
     for name, help_text in _PLANNED.items():
         p = sub.add_parser(name, help=f"[planned] {help_text}")
@@ -175,57 +200,52 @@ def _cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-def _display_path(path: Path) -> str:
-    """A forward-slash path relative to the cwd when possible, else absolute."""
-    resolved = path.resolve()
-    try:
-        return resolved.relative_to(Path.cwd()).as_posix()
-    except ValueError:
-        return resolved.as_posix()
+def _resolve_local(
+    manifest_path: Path, search: list[str] | None
+) -> tuple[Resolution, LocalDirectoryRegistry]:
+    """Resolve *manifest_path* against a local-directory registry over *search*."""
+    root = Manifest.from_path(manifest_path)
+    search_dirs = search or [str(manifest_path.resolve().parent)]
+    registry = LocalDirectoryRegistry([Path(d) for d in search_dirs])
+    resolution = resolve_deps(root, available_from_registry(registry, root))
+    return resolution, registry
 
 
-def _discover_cores(
-    search_dirs: list[str], exclude: Path
-) -> tuple[dict[PackageRef, list[Manifest]], dict[Vlnv, str], dict[Vlnv, str]]:
-    """Scan *search_dirs* for ``ip.toml`` cores; return an index plus source/checksum maps.
-
-    Invalid or unreadable manifests are skipped (a search tree may hold non-core
-    TOML). This local-directory scan is a stopgap until M4 routes the available
-    versions through the registry backends.
-    """
-    index: dict[PackageRef, list[Manifest]] = {}
-    sources: dict[Vlnv, str] = {}
-    checksums: dict[Vlnv, str] = {}
-    for directory in search_dirs:
-        base = Path(directory)
-        if not base.is_dir():
-            continue
-        for path in sorted(base.rglob(MANIFEST_FILENAME)):
-            if path.resolve() == exclude:
-                continue
-            try:
-                data = path.read_bytes()
-                manifest = Manifest.from_str(data.decode("utf-8"))
-            except (HdlPackagerError, OSError, UnicodeDecodeError):
-                continue
-            index.setdefault(manifest.ref, []).append(manifest)
-            sources[manifest.vlnv] = f"path:{_display_path(path.parent)}"
-            checksums[manifest.vlnv] = sha256_digest(data)
-    return index, sources, checksums
+def _build_lock(resolution: Resolution, registry: LocalDirectoryRegistry) -> Lockfile:
+    """Build a lockfile, taking each pinned core's source/checksum from *registry*."""
+    sources = {vlnv: registry.source_for(vlnv) for vlnv in resolution.vlnvs}
+    checksums = {vlnv: sha256_digest(registry.artifact_bytes(vlnv)) for vlnv in resolution.vlnvs}
+    return Lockfile.from_resolution(resolution, sources=sources, checksums=checksums)
 
 
 def _cmd_resolve(args: argparse.Namespace) -> int:
     manifest_path = Path(args.path)
-    root = _load(args.path)
-    search_dirs = args.search or [str(manifest_path.resolve().parent)]
-    index, sources, checksums = _discover_cores(search_dirs, manifest_path.resolve())
-
-    resolution = resolve_deps(root, index)
-    lock = Lockfile.from_resolution(resolution, sources=sources, checksums=checksums)
+    resolution, registry = _resolve_local(manifest_path, args.search)
+    lock = _build_lock(resolution, registry)
     output = Path(args.output) if args.output else manifest_path.parent / LOCKFILE_FILENAME
     output.write_text(lock.to_toml(), encoding="utf-8")
 
     print(f"Resolved {len(resolution.vlnvs)} package(s); wrote {output}")
+    for vlnv in resolution.vlnvs:
+        print(f"  {vlnv}")
+    return 0
+
+
+def _cmd_install(args: argparse.Namespace) -> int:
+    manifest_path = Path(args.path)
+    resolution, registry = _resolve_local(manifest_path, args.search)
+    lock = _build_lock(resolution, registry)
+
+    cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
+    cache = ContentAddressedCache(cache_root)
+    fetched: dict[Vlnv, str] = {vlnv: registry.fetch(vlnv, cache) for vlnv in resolution.vlnvs}
+    # The just-fetched digests must match what the lockfile pinned (fail closed).
+    lock.verify(fetched)
+
+    output = Path(args.output) if args.output else manifest_path.parent / LOCKFILE_FILENAME
+    output.write_text(lock.to_toml(), encoding="utf-8")
+
+    print(f"Installed {len(fetched)} package(s) into {cache_root}; wrote {output}")
     for vlnv in resolution.vlnvs:
         print(f"  {vlnv}")
     return 0

@@ -34,7 +34,7 @@ quick-find reference.
 | Resolver | `src/hdl_ip_packager/resolver.py` | implemented |
 | Lockfile (`ip.lock`) | `src/hdl_ip_packager/lockfile.py` | implemented |
 | Content-addressed cache | `src/hdl_ip_packager/cache.py` | implemented |
-| Registry | `src/hdl_ip_packager/registry.py` | planned (seam) |
+| Registry (local + HTTP) | `src/hdl_ip_packager/registry.py` | implemented |
 
 ## Tooling & build files
 
@@ -67,7 +67,7 @@ quick-find reference.
 | `tests/unit/test_lockfile.py` | Lockfile model: round-trip, determinism, parse errors, checksum verification |
 | `tests/integration/test_resolve_cli.py` | `hdlpkg resolve` end to end on the bundled examples |
 | `tests/integration/test_cache.py` | Content-addressed cache: round-trip, dedup, verify-on-read corruption |
-| `tests/unit/test_planned_stubs.py` | Registry seam imports and fails loudly |
+| `tests/integration/test_registry.py` | Local + HTTP registries, graph walker, `install` fetch-into-cache |
 | `tests/unit/test_docs_site.py` | `mkdocs.yml` parses and every `nav` page exists under `docs/` |
 | `tests/unit/test_precommit_config.py` | `.pre-commit-config.yaml` parses and keeps the CI-mirroring hooks |
 | `tests/unit/test_check_release_version.py` | Release version guard: tag-to-version parsing + tag/package match check |
@@ -82,8 +82,8 @@ quick-find reference.
 | `hdlpkg validate [path]` | implemented | Parse + validate a manifest (exit 0 if OK) |
 | `hdlpkg init [dir]` | implemented | Scaffold a starter `ip.toml` (flags or interactive prompts) |
 | `hdlpkg add <vlnv>` | planned | Add a dependency to `ip.toml` |
-| `hdlpkg resolve [path] [--search DIR] [--output]` | implemented | Resolve deps against local cores, write `ip.lock` |
-| `hdlpkg install` | planned | Resolve + fetch into the cache |
+| `hdlpkg resolve [path] [--search DIR] [--output]` | implemented | Resolve deps against a local registry, write `ip.lock` |
+| `hdlpkg install [path] [--search] [--cache-dir]` | implemented | Resolve + fetch into the content-addressed cache (verified) |
 | `hdlpkg pack` | planned | Build a `.ipkg` artifact |
 | `hdlpkg publish` | planned | Publish to a registry |
 | `hdlpkg pull <vlnv>` | planned | Download a core by VLNV |

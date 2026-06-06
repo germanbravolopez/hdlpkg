@@ -32,14 +32,17 @@ unit-tested (151 passing tests, ~96% coverage):
 - **Lockfile** — deterministic `ip.lock` (serialize/parse/verify a `Resolution`
   with per-core source + SHA-256), written by `hdlpkg resolve`.
 - **Cache** — content-addressed local blob store (SHA-256 key, verify-on-read,
-  atomic writes); awaiting registry backends (M4) to populate it.
-- **CLI** — `hdlpkg info`, `hdlpkg validate`, `hdlpkg init` (scaffold), and
-  `hdlpkg resolve` (deps -> `ip.lock` via a local core scan) work; the remaining
-  commands are wired and report planned status.
+  atomic writes), populated by `hdlpkg install`.
+- **Registry** — `Registry` interface + `LocalDirectoryRegistry` and `HttpRegistry`
+  backends + a dependency-graph walker feeding the resolver (Git/OCI backends are
+  open Non-Blocking issues).
+- **CLI** — `hdlpkg info`/`validate`/`init`/`resolve`/`install` work (`install`
+  resolves and fetches deps into the verified cache); `pack`/`publish`/`pull`/`gen`/
+  `export-ipxact`/`add` are wired and report planned status.
 - **Tooling** — pytest (markers + coverage gate + foldable summary), ruff, mypy
   strict on `src/`, CI workflow, and a cross-platform test-summary renderer.
 
-**Next**: implement the **Registry backends** (Roadmap M4). M3+M4 ship as `0.3.0`.
+**Next**: implement **`pack` / `publish` / `pull`** (Roadmap M5), which ships as `0.4.0`.
 
 ---
 
@@ -51,7 +54,6 @@ unit-tested (151 passing tests, ~96% coverage):
 
 | # | Milestone | Scope | Key files |
 |---|-----------|-------|-----------|
-| M4 | **Registry backends** | `Registry` impls: local dir, Git channel, HTTP index, **OCI artifact** registry. | `registry.py` |
 | M5 | **`pack` / `publish` / `pull`** | Build `.ipkg`; append-only publish with yank; fetch by VLNV. | `cli.py`, `packaging.py` (new) |
 | M6 | **Tool-flow generation** | EDAM-like intermediate → simulator/synth inputs (start: Verilator, Vivado). | `backends/` (new) |
 | M7 | **IP-XACT export** | IEEE 1685 XML for Vivado/other-tool interop. | `ipxact.py` (new) |
@@ -107,7 +109,9 @@ _None._
 
 | Issue | File | Notes |
 |-------|------|-------|
-| `hdlpkg tree` dependency view | `cli.py` | Pretty-print the dependency graph once the resolver (M1) exists. |
+| Git-backed registry | `registry.py` | A `Registry` backend resolving cores from a Git channel (tags/refs). Deferred from M4: needs the `git` CLI + a remote to implement and test honestly. Mirror the `LocalDirectoryRegistry`/`HttpRegistry` shape. |
+| OCI artifact registry | `registry.py` | The differentiator backend: store/fetch cores as OCI artifacts (Docker-registry infra). Deferred from M4: needs a live OCI registry (or a mock) and the manifest/blob API; significant standalone work. |
+| `hdlpkg tree` dependency view | `cli.py` | Pretty-print the dependency graph (resolver + registry now exist). |
 
 ---
 
@@ -123,6 +127,31 @@ _None._
 ---
 
 ## Completed Milestones
+
+### M4 — Registry backends (local + HTTP) + `hdlpkg install` — June 2026
+- [x] **Implemented the registry layer and wired `hdlpkg install`.** `registry.py`
+  now defines the `Registry` ABC (`versions`/`manifest`/`artifact_bytes` + a shared
+  `fetch` that stores a core's artifact in the content-addressed cache, and a
+  default `publish` that errors until M5) plus two concrete backends:
+  `LocalDirectoryRegistry` (discovers cores by scanning directory trees for
+  `ip.toml`) and `HttpRegistry` (a static HTTP index:
+  `{base}/{vendor}/{library}/{name}/versions.json` + `.../{version}/ip.toml`,
+  fetched with stdlib `urllib`). `available_from_registry()` walks the dependency
+  graph to build the resolver's input, so resolution now runs against a registry
+  rather than an ad-hoc scan. The `resolve` CLI was refactored onto
+  `LocalDirectoryRegistry`, and a new `install` command resolves then fetches every
+  pinned core into the cache (`--cache-dir`, default `~/.hdlpkg/cache`), verifying
+  each fetched digest against the lockfile (fail closed). The HTTP backend is tested
+  against a localhost `http.server`. Exposed `Registry`/`LocalDirectoryRegistry`/
+  `HttpRegistry`/`available_from_registry` from the package API; removed the now
+  -obsolete `test_planned_stubs.py`. A core's "artifact" is its manifest bytes until
+  M5 packaging defines the packed form (the interface is unchanged by that).
+  **Deferred** (now Open Non-Blocking Issues): the **Git-backed** and **OCI
+  artifact** registry backends — both need external tooling / a live service to
+  build and test, so they could not land honestly within this milestone. Files:
+  `src/hdl_ip_packager/registry.py`, `src/hdl_ip_packager/cli.py`,
+  `src/hdl_ip_packager/__init__.py`, `tests/integration/test_registry.py`,
+  `tests/integration/test_resolve_cli.py`, `tests/unit/test_cli.py`.
 
 ### M3 — Content-addressed cache — June 2026
 - [x] **Implemented the content-addressed local cache (`cache.py`).**

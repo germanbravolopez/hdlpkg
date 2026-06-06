@@ -40,14 +40,15 @@ Implemented today:
   `Vlnv` per package (fail-on-conflict, pre-release-aware).
 - **Lockfile (`ip.lock`)** — a deterministic, verifiable record of a resolve
   (exact VLNVs + source + SHA-256), written by `hdlpkg resolve`.
-- **CLI (`hdlpkg`)** — `info`, `validate`, `init` (scaffold a starter `ip.toml`),
-  and `resolve` work today; the rest of the command surface is wired and reports
-  its planned status.
+- **Content-addressed cache + registries** — a SHA-256-keyed local cache with
+  verify-on-read, fed by local-directory and HTTP registry backends; `hdlpkg
+  install` resolves and fetches dependencies into it.
+- **CLI (`hdlpkg`)** — `info`, `validate`, `init`, `resolve`, and `install` work
+  today; the rest of the command surface is wired and reports its planned status.
 
 Designed and on the roadmap (see the progress tracker):
 
-- A content-addressed **cache** and pluggable **registries** (local, Git, HTTP,
-  and OCI artifact registries).
+- Additional **registries** (Git-backed channel, OCI artifact registry).
 - **Packaging** (`.ipkg`), **publish/pull**, tool-flow **generation** (EDAM), and
   **IP-XACT export** for Vivado/other-tool interop.
 
@@ -83,6 +84,7 @@ hdlpkg init --vendor acme --library comm --name uart   # scaffold a starter ip.t
 hdlpkg info ip.toml           # print the parsed identity, deps, filesets, targets
 hdlpkg validate ip.toml       # parse + validate a manifest (exit 0 if OK)
 hdlpkg resolve ip.toml --search ../cores   # resolve deps to a deterministic ip.lock
+hdlpkg install ip.toml --search ../cores   # resolve + fetch deps into the cache
 python -m hdl_ip_packager info   # same CLI, invoked as a module
 ```
 

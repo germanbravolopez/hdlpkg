@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from hdl_ip_packager import cli
+from hdl_ip_packager.cache import ContentAddressedCache
 from hdl_ip_packager.lockfile import Lockfile, sha256_digest
 
 pytestmark = pytest.mark.integration
@@ -40,13 +41,36 @@ def test_resolve_writes_lockfile_for_examples(tmp_path, capsys: pytest.CaptureFi
     lock.verify({p.vlnv: p.checksum for p in lock.packages})
 
 
-def test_resolve_is_deterministic() -> None:
-    # Running twice yields byte-identical lockfile text.
-    from hdl_ip_packager.manifest import Manifest
-    from hdl_ip_packager.resolver import resolve
+def test_install_fetches_into_cache(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
+    cache_dir = tmp_path / "cache"
+    output = tmp_path / "ip.lock"
+    rc = cli.main(
+        [
+            "install",
+            str(_UART),
+            "--search",
+            str(_EXAMPLES),
+            "--cache-dir",
+            str(cache_dir),
+            "--output",
+            str(output),
+        ]
+    )
+    assert rc == 0
+    assert "Installed 1 package(s)" in capsys.readouterr().out
 
-    root = Manifest.from_path(_UART)
-    cli_index, sources, checksums = cli._discover_cores([str(_EXAMPLES)], _UART.resolve())
-    first = Lockfile.from_resolution(resolve(root, cli_index), sources, checksums).to_toml()
-    second = Lockfile.from_resolution(resolve(root, cli_index), sources, checksums).to_toml()
-    assert first == second
+    # The fetched core is in the cache under its locked checksum, and verifies.
+    lock = Lockfile.from_path(output)
+    cache = ContentAddressedCache(cache_dir)
+    for pkg in lock.packages:
+        assert cache.has(pkg.checksum)
+        assert sha256_digest(cache.get(pkg.checksum)) == pkg.checksum
+
+
+def test_resolve_is_deterministic(tmp_path) -> None:
+    # Running the command twice yields byte-identical lockfile text.
+    first, second = tmp_path / "a.lock", tmp_path / "b.lock"
+    for output in (first, second):
+        argv = ["resolve", str(_UART), "--search", str(_EXAMPLES), "--output", str(output)]
+        assert cli.main(argv) == 0
+    assert first.read_bytes() == second.read_bytes()

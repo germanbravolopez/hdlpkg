@@ -117,7 +117,7 @@ def test_init_interactive_blank_answer_still_fails(tmp_path, monkeypatch) -> Non
     assert not (tmp_path / "ip.toml").exists()
 
 
-@pytest.mark.parametrize("command", ["install", "pack", "publish", "pull"])
+@pytest.mark.parametrize("command", ["pack", "publish", "pull"])
 def test_planned_commands_report_not_implemented(
     command: str, capsys: pytest.CaptureFixture[str]
 ) -> None:

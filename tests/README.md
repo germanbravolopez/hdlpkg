@@ -18,13 +18,13 @@ tests/
 │   ├── test_resolver.py            backtracking dependency resolution
 │   ├── test_lockfile.py            ip.lock model: round-trip + verification
 │   ├── test_cli.py
-│   ├── test_planned_stubs.py
 │   ├── test_precommit_config.py    .pre-commit-config.yaml parses + keeps CI hooks
 │   └── test_docs_site.py       mkdocs.yml parses + every nav page exists
 └── integration/                multi-module / filesystem tests            - marker: integration
     ├── test_manifest_cli_flow.py
     ├── test_resolve_cli.py         hdlpkg resolve end to end on examples/
     ├── test_cache.py               content-addressed cache (verify-on-read)
+    ├── test_registry.py            local + HTTP registries, graph walk, install
     └── test_examples.py         validates the bundled examples/ cores
 ```
 

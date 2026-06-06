@@ -48,7 +48,7 @@ All source lives under [src/hdl_ip_packager/](../src/hdl_ip_packager/).
 | Resolver | [resolver.py](../src/hdl_ip_packager/resolver.py) | implemented | Constraints → one concrete `Vlnv` per package (backtracking, newest-compatible) |
 | Lockfile | [lockfile.py](../src/hdl_ip_packager/lockfile.py) | implemented | Serialize/parse/verify `ip.lock` (a `Resolution` + per-core source + SHA-256) |
 | Cache | [cache.py](../src/hdl_ip_packager/cache.py) | implemented | Content-addressed local blob store (SHA-256 key, verify-on-read, atomic writes) |
-| Registry | [registry.py](../src/hdl_ip_packager/registry.py) | planned | Abstract `Registry`; local/Git/HTTP/OCI backends that fetch into the cache |
+| Registry | [registry.py](../src/hdl_ip_packager/registry.py) | implemented (local + HTTP) | Abstract `Registry` + local-dir and HTTP backends + graph walker (Git/OCI tracked as issues) |
 
 The dependency direction is strictly one-way and acyclic:
 
@@ -144,13 +144,22 @@ atomic (temp file + `os.replace`) and idempotent (content-addressing dedupes).
 offline reuse. The registry backends (M4) fetch into this store; what a blob
 contains is defined by packaging (M5).
 
-### Registry *(planned — [registry.py](../src/hdl_ip_packager/registry.py))*
-`Registry` is an ABC with `versions()`, `fetch()`, `publish()` so multiple
-backends coexist: a local directory, a Git-backed channel, an HTTP index, and —
-the differentiator — an **OCI artifact** registry (reuse Docker-registry infra:
-content-addressable, immutable, ubiquitous). `fetch()` populates the
-content-addressed cache above. Publishing is append-only with **yank** (retire
-without breaking old lockfiles).
+### Registry *(implemented: local + HTTP — [registry.py](../src/hdl_ip_packager/registry.py))*
+`Registry` is an ABC with `versions()`, `manifest()`, `artifact_bytes()`, and a
+shared `fetch()` that stores a core's artifact in the content-addressed cache
+(verified). `available_from_registry()` walks the dependency graph to build the
+`Mapping[PackageRef, Sequence[Manifest]]` the resolver consumes. Two backends ship:
+- **`LocalDirectoryRegistry`** — cores discovered by scanning directory trees for
+  `ip.toml` (the `examples/` layout); backs `hdlpkg resolve`/`install`.
+- **`HttpRegistry`** — cores served by a static HTTP index
+  (`{base}/{vendor}/{library}/{name}/versions.json` + `.../{version}/ip.toml`).
+
+Still designed but **tracked as open issues** (they need external tooling / live
+services to build and test): a **Git-backed channel** and — the differentiator —
+an **OCI artifact** registry (reuse Docker-registry infra: content-addressable,
+immutable, ubiquitous). Publishing (append-only with **yank**) lands with M5.
+A core's "artifact" is its manifest bytes until packaging (M5) defines the packed
+form; the interface does not change when it does.
 
 ### Packaging & backends *(planned)*
 - `pack` → a distributable `.ipkg` artifact (sources + manifest + integrity).

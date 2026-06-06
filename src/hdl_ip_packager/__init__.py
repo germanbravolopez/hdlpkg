@@ -24,6 +24,12 @@ from .exceptions import (
 )
 from .lockfile import LockedPackage, Lockfile, sha256_digest
 from .manifest import Dependency, Fileset, Manifest, Target
+from .registry import (
+    HttpRegistry,
+    LocalDirectoryRegistry,
+    Registry,
+    available_from_registry,
+)
 from .resolver import Resolution, resolve
 from .version import Version, VersionConstraint
 from .vlnv import PackageRef, Vlnv
@@ -35,15 +41,18 @@ __all__ = [
     "Dependency",
     "Fileset",
     "HdlPackagerError",
+    "HttpRegistry",
     "InvalidConstraintError",
     "InvalidVersionError",
     "InvalidVlnvError",
+    "LocalDirectoryRegistry",
     "LockedPackage",
     "Lockfile",
     "LockfileError",
     "Manifest",
     "ManifestError",
     "PackageRef",
+    "Registry",
     "RegistryError",
     "Resolution",
     "ResolutionError",
@@ -52,6 +61,7 @@ __all__ = [
     "VersionConstraint",
     "Vlnv",
     "__version__",
+    "available_from_registry",
     "default_cache_root",
     "resolve",
     "sha256_digest",
