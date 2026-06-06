@@ -143,3 +143,5 @@ quick-find reference.
 | Test summary in CI | `scripts/render_test_summary.py` + `.github/workflows/ci.yml` |
 | Roadmap / what to build next | `docs/progress_tracker.md` |
 | Coding conventions | `docs/ai_agent_instructions.md` + `.claude/commands/coding-guidelines.md` |
+| Branch & merge workflow (PR → merge commit) | `docs/ai_agent_instructions.md` + `README.md` §Development workflow (ruleset "main") |
+| Cutting a release | `README.md` §Releasing + `.claude/commands/release.md` |
