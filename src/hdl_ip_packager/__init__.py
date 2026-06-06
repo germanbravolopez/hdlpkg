@@ -11,6 +11,7 @@ for what is implemented versus planned.
 
 from __future__ import annotations
 
+from .cache import ContentAddressedCache, default_cache_root
 from .exceptions import (
     HdlPackagerError,
     InvalidConstraintError,
@@ -30,6 +31,7 @@ from .vlnv import PackageRef, Vlnv
 __version__ = "0.2.0"
 
 __all__ = [
+    "ContentAddressedCache",
     "Dependency",
     "Fileset",
     "HdlPackagerError",
@@ -50,6 +52,7 @@ __all__ = [
     "VersionConstraint",
     "Vlnv",
     "__version__",
+    "default_cache_root",
     "resolve",
     "sha256_digest",
 ]

@@ -31,13 +31,15 @@ unit-tested (151 passing tests, ~96% coverage):
   per package, fail-on-conflict); pure, fed by an in-memory version index.
 - **Lockfile** — deterministic `ip.lock` (serialize/parse/verify a `Resolution`
   with per-core source + SHA-256), written by `hdlpkg resolve`.
+- **Cache** — content-addressed local blob store (SHA-256 key, verify-on-read,
+  atomic writes); awaiting registry backends (M4) to populate it.
 - **CLI** — `hdlpkg info`, `hdlpkg validate`, `hdlpkg init` (scaffold), and
   `hdlpkg resolve` (deps -> `ip.lock` via a local core scan) work; the remaining
   commands are wired and report planned status.
 - **Tooling** — pytest (markers + coverage gate + foldable summary), ruff, mypy
   strict on `src/`, CI workflow, and a cross-platform test-summary renderer.
 
-**Next**: implement the **Content-addressed cache** (Roadmap M3). M1+M2 ship as `0.2.0`.
+**Next**: implement the **Registry backends** (Roadmap M4). M3+M4 ship as `0.3.0`.
 
 ---
 
@@ -49,7 +51,6 @@ unit-tested (151 passing tests, ~96% coverage):
 
 | # | Milestone | Scope | Key files |
 |---|-----------|-------|-----------|
-| M3 | **Content-addressed cache** | Local store keyed by digest; verify-on-read; offline reuse. | `registry.py`/`cache.py` |
 | M4 | **Registry backends** | `Registry` impls: local dir, Git channel, HTTP index, **OCI artifact** registry. | `registry.py` |
 | M5 | **`pack` / `publish` / `pull`** | Build `.ipkg`; append-only publish with yank; fetch by VLNV. | `cli.py`, `packaging.py` (new) |
 | M6 | **Tool-flow generation** | EDAM-like intermediate → simulator/synth inputs (start: Verilator, Vivado). | `backends/` (new) |
@@ -122,6 +123,23 @@ _None._
 ---
 
 ## Completed Milestones
+
+### M3 — Content-addressed cache — June 2026
+- [x] **Implemented the content-addressed local cache (`cache.py`).**
+  `ContentAddressedCache` is a blob store keyed by the SHA-256 of each blob's own
+  bytes, sharded git-style (`<root>/sha256/ab/cdef...`). The defining property is
+  **verify-on-read**: `get()` recomputes the digest and raises `RegistryError` if
+  it disagrees with the requested key, so a corrupted or tampered blob fails closed
+  instead of poisoning a build. `put()` is atomic (temp file + `os.replace`) and
+  idempotent (content-addressing dedupes); `has()`/`path_for()` round out the
+  surface, and digests are validated against the canonical `sha256:<hex>` form.
+  `default_cache_root()` returns a user-level dir (`~/.hdlpkg/cache`) so cores are
+  reused across projects offline. Reused `lockfile.sha256_digest` and the existing
+  `RegistryError` rather than adding a type. The store is standalone this milestone;
+  M4's registry backends fetch into it and M5's packaging defines blob contents.
+  Exposed `ContentAddressedCache`/`default_cache_root` from the package API. Files:
+  `src/hdl_ip_packager/cache.py`, `src/hdl_ip_packager/__init__.py`,
+  `tests/integration/test_cache.py`.
 
 ### Release 0.2.0 — June 2026
 - [x] **Tagged `0.2.0`** per the Release plan: the first release where the tool does

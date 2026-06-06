@@ -47,7 +47,8 @@ All source lives under [src/hdl_ip_packager/](../src/hdl_ip_packager/).
 | CLI | [cli.py](../src/hdl_ip_packager/cli.py) | implemented | `hdlpkg` entry point; `info`/`validate`/`init` work, rest are wired stubs |
 | Resolver | [resolver.py](../src/hdl_ip_packager/resolver.py) | implemented | Constraints → one concrete `Vlnv` per package (backtracking, newest-compatible) |
 | Lockfile | [lockfile.py](../src/hdl_ip_packager/lockfile.py) | implemented | Serialize/parse/verify `ip.lock` (a `Resolution` + per-core source + SHA-256) |
-| Registry/Cache | [registry.py](../src/hdl_ip_packager/registry.py) | planned | Abstract `Registry`; local/Git/HTTP/OCI backends + content-addressed cache |
+| Cache | [cache.py](../src/hdl_ip_packager/cache.py) | implemented | Content-addressed local blob store (SHA-256 key, verify-on-read, atomic writes) |
+| Registry | [registry.py](../src/hdl_ip_packager/registry.py) | planned | Abstract `Registry`; local/Git/HTTP/OCI backends that fetch into the cache |
 
 The dependency direction is strictly one-way and acyclic:
 
@@ -133,13 +134,23 @@ per package satisfying every constraint.
   lowered to a SAT/CDCL solver later without changing the contract (version
   selection is NP-complete in general).
 
-### Registry & cache *(planned — [registry.py](../src/hdl_ip_packager/registry.py))*
+### Cache *(implemented — [cache.py](../src/hdl_ip_packager/cache.py))*
+`ContentAddressedCache` is a local blob store keyed by the SHA-256 of each blob's
+own bytes (sharded git-style as `<root>/sha256/ab/cdef...`). It is **verify-on
+-read**: `get()` recomputes the digest and raises `RegistryError` if it disagrees
+with the requested key, so a corrupted/tampered blob fails closed. Writes are
+atomic (temp file + `os.replace`) and idempotent (content-addressing dedupes).
+`default_cache_root()` is a user-level dir (`~/.hdlpkg/cache`) for cross-project
+offline reuse. The registry backends (M4) fetch into this store; what a blob
+contains is defined by packaging (M5).
+
+### Registry *(planned — [registry.py](../src/hdl_ip_packager/registry.py))*
 `Registry` is an ABC with `versions()`, `fetch()`, `publish()` so multiple
 backends coexist: a local directory, a Git-backed channel, an HTTP index, and —
 the differentiator — an **OCI artifact** registry (reuse Docker-registry infra:
-content-addressable, immutable, ubiquitous). The cache is content-addressed and
-verifies SHA-256 on every read, so a corrupted/tampered core fails closed.
-Publishing is append-only with **yank** (retire without breaking old lockfiles).
+content-addressable, immutable, ubiquitous). `fetch()` populates the
+content-addressed cache above. Publishing is append-only with **yank** (retire
+without breaking old lockfiles).
 
 ### Packaging & backends *(planned)*
 - `pack` → a distributable `.ipkg` artifact (sources + manifest + integrity).

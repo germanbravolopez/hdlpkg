@@ -33,7 +33,8 @@ quick-find reference.
 | `python -m` shim | `src/hdl_ip_packager/__main__.py` | implemented |
 | Resolver | `src/hdl_ip_packager/resolver.py` | implemented |
 | Lockfile (`ip.lock`) | `src/hdl_ip_packager/lockfile.py` | implemented |
-| Registry / cache | `src/hdl_ip_packager/registry.py` | planned (seam) |
+| Content-addressed cache | `src/hdl_ip_packager/cache.py` | implemented |
+| Registry | `src/hdl_ip_packager/registry.py` | planned (seam) |
 
 ## Tooling & build files
 
@@ -65,6 +66,7 @@ quick-find reference.
 | `tests/unit/test_resolver.py` | Dependency resolver: newest-compatible, transitive, diamond, conflict, pre-release, backtracking |
 | `tests/unit/test_lockfile.py` | Lockfile model: round-trip, determinism, parse errors, checksum verification |
 | `tests/integration/test_resolve_cli.py` | `hdlpkg resolve` end to end on the bundled examples |
+| `tests/integration/test_cache.py` | Content-addressed cache: round-trip, dedup, verify-on-read corruption |
 | `tests/unit/test_planned_stubs.py` | Registry seam imports and fails loudly |
 | `tests/unit/test_docs_site.py` | `mkdocs.yml` parses and every `nav` page exists under `docs/` |
 | `tests/unit/test_precommit_config.py` | `.pre-commit-config.yaml` parses and keeps the CI-mirroring hooks |
