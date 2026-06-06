@@ -1,0 +1,27 @@
+# Dependabot keeps dependencies current with grouped, low-noise PRs.
+# It watches two ecosystems: the Python dev/docs tooling declared in
+# pyproject.toml, and the GitHub Actions pinned in the workflows (so action
+# deprecations like the Node 20 runner bump surface as PRs automatically).
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      python-tooling:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
