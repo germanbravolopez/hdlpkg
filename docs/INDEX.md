@@ -36,7 +36,7 @@ quick-find reference.
 | Content-addressed cache | `src/hdl_ip_packager/cache.py` | implemented |
 | Registry (local + HTTP + writable) | `src/hdl_ip_packager/registry.py` | implemented |
 | Packaging (`.ipkg`) | `src/hdl_ip_packager/packaging.py` | implemented |
-| Tool-flow backends (`gen`) | `src/hdl_ip_packager/backends/` | implemented (Verilator + Vivado) |
+| Tool-flow backends (`gen`) | `src/hdl_ip_packager/backends/` | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) |
 | Dependency tree view (`tree`) | `src/hdl_ip_packager/treeview.py` | implemented |
 | IP-XACT export (`export-ipxact`) | `src/hdl_ip_packager/ipxact.py` | implemented (1685-2014) |
 | SBOM (`pack --sbom`) | `src/hdl_ip_packager/sbom.py` | implemented (CycloneDX 1.5) |
@@ -53,6 +53,7 @@ quick-find reference.
 | `.pre-commit-config.yaml` | Local git hooks mirroring CI (ruff lint + format, mypy on `src/`) + hygiene hooks |
 | `mkdocs.yml` | MkDocs Material config for the docs site (nav over `docs/`, theme, validation) |
 | `.github/workflows/docs.yml` | Builds the MkDocs site and publishes it to GitHub Pages on push to `main` |
+| `.github/dependabot.yml` | Weekly grouped dependency-update PRs for pip + GitHub Actions |
 | `.gitignore` / `.gitattributes` | Ignore rules (incl. `.hdlpkg/` cache) + line-ending normalization |
 | `.claude/commands/` | Slash-command skills (`/coding-guidelines`, `/update-docs`, `/tackle-issue`, `/release`) |
 | `examples/` | Bundled example IP cores (`fifo`, `uart`) with real `ip.toml` manifests + HDL |

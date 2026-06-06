@@ -50,7 +50,7 @@ All source lives under [src/hdl_ip_packager/](../src/hdl_ip_packager/).
 | Cache | [cache.py](../src/hdl_ip_packager/cache.py) | implemented | Content-addressed local blob store (SHA-256 key, verify-on-read, atomic writes) |
 | Registry | [registry.py](../src/hdl_ip_packager/registry.py) | implemented (local + HTTP) | Abstract `Registry` + local-dir/HTTP/writable-local backends + graph walker (Git/OCI tracked as issues) |
 | Packaging | [packaging.py](../src/hdl_ip_packager/packaging.py) | implemented | Build/read the deterministic `.ipkg` artifact (`pack_core`, `extract_ipkg`) |
-| Backends | [backends/](../src/hdl_ip_packager/backends/) | implemented (Verilator + Vivado) | EDAM-like intermediate (`build_eda_design`) → tool inputs behind `hdlpkg gen` |
+| Backends | [backends/](../src/hdl_ip_packager/backends/) | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) | EDAM-like intermediate (`build_eda_design`) → tool inputs behind `hdlpkg gen` |
 | Tree view | [treeview.py](../src/hdl_ip_packager/treeview.py) | implemented | `render_dependency_tree` → ASCII dependency graph behind `hdlpkg tree` |
 | IP-XACT | [ipxact.py](../src/hdl_ip_packager/ipxact.py) | implemented | `to_ipxact` → IEEE 1685-2014 component XML behind `hdlpkg export-ipxact` |
 | SBOM | [sbom.py](../src/hdl_ip_packager/sbom.py) | implemented (CycloneDX) | `build_cyclonedx` → deterministic CycloneDX 1.5 SBOM behind `hdlpkg pack --sbom` |
@@ -183,10 +183,13 @@ root core, its resolved dependencies, and a chosen target, then hands it to the
 `Backend` selected by the target's `toolflow`. The root contributes its target's
 filesets (testbench included for `sim`, excluded for `synth`); each dependency
 contributes only its synthesizable surface (its `rtl` fileset, or all non-testbench
-filesets), emitted dependencies-first via a topological sort. Two backends ship:
-`VerilatorBackend` (a `.vc` command file) and `VivadoBackend` (a `.tcl` source
-script); both are pure (`generate` returns `{filename: text}`), so the CLI does the
-file writing. Tool specifics stay out of the manifest/resolver/packaging layers.
+filesets), emitted dependencies-first via a topological sort. Any selected fileset
+also pulls in its declared `depend` filesets (transitively, before it), so a core
+can state exactly what a fileset needs. Five backends ship: `VerilatorBackend`
+(`.vc`), `VivadoBackend` (`.tcl`), `IcarusBackend` (`.cmd` + `run_iverilog.sh`),
+`GhdlBackend` (`run_ghdl.sh`, VHDL-only), and `YosysBackend` (`.ys`); all are pure
+(`generate` returns `{filename: text}`), so the CLI does the file writing. Tool
+specifics stay out of the manifest/resolver/packaging layers.
 ### IP-XACT export *(implemented — [ipxact.py](../src/hdl_ip_packager/ipxact.py))*
 `export-ipxact` renders a manifest as an IEEE **1685-2014** component XML via the
 pure `to_ipxact`: VLNV identity, a `model` of one view + componentInstantiation per

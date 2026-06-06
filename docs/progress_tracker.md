@@ -122,8 +122,6 @@ _None._
 |-------|------|-------|
 | Git-backed registry | `registry.py` | A `Registry` backend resolving cores from a Git channel (tags/refs). Deferred from M4: needs the `git` CLI + a remote to implement and test honestly. Mirror the `LocalDirectoryRegistry`/`HttpRegistry` shape. |
 | OCI artifact registry | `registry.py` | The differentiator backend: store/fetch cores as OCI artifacts (Docker-registry infra). Deferred from M4: needs a live OCI registry (or a mock) and the manifest/blob API; significant standalone work. |
-| Richer dependency fileset selection | `backends/edam.py` | M6 exports a dependency's `rtl` fileset (or all non-testbench, by name heuristic). Honor `Fileset.depend` and target-scoped fileset deps so a core can declare exactly which filesets it exposes to dependents, rather than relying on the `rtl`/`tb` naming convention. |
-| More tool-flow backends | `backends/` | M6 ships Verilator + Vivado. Add Icarus/Verilator-lint/GHDL (sim) and Quartus/Yosys (synth) backends behind the same `Backend` interface, plus per-target tool options (e.g. extra flags) in `[targets.*]`. |
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git/OCI backends. Checksums + SBOM already ship; this adds authenticity on top. |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
 
@@ -135,12 +133,39 @@ _None._
 |-------|------------|
 | Switch build backend setuptools→`uv`/`hatch` workflow tooling | `hatchling` backend already works and is PEP-compliant; revisit only if the team standardizes on `uv` end to end. |
 | Source-unit tokenizing (auto-discover HDL deps like Orbit) | Powerful but large; only worth it after the manifest-driven flow (M1–M5) is solid. |
-| Dependabot / Renovate for dependency updates | Low effort, but mostly noise until the dev toolchain stabilizes; enable once the project is more active. |
 | Mutation testing (`mutmut`) | Validates test quality, but slow and only worth it once the implemented surface is larger. |
 
 ---
 
 ## Completed Milestones
+
+### Non-blocking + backlog batch (develop) — June 2026
+- [x] **Richer dependency fileset selection — honor `Fileset.depend`.** `backends/edam.py`
+  now expands each selected fileset's declared `depend` closure (transitively, deps
+  emitted before the fileset, de-duplicated, cycle-safe), for both the root target's
+  filesets and a dependency's exported surface. A core can thus state exactly what a
+  fileset needs (e.g. an `rtl` that depends on a `pkg` fileset) instead of relying on
+  the `rtl`/`tb` naming convention alone. Files: `src/hdl_ip_packager/backends/edam.py`,
+  `tests/unit/test_edam.py`.
+- [x] **More tool-flow backends — Icarus Verilog, GHDL, Yosys.** Added three pure
+  `Backend` implementations behind the existing `gen` interface: `IcarusBackend`
+  (a `.cmd` source list + `run_iverilog.sh`), `GhdlBackend` (`run_ghdl.sh` analyze/
+  elaborate/run, VHDL-only), and `YosysBackend` (a `.ys` synth script). Each rejects
+  file types it can't handle and a missing top. `gen` now supports five tool flows
+  (`verilator`, `vivado`, `icarus`, `ghdl`, `yosys`). Files:
+  `src/hdl_ip_packager/backends/{icarus,ghdl,yosys}.py`, `backends/__init__.py`,
+  `tests/unit/test_backends.py`.
+- [x] **Dependabot configuration (backlog).** Added `.github/dependabot.yml` watching
+  the `pip` (pyproject tooling) and `github-actions` ecosystems with weekly, grouped,
+  low-noise PRs — which also surfaces action-runtime deprecations (e.g. the Node 20
+  bump) automatically. File: `.github/dependabot.yml`.
+
+  _Still open (need a live external service to build/test honestly): Git-backed and
+  OCI registry backends, Sigstore (cosign) signing. Still parked (judgment): the
+  `uv`/`hatch` build-backend switch (churn; `hatchling` works), source-unit
+  tokenizing (large), `mutmut` (slow, unused without a run), and IP-XACT XSD
+  validation (needs the bundled Accellera XSD). These land via develop and ship in
+  the next release._
 
 ### Release 0.7.0 — June 2026
 - [x] **Tagged `0.7.0`** per the Release plan: supply-chain (M8) — `hdlpkg pack
