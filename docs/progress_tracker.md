@@ -18,7 +18,7 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: `0.1.0` — the first tagged release (foundation; see the Release plan).
+**Version**: `0.2.0` — resolver + lockfile (M1+M2); see the Release plan.
 
 **Stage**: Foundation. The pure core is implemented, fully typed, linted, and
 unit-tested (151 passing tests, ~96% coverage):
@@ -122,6 +122,11 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Release 0.2.0 — June 2026
+- [x] **Tagged `0.2.0`** per the Release plan: the first release where the tool does
+  its core job — resolve a dependency graph (M1) to a deterministic, verifiable
+  `ip.lock` (M2) via `hdlpkg resolve`. Bumped `pyproject.toml` + `__init__.py`.
 
 ### M2 — Lockfile (`ip.lock`) + `hdlpkg resolve` — June 2026
 - [x] **Implemented the lockfile model and wired `hdlpkg resolve`.** New pure
