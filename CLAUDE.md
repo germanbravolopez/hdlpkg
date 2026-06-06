@@ -32,6 +32,17 @@ Quick links:
 - **No emojis** in docs/headings (the test-report icons in `scripts/` are the one
   intentional exception).
 
+## Branch & merge workflow
+
+`main` is governed by the repository ruleset named **"main"**: **never commit or
+push directly to `main`** (no force-push, no deletion either). Branch off `main`
+(`feature/`, `fix/`, `docs/`, or `release/X.Y.Z`), push, and open a PR. A PR needs
+**one approving review** and **last-push approval**, then is **merged with a merge
+commit** (squash/rebase disabled). Review + merge are a human gate — prepare the
+branch and PR, then stop. Releases tag the merged commit on `main`. Full detail in
+[docs/ai_agent_instructions.md](docs/ai_agent_instructions.md) and the `/release`
+and `/tackle-issue` commands.
+
 ## Shell preference
 
 Default to the **Bash** tool for `git`, file inspection, and general commands —

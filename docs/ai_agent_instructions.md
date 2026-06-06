@@ -46,6 +46,24 @@ truth for what is done versus planned.
   Optionally `pre-commit install` to run ruff + mypy automatically on each commit
   (config in `.pre-commit-config.yaml`).
 
+## Branch & merge workflow
+
+`main` is governed by the repository ruleset named **"main"**: **no direct commits
+or pushes to `main`**, no force-push, no deletion. Every change — including release
+bumps — reaches `main` through a pull request:
+
+1. Branch off `main` (`feature/`, `fix/`, `docs/`, or `release/X.Y.Z`); never commit
+   on `main` itself.
+2. Make the quality gates green, push the branch, and open a PR (`gh pr create`).
+   CI runs on the PR and Copilot reviews it.
+3. The PR needs **one approving review** and **last-push approval**, then is **merged
+   with a merge commit** — squash and rebase are disabled
+   (`allowed_merge_methods: ["merge"]`).
+
+Review and merge are a **human gate**: agents prepare the branch + PR and stop
+there. The `/tackle-issue` and `/release` commands encode this flow; releases tag
+the merged commit on `main` afterwards (see [README](../README.md) -> Releasing).
+
 ## File map — where to find what
 
 | What you need | Where |

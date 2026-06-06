@@ -19,8 +19,12 @@ update this skill afterwards.
 
 ## Preconditions (check before doing anything)
 
-1. **On the `main` branch.** This project releases from `main` (no PR flow). If on
-   another branch, stop and ask.
+1. **Release via a PR, not a direct push.** `main` is governed by the repository
+   ruleset named "main" (no direct commits/pushes, no force-push, merge-commit-only,
+   one approving review with last-push approval). The release bump lands on `main`
+   through a `release/X.Y.Z` PR that a human approves and merges; the `X.Y.Z` tag is
+   then created on the resulting merge commit on `main`. Start from an up-to-date
+   `main` (`git switch main && git pull`).
 2. **Working tree is clean** (`git status` shows nothing to commit). If dirty, ask
    whether to commit, stash, or abort — never fold stray edits into the release.
 3. **Version is SemVer `X.Y.Z`** (or a pre-release `X.Y.Z-rc.N`), with **no** `v`
@@ -102,25 +106,39 @@ In `docs/progress_tracker.md`:
   `pyproject.toml` + `__init__.py` were bumped. (Absolute dates; never delete
   history.)
 
-### 6. Commit the bump
+### 6. Commit the bump on a `release/X.Y.Z` branch and open a PR
 
-Stage only the bump + tracker/doc files. Single-line subject, project style, **no**
-`Co-Authored-By`, no emojis:
-
-```
-Release X.Y.Z: <one-line summary of what this release ships>
-```
-
-### 7. Tag and push (the tag push is the publish trigger)
+`main` is protected (ruleset "main"), so the bump cannot be pushed to `main`
+directly. Branch, commit, and open a PR. Stage only the bump + tracker/doc files.
+Single-line subject, project style, **no** `Co-Authored-By`, no emojis:
 
 ```bash
+git switch -c release/X.Y.Z
+git commit -m "Release X.Y.Z: <one-line summary of what this release ships>"
+git push -u origin release/X.Y.Z
+gh pr create --base main --title "Release X.Y.Z: <summary>" --body "<summary>"
+```
+
+### 7. Hand off the merge, then tag the merged `main` (the tag push is the publish trigger)
+
+The merge is a **human gate** the ruleset enforces — do not merge the PR yourself:
+
+- The PR needs **one approving review** and **last-push approval** (don't push more
+  commits after it's approved, or it needs re-approval).
+- It must be **merged with a merge commit** (`allowed_merge_methods: ["merge"]` —
+  squash/rebase are disabled).
+
+Once the maintainer has merged the PR, fast-forward local `main` and tag the merge
+commit (bare tag, no `v` prefix), then push the tag:
+
+```bash
+git switch main && git pull --ff-only
+python scripts/check_release_version.py --ref refs/tags/X.Y.Z  # re-confirm on merged main
 git tag -a X.Y.Z -m "Release X.Y.Z - <summary>"
-git push origin main
 git push origin X.Y.Z
 ```
 
-Push `main` first (so the tagged commit is on the remote), then the tag. The
-`X.Y.Z` tag fires `release.yml`: the **build** job runs the guard + `python -m
+The `X.Y.Z` tag fires `release.yml`: the **build** job runs the guard + `python -m
 build`, then the **publish** job uploads the wheel + sdist to PyPI via OIDC trusted
 publishing. (One-time setup already done: the repo is a PyPI trusted publisher with
 a `pypi` environment.)
@@ -158,7 +176,8 @@ Confirm the wheel + sdist are both listed. Surface the release URL
 
 ### 10. Post-release housekeeping
 
-- `git status` on `main` is clean and on the release commit.
+- `git status` on `main` is clean and on the merge commit that landed the release PR.
+- Delete the merged `release/X.Y.Z` branch (`git push origin --delete release/X.Y.Z`).
 - State the published version, the PyPI URL, and what the next milestone/release is
   (from Current Status -> Next).
 
@@ -173,10 +192,14 @@ Confirm the wheel + sdist are both listed. Surface the release URL
   agree; the guard only checks the former, so a mismatch ships a mislabeled wheel.
 - **Release at plan boundaries only.** Cut a release at the capability groupings in
   the Release plan (e.g. 0.2 = M1+M2), not after every milestone.
+- **PR-based, merge-commit only.** The release bump reaches `main` via a
+  `release/X.Y.Z` PR merged with a merge commit (ruleset "main"); never push the
+  bump straight to `main`, and never self-approve/merge — the review + merge is a
+  human gate. The `X.Y.Z` tag is created on the merged `main` afterwards.
 - **`1.0.0` is a sign-off, not a default.** Get explicit user confirmation against
   the stability gate; never tag it autonomously.
 - **Stop on the first failure** — dirty tree, red gate, guard mismatch, tag
-  conflict, failed workflow. Surface it and wait.
+  conflict, unmerged/unapproved PR, failed workflow. Surface it and wait.
 - **No `Co-Authored-By`, no emojis** (project rules).
 
 ---
