@@ -50,7 +50,7 @@ quick-find reference.
 | `mkdocs.yml` | MkDocs Material config for the docs site (nav over `docs/`, theme, validation) |
 | `.github/workflows/docs.yml` | Builds the MkDocs site and publishes it to GitHub Pages on push to `main` |
 | `.gitignore` / `.gitattributes` | Ignore rules (incl. `.hdlpkg/` cache) + line-ending normalization |
-| `.claude/commands/` | Slash-command skills (`/coding-guidelines`, `/update-docs`, `/tackle-issue`) |
+| `.claude/commands/` | Slash-command skills (`/coding-guidelines`, `/update-docs`, `/tackle-issue`, `/release`) |
 | `examples/` | Bundled example IP cores (`fifo`, `uart`) with real `ip.toml` manifests + HDL |
 
 ## Tests

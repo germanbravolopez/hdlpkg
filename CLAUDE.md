@@ -10,7 +10,7 @@ Quick links:
 - [docs/architecture.md](docs/architecture.md) — module map, data model, subsystem designs
 - [docs/research/state_of_the_art.md](docs/research/state_of_the_art.md) — why the design is what it is
 - [docs/INDEX.md](docs/INDEX.md) — find any file, concept, or topic
-- [.claude/commands/](.claude/commands/) — slash commands (`/coding-guidelines`, `/update-docs`)
+- [.claude/commands/](.claude/commands/) — slash commands (`/coding-guidelines`, `/update-docs`, `/tackle-issue`, `/release`)
 
 ## After completing any task
 

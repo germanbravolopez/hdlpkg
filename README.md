@@ -192,7 +192,9 @@ publishes them to PyPI via OIDC trusted publishing. A guard
 (`scripts/check_release_version.py`) fails the run if the tag and the packaged
 version disagree, so the tag is the single source of truth for the published
 version. (One-time: register the repo as a PyPI trusted publisher and create the
-`pypi` environment.)
+`pypi` environment.) The `/release` agent command in `.claude/commands/` automates
+this end to end (bump both version files, run the gates, record the release, tag,
+push, then watch Actions + PyPI to green).
 
 See [docs/ai_agent_instructions.md](./docs/ai_agent_instructions.md) for the full
 agent obligations and coding conventions.
