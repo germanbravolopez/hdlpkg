@@ -11,8 +11,11 @@ from __future__ import annotations
 from ..exceptions import BackendError
 from .base import Backend, GeneratedFiles
 from .edam import CoreSource, EdaDesign, EdaFile, build_eda_design, normalize_file_type
+from .ghdl import GhdlBackend
+from .icarus import IcarusBackend
 from .verilator import VerilatorBackend
 from .vivado import VivadoBackend
+from .yosys import YosysBackend
 
 __all__ = [
     "Backend",
@@ -28,7 +31,14 @@ __all__ = [
 
 # Registry of tool-flow backends, keyed by the manifest ``toolflow`` name.
 _BACKENDS: dict[str, Backend] = {
-    backend.name: backend for backend in (VerilatorBackend(), VivadoBackend())
+    backend.name: backend
+    for backend in (
+        VerilatorBackend(),
+        VivadoBackend(),
+        IcarusBackend(),
+        GhdlBackend(),
+        YosysBackend(),
+    )
 }
 
 
