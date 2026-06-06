@@ -50,7 +50,7 @@ from .treeview import render_dependency_tree
 from .version import Version, VersionConstraint
 from .vlnv import PackageRef, Vlnv
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 __all__ = [
     "CYCLONEDX_SPEC_VERSION",

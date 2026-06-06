@@ -18,8 +18,9 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: `0.6.0` — IP-XACT (IEEE 1685) export via `hdlpkg export-ipxact` (M7);
-see the Release plan.
+**Version**: `0.7.0` — supply-chain: CycloneDX SBOM via `hdlpkg pack --sbom` (M8);
+see the Release plan. (Released as `0.7.0`, not `1.0.0`: the formats are still pre-1.0
+and the 1.0.0 stability gate is not yet met.)
 
 **Stage**: Foundation. The pure core is implemented, fully typed, linted, and
 unit-tested (151 passing tests, ~96% coverage):
@@ -140,6 +141,16 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Release 0.7.0 — June 2026
+- [x] **Tagged `0.7.0`** per the Release plan: supply-chain (M8) — `hdlpkg pack
+  --sbom` emits a deterministic CycloneDX 1.5 SBOM alongside the `.ipkg`, on top of
+  the SHA-256 content addressing that already pins integrity. Shipped as `0.7.0`
+  rather than `1.0.0` because the `ip.toml`/`ip.lock`/CLI formats are still pre-1.0
+  and the 1.0.0 stability gate (third-party publish/consume, an `rc` soak, frozen
+  formats) is not yet met; Sigstore signing remains an open issue. With M1–M8 all
+  delivered, the next release boundary is `1.0.0` (a deliberate stability sign-off,
+  not a feature milestone). Bumped `pyproject.toml` + `__init__.py`.
 
 ### M8 — Supply-chain: CycloneDX SBOM at pack time — June 2026
 - [x] **Implemented deterministic SBOM generation (`sbom.py`) and wired `hdlpkg pack
