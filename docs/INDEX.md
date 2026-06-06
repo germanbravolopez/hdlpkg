@@ -36,6 +36,7 @@ quick-find reference.
 | Content-addressed cache | `src/hdl_ip_packager/cache.py` | implemented |
 | Registry (local + HTTP + writable) | `src/hdl_ip_packager/registry.py` | implemented |
 | Packaging (`.ipkg`) | `src/hdl_ip_packager/packaging.py` | implemented |
+| Tool-flow backends (`gen`) | `src/hdl_ip_packager/backends/` | implemented (Verilator + Vivado) |
 
 ## Tooling & build files
 
@@ -71,6 +72,9 @@ quick-find reference.
 | `tests/integration/test_registry.py` | Local + HTTP registries, graph walker, `install` fetch-into-cache |
 | `tests/integration/test_packaging.py` | `.ipkg` pack determinism, round-trip, path-traversal guard |
 | `tests/integration/test_pack_cli.py` | `pack`/`publish`/`pull`/`yank` CLI loop against a local registry |
+| `tests/unit/test_edam.py` | `build_eda_design`: fileset selection, topo order, dedup, target errors |
+| `tests/unit/test_backends.py` | Verilator `.vc` / Vivado `.tcl` rendering + `get_backend` registry |
+| `tests/integration/test_gen_cli.py` | `hdlpkg gen` over the examples (resolve → assemble → render → write) |
 | `tests/unit/test_docs_site.py` | `mkdocs.yml` parses and every `nav` page exists under `docs/` |
 | `tests/unit/test_precommit_config.py` | `.pre-commit-config.yaml` parses and keeps the CI-mirroring hooks |
 | `tests/unit/test_check_release_version.py` | Release version guard: tag-to-version parsing + tag/package match check |
@@ -91,7 +95,7 @@ quick-find reference.
 | `hdlpkg publish [path] --registry DIR` | implemented | Publish a core to a local registry (append-only) |
 | `hdlpkg pull <vlnv> --registry DIR [--output]` | implemented | Fetch a core by VLNV into the cache; optionally extract |
 | `hdlpkg yank <vlnv> --registry DIR` | implemented | Hide a published version from new resolves |
-| `hdlpkg gen <target>` | planned | Generate tool/back-end files (EDAM) |
+| `hdlpkg gen <target> [--search DIR] [--output DIR]` | implemented | Generate tool-flow inputs (Verilator `.vc` / Vivado `.tcl`) for a target |
 | `hdlpkg export-ipxact` | planned | Export IP-XACT (IEEE 1685) for tool interop |
 
 ## Glossary

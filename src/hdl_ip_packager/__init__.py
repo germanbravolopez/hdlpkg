@@ -11,8 +11,18 @@ for what is implemented versus planned.
 
 from __future__ import annotations
 
+from .backends import (
+    Backend,
+    CoreSource,
+    EdaDesign,
+    EdaFile,
+    build_eda_design,
+    get_backend,
+    supported_toolflows,
+)
 from .cache import ContentAddressedCache, default_cache_root
 from .exceptions import (
+    BackendError,
     HdlPackagerError,
     InvalidConstraintError,
     InvalidVersionError,
@@ -40,8 +50,13 @@ from .vlnv import PackageRef, Vlnv
 __version__ = "0.4.0"
 
 __all__ = [
+    "Backend",
+    "BackendError",
     "ContentAddressedCache",
+    "CoreSource",
     "Dependency",
+    "EdaDesign",
+    "EdaFile",
     "Fileset",
     "HdlPackagerError",
     "HttpRegistry",
@@ -68,10 +83,13 @@ __all__ = [
     "__version__",
     "artifact_filename",
     "available_from_registry",
+    "build_eda_design",
     "default_cache_root",
     "extract_ipkg",
+    "get_backend",
     "manifest_from_ipkg",
     "pack_core",
     "resolve",
     "sha256_digest",
+    "supported_toolflows",
 ]

@@ -122,6 +122,10 @@ class LocalDirectoryRegistry(Registry):
         """The lockfile ``source`` string for *vlnv* (a local path reference)."""
         return f"path:{_display_path(self._path(vlnv).parent)}"
 
+    def core_dir(self, vlnv: Vlnv) -> Path:
+        """The on-disk directory holding *vlnv*'s ``ip.toml`` (and its sources)."""
+        return self._path(vlnv).parent
+
 
 class HttpRegistry(Registry):
     """A registry served by a static HTTP index (read-only)."""

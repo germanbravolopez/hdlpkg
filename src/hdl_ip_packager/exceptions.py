@@ -43,3 +43,7 @@ class PackagingError(HdlPackagerError):
 
 class RegistryError(HdlPackagerError):
     """A registry/cache operation (fetch, publish, lookup) failed."""
+
+
+class BackendError(HdlPackagerError):
+    """A tool-flow backend could not generate inputs (unknown tool, unsupported file)."""

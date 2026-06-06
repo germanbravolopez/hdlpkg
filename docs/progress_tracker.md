@@ -38,12 +38,15 @@ unit-tested (151 passing tests, ~96% coverage):
   walker feeding the resolver (Git/OCI backends are open Non-Blocking issues).
 - **Packaging** — deterministic `.ipkg` artifact (`pack_core`/`extract_ipkg`); the
   packed-content digest is what the cache and lockfile pin.
+- **Backends** — tool-flow generation (`backends/`): a pure EDAM-like intermediate
+  (`build_eda_design`) feeding Verilator (`.vc`) and Vivado (`.tcl`) backends.
 - **CLI** — `info`/`validate`/`init`/`resolve`/`install`/`pack`/`publish`/`pull`/
-  `yank` work; `gen`/`export-ipxact`/`add` are wired and report planned status.
+  `yank`/`gen` work; `export-ipxact`/`add` are wired and report planned status.
 - **Tooling** — pytest (markers + coverage gate + foldable summary), ruff, mypy
   strict on `src/`, CI workflow, and a cross-platform test-summary renderer.
 
-**Next**: implement **Tool-flow generation** (Roadmap M6), which ships as `0.5.0`.
+**Next**: implement **IP-XACT export** (Roadmap M7), which ships as `0.6.0`.
+(M6 tool-flow generation is implemented on `main`, awaiting the `0.5.0` release.)
 
 ---
 
@@ -55,7 +58,6 @@ unit-tested (151 passing tests, ~96% coverage):
 
 | # | Milestone | Scope | Key files |
 |---|-----------|-------|-----------|
-| M6 | **Tool-flow generation** | EDAM-like intermediate → simulator/synth inputs (start: Verilator, Vivado). | `backends/` (new) |
 | M7 | **IP-XACT export** | IEEE 1685 XML for Vivado/other-tool interop. | `ipxact.py` (new) |
 | M8 | **Supply-chain** | Sigstore (cosign) signing + SBOM at `pack` time. | `packaging.py` |
 
@@ -112,6 +114,8 @@ _None._
 | Git-backed registry | `registry.py` | A `Registry` backend resolving cores from a Git channel (tags/refs). Deferred from M4: needs the `git` CLI + a remote to implement and test honestly. Mirror the `LocalDirectoryRegistry`/`HttpRegistry` shape. |
 | OCI artifact registry | `registry.py` | The differentiator backend: store/fetch cores as OCI artifacts (Docker-registry infra). Deferred from M4: needs a live OCI registry (or a mock) and the manifest/blob API; significant standalone work. |
 | `hdlpkg tree` dependency view | `cli.py` | Pretty-print the dependency graph (resolver + registry now exist). |
+| Richer dependency fileset selection | `backends/edam.py` | M6 exports a dependency's `rtl` fileset (or all non-testbench, by name heuristic). Honor `Fileset.depend` and target-scoped fileset deps so a core can declare exactly which filesets it exposes to dependents, rather than relying on the `rtl`/`tb` naming convention. |
+| More tool-flow backends | `backends/` | M6 ships Verilator + Vivado. Add Icarus/Verilator-lint/GHDL (sim) and Quartus/Yosys (synth) backends behind the same `Backend` interface, plus per-target tool options (e.g. extra flags) in `[targets.*]`. |
 
 ---
 
@@ -127,6 +131,38 @@ _None._
 ---
 
 ## Completed Milestones
+
+### M6 — Tool-flow generation (Verilator + Vivado) — June 2026
+- [x] **Implemented tool-flow generation in a new `backends/` package and wired the
+  real `hdlpkg gen`.** A pure, tool-agnostic EDAM-like intermediate
+  (`backends/edam.py`: `EdaFile`/`EdaDesign` + `build_eda_design`) turns the root
+  core plus its resolved dependencies and a chosen `[targets.*]` into a flat,
+  ordered source list with a top unit and a tool flow. Selection semantics: the
+  **root** contributes its target's filesets (so a `sim` target keeps its
+  testbench, a `synth` target does not); a **dependency** contributes only its
+  synthesizable surface (its `rtl` fileset, or all non-testbench filesets by name)
+  so a dependency's testbench never leaks into a dependent. Cores are emitted
+  dependencies-first via a topological sort (ties by VLNV), file types are
+  normalized to the IP-XACT vocabulary, and duplicate paths are de-duplicated. Two
+  `Backend` implementations consume the intermediate (`backends/base.py` interface
+  + `get_backend`/`supported_toolflows` registry keyed on `toolflow`):
+  `VerilatorBackend` emits a `<name>.vc` command file (`--top-module` + sources;
+  rejects VHDL and a missing top), `VivadoBackend` emits a `<name>.tcl` source
+  script (`read_verilog -sv`/`read_verilog`/`read_vhdl`, `set_property top`,
+  `update_compile_order`). The backends are pure (`generate` returns
+  `{filename: text}`); the CLI `gen` command is the thin I/O wrapper that resolves
+  dependencies over `--search`, assembles the design, renders, and writes the files
+  into `--output` (default `gen/<target>/`). Added `BackendError`; exposed the
+  backend API from the package. Verified end to end with `hdlpkg gen sim`/`synth`
+  over the bundled `examples/uart` (the FIFO dependency's rtl is pulled in, its tb
+  is not). **Deferred** (now Open Non-Blocking Issues): richer dependency fileset
+  selection (honor `Fileset.depend` instead of the name heuristic) and more
+  backends (Icarus/GHDL/Quartus/Yosys). Files: `src/hdl_ip_packager/backends/`
+  (`__init__.py`, `edam.py`, `base.py`, `verilator.py`, `vivado.py`),
+  `src/hdl_ip_packager/cli.py`, `src/hdl_ip_packager/registry.py` (added
+  `core_dir`), `src/hdl_ip_packager/exceptions.py`, `src/hdl_ip_packager/__init__.py`,
+  `tests/unit/test_edam.py`, `tests/unit/test_backends.py`,
+  `tests/integration/test_gen_cli.py`, `tests/unit/test_cli.py`.
 
 ### Release 0.4.0 — June 2026
 - [x] **Tagged `0.4.0`** per the Release plan: the full producer/consumer loop — a

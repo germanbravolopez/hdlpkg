@@ -16,8 +16,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
+from .backends import CoreSource, build_eda_design, get_backend
 from .cache import ContentAddressedCache, default_cache_root
-from .exceptions import HdlPackagerError, ManifestError
+from .exceptions import BackendError, HdlPackagerError, ManifestError
 from .lockfile import LOCKFILE_FILENAME, Lockfile, sha256_digest
 from .manifest import MANIFEST_FILENAME, Manifest
 from .packaging import artifact_filename, extract_ipkg, pack_core
@@ -31,7 +32,6 @@ from .vlnv import Vlnv
 # stub (see docs/progress_tracker.md) and reports as much instead of pretending.
 _PLANNED = {
     "add": "add a dependency to ip.toml",
-    "gen": "generate tool/back-end files (EDAM) for a target",
     "export-ipxact": "export an IP-XACT (IEEE 1685) description for tool interop",
 }
 
@@ -149,6 +149,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_yank.add_argument("vlnv", help="the core version to yank, e.g. acme:common:fifo:1.0.0")
     p_yank.add_argument("--registry", required=True, metavar="DIR", help="registry root directory")
     p_yank.set_defaults(func=_cmd_yank)
+
+    p_gen = sub.add_parser("gen", help="generate tool-flow inputs for a target")
+    p_gen.add_argument("target", help="the [targets.*] to build (e.g. sim, synth)")
+    p_gen.add_argument(
+        "path", nargs="?", default=MANIFEST_FILENAME, help="path to the root manifest"
+    )
+    p_gen.add_argument(
+        "--search",
+        action="append",
+        metavar="DIR",
+        help="directory to scan for dependency cores (repeatable; default: the "
+        "manifest's parent directory)",
+    )
+    p_gen.add_argument("--output", metavar="DIR", help="output directory (default: ./gen/<target>)")
+    p_gen.set_defaults(func=_cmd_gen)
 
     for name, help_text in _PLANNED.items():
         p = sub.add_parser(name, help=f"[planned] {help_text}")
@@ -311,6 +326,42 @@ def _cmd_yank(args: argparse.Namespace) -> int:
     vlnv = Vlnv.parse(args.vlnv)
     LocalRegistry(args.registry).yank(vlnv)
     print(f"Yanked {vlnv} in {args.registry}")
+    return 0
+
+
+def _cmd_gen(args: argparse.Namespace) -> int:
+    manifest_path = Path(args.path)
+    root = Manifest.from_path(manifest_path)
+    if args.target not in root.targets:
+        known = ", ".join(sorted(root.targets)) or "(none)"
+        raise BackendError(f"Unknown target {args.target!r}; the manifest defines: {known}.")
+
+    resolution, registry = _resolve_local(manifest_path, args.search)
+    dependencies = [
+        CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
+        for vlnv in resolution.vlnvs
+    ]
+    design = build_eda_design(
+        CoreSource(manifest=root, root=str(manifest_path.resolve().parent)),
+        args.target,
+        dependencies,
+    )
+    outputs = get_backend(design.toolflow).generate(design)
+
+    out_dir = Path(args.output) if args.output else Path("gen") / args.target
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for filename, content in outputs.items():
+        dest = out_dir / filename
+        dest.write_text(content, encoding="utf-8")
+        written.append(dest)
+
+    print(
+        f"Generated {design.toolflow} inputs for {root.vlnv} target {args.target!r} "
+        f"({len(design.files)} source file(s)):"
+    )
+    for dest in written:
+        print(f"  {dest}")
     return 0
 
 

@@ -50,6 +50,7 @@ All source lives under [src/hdl_ip_packager/](../src/hdl_ip_packager/).
 | Cache | [cache.py](../src/hdl_ip_packager/cache.py) | implemented | Content-addressed local blob store (SHA-256 key, verify-on-read, atomic writes) |
 | Registry | [registry.py](../src/hdl_ip_packager/registry.py) | implemented (local + HTTP) | Abstract `Registry` + local-dir/HTTP/writable-local backends + graph walker (Git/OCI tracked as issues) |
 | Packaging | [packaging.py](../src/hdl_ip_packager/packaging.py) | implemented | Build/read the deterministic `.ipkg` artifact (`pack_core`, `extract_ipkg`) |
+| Backends | [backends/](../src/hdl_ip_packager/backends/) | implemented (Verilator + Vivado) | EDAM-like intermediate (`build_eda_design`) → tool inputs behind `hdlpkg gen` |
 
 The dependency direction is strictly one-way and acyclic:
 
@@ -172,10 +173,18 @@ checksum is the packed-content digest). The CLI exposes `pack`, `publish`
 (append-only into a writable `LocalRegistry`, with `yank` to retire a version
 without breaking old lockfiles), and `pull` (fetch by VLNV into the cache, extract).
 
-### Backends *(planned)*
-- `gen` → an EDAM-like intermediate that feeds simulators/synthesis (FuseSoC's
-  tool-flow abstraction), keeping tool specifics out of the core.
-- `export-ipxact` → IEEE 1685 XML for Vivado/other-tool interop.
+### Backends *(tool-flow generation implemented — [backends/](../src/hdl_ip_packager/backends/))*
+`gen` builds a tool-agnostic EDAM-like intermediate
+([edam.py](../src/hdl_ip_packager/backends/edam.py): `build_eda_design`) from the
+root core, its resolved dependencies, and a chosen target, then hands it to the
+`Backend` selected by the target's `toolflow`. The root contributes its target's
+filesets (testbench included for `sim`, excluded for `synth`); each dependency
+contributes only its synthesizable surface (its `rtl` fileset, or all non-testbench
+filesets), emitted dependencies-first via a topological sort. Two backends ship:
+`VerilatorBackend` (a `.vc` command file) and `VivadoBackend` (a `.tcl` source
+script); both are pure (`generate` returns `{filename: text}`), so the CLI does the
+file writing. Tool specifics stay out of the manifest/resolver/packaging layers.
+- `export-ipxact` *(planned, M7)* → IEEE 1685 XML for Vivado/other-tool interop.
 
 ### Supply-chain *(planned)*
 Checksums first; then optional Sigstore (cosign) signing and an SBOM emitted at
