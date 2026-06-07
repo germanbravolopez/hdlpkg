@@ -45,7 +45,7 @@ def test_verilator_rejects_vhdl() -> None:
 
 
 def test_verilator_requires_a_top() -> None:
-    with pytest.raises(BackendError, match="top module"):
+    with pytest.raises(BackendError, match="needs a top"):
         VerilatorBackend().generate(_design((SV,), "verilator", top=None))
 
 
@@ -95,7 +95,7 @@ def test_ghdl_emits_analyze_elaborate_run() -> None:
 
 
 def test_ghdl_rejects_non_vhdl() -> None:
-    with pytest.raises(BackendError, match="only compiles VHDL"):
+    with pytest.raises(BackendError, match="cannot handle"):
         GhdlBackend().generate(_design((SV,), "ghdl"))
 
 
@@ -110,6 +110,22 @@ def test_yosys_emits_synth_script() -> None:
 def test_yosys_rejects_vhdl() -> None:
     with pytest.raises(BackendError, match="vhdl"):
         YosysBackend().generate(_design((VHDL,), "yosys"))
+
+
+# ---------------------------------------------------- shared guards (hardening)
+def test_backends_reject_an_unsafe_top_name() -> None:
+    # A top with a space/metacharacter must not be interpolated into a script.
+    with pytest.raises(BackendError, match="unsafe top"):
+        VerilatorBackend().generate(_design((SV,), "verilator", top="foo bar"))
+    with pytest.raises(BackendError, match="unsafe top"):
+        IcarusBackend().generate(_design((SV,), "icarus", top="rm -rf /"))
+    with pytest.raises(BackendError, match="unsafe top"):
+        YosysBackend().generate(_design((SV,), "yosys", top="a;b"))
+
+
+def test_vivado_rejects_an_unsafe_top_when_present() -> None:
+    with pytest.raises(BackendError, match="unsafe top"):
+        VivadoBackend().generate(_design((SV,), "vivado", top="bad name"))
 
 
 # -------------------------------------------------------------------- registry

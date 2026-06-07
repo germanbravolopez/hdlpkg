@@ -73,6 +73,10 @@ class Registry(abc.ABC):
         """Publish a packaged artifact (overridden by writable backends in M5)."""
         raise RegistryError("This registry does not support publishing.")
 
+    def source_for(self, vlnv: Vlnv) -> str:
+        """A lockfile ``source`` string describing where *vlnv* came from (best effort)."""
+        return ""
+
 
 def _display_path(path: Path) -> str:
     """A forward-slash path relative to the cwd when possible, else absolute."""
@@ -226,6 +230,10 @@ class LocalRegistry(Registry):
         if not dest.is_dir():
             raise RegistryError(f"Cannot yank {vlnv}: it is not published in {self.root}.")
         (dest / _YANKED_MARKER).touch()
+
+    def source_for(self, vlnv: Vlnv) -> str:
+        """The lockfile ``source`` for *vlnv*: a reference to this published registry."""
+        return f"registry:{_display_path(self.root)}"
 
 
 def available_from_registry(registry: Registry, root: Manifest) -> dict[PackageRef, list[Manifest]]:

@@ -113,3 +113,22 @@ class TestManifestErrors:
     def test_from_path_missing_file(self, tmp_path) -> None:
         with pytest.raises(ManifestError, match="Cannot read"):
             Manifest.from_path(tmp_path / "does_not_exist.toml")
+
+
+_MINIMAL = '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="0.1.0"\n'
+
+
+class TestManifestSchemaVersion:
+    def test_absent_schema_defaults_to_1(self) -> None:
+        assert Manifest.from_str(_MINIMAL).schema_version == 1
+
+    def test_explicit_schema_1_parses(self) -> None:
+        assert Manifest.from_str("schema = 1\n" + _MINIMAL).schema_version == 1
+
+    def test_future_schema_is_rejected(self) -> None:
+        with pytest.raises(ManifestError, match="schema version 2"):
+            Manifest.from_str("schema = 2\n" + _MINIMAL)
+
+    def test_non_integer_schema_is_rejected(self) -> None:
+        with pytest.raises(ManifestError, match="'schema' must be an integer"):
+            Manifest.from_str('schema = "1"\n' + _MINIMAL)

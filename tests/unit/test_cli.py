@@ -7,10 +7,12 @@ output is captured with pytest's ``capsys``.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 
 from hdl_ip_packager import __version__, cli
+from hdl_ip_packager.manifest import Manifest
 
 pytestmark = pytest.mark.unit
 
@@ -117,13 +119,28 @@ def test_init_interactive_blank_answer_still_fails(tmp_path, monkeypatch) -> Non
     assert not (tmp_path / "ip.toml").exists()
 
 
-@pytest.mark.parametrize("command", ["add"])
-def test_planned_commands_report_not_implemented(
-    command: str, capsys: pytest.CaptureFixture[str]
-) -> None:
-    rc = cli.main([command])
-    assert rc == 2
-    assert "not implemented" in capsys.readouterr().err.lower()
+def test_add_inserts_dependency(tmp_path: Path) -> None:
+    manifest = tmp_path / "ip.toml"
+    manifest.write_text(
+        '[package]\nvendor="acme"\nlibrary="comm"\nname="uart"\nversion="1.0.0"\n',
+        encoding="utf-8",
+    )
+    rc = cli.main(["add", "acme:common:fifo@^1.0.0", str(manifest)])
+    assert rc == 0
+    reparsed = Manifest.from_path(manifest)
+    deps = {str(d.ref): str(d.constraint) for d in reparsed.dependencies}
+    assert deps == {"acme:common:fifo": "^1.0.0"}
+
+
+def test_add_rejects_self_dependency(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    manifest = tmp_path / "ip.toml"
+    manifest.write_text(
+        '[package]\nvendor="acme"\nlibrary="comm"\nname="uart"\nversion="1.0.0"\n',
+        encoding="utf-8",
+    )
+    rc = cli.main(["add", "acme:comm:uart@^1.0.0", str(manifest)])
+    assert rc == 1
+    assert "cannot depend on itself" in capsys.readouterr().err
 
 
 def test_build_parser_is_constructable() -> None:

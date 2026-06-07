@@ -21,6 +21,7 @@ from .backends import (
     supported_toolflows,
 )
 from .cache import ContentAddressedCache, default_cache_root
+from .editing import add_dependency
 from .exceptions import (
     BackendError,
     HdlPackagerError,
@@ -35,7 +36,7 @@ from .exceptions import (
 )
 from .ipxact import IPXACT_NAMESPACE, to_ipxact
 from .lockfile import LockedPackage, Lockfile, sha256_digest
-from .manifest import Dependency, Fileset, Manifest, Target
+from .manifest import MANIFEST_SCHEMA_VERSION, Dependency, Fileset, Manifest, Target
 from .packaging import artifact_filename, extract_ipkg, manifest_from_ipkg, pack_core
 from .registry import (
     HttpRegistry,
@@ -55,6 +56,7 @@ __version__ = "0.7.0"
 __all__ = [
     "CYCLONEDX_SPEC_VERSION",
     "IPXACT_NAMESPACE",
+    "MANIFEST_SCHEMA_VERSION",
     "Backend",
     "BackendError",
     "ContentAddressedCache",
@@ -86,6 +88,7 @@ __all__ = [
     "VersionConstraint",
     "Vlnv",
     "__version__",
+    "add_dependency",
     "artifact_filename",
     "available_from_registry",
     "build_cyclonedx",

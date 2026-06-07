@@ -13,6 +13,8 @@ The analogue of `Cargo.toml` / `package.json` / a FuseSoC `.core` file. Pure mod
 Every core carries an `ip.toml` at its root:
 
 ```toml
+schema      = 1                 # optional ip.toml format version (default 1)
+
 [package]
 vendor      = "acme"            # required ─┐
 library     = "comm"            # required  ├ VLNV identity
@@ -59,7 +61,13 @@ optional. Unknown fields are ignored. The keys map onto the dataclasses below.
 | `dependencies` | `tuple[Dependency, ...]` | |
 | `filesets` | `dict[str, Fileset]` | keyed by fileset name |
 | `targets` | `dict[str, Target]` | keyed by target name |
+| `schema_version` | `int` | the `ip.toml` format version (`MANIFEST_SCHEMA_VERSION`, default `1`) |
 | `ref` (property) | [`PackageRef`](identity.md) | version-less key |
+
+The optional top-level `schema` key declares the `ip.toml` format version (default
+`1`). A manifest written for a **newer** schema than this `hdlpkg` understands is
+rejected with a clear `ManifestError` rather than mis-parsed — the migration path the
+format needs once it freezes at 1.0.
 
 Supporting value types:
 

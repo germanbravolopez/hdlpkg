@@ -77,7 +77,7 @@ hdlpkg validate examples/uart/ip.toml
 ```bash
 hdlpkg tree examples/uart/ip.toml --search examples
 # acme:comm:uart:1.2.0
-# └── acme:common:fifo ^1.0.0 -> 1.0.0
+# `-- acme:common:fifo ^1.0.0 -> 1.0.0
 ```
 
 `--search examples` tells `hdlpkg` where to discover candidate cores.
@@ -128,7 +128,11 @@ This writes a valid starter `ip.toml` (one `rtl` fileset, one `sim` target) that
 passes `validate` immediately. Then:
 
 1. Add your sources under `rtl/` and list them in `[filesets.rtl]`.
-2. Declare dependencies under `[dependencies]` with version constraints:
+2. Declare dependencies under `[dependencies]` with version constraints — by hand,
+   or with `hdlpkg add` (which preserves your formatting and re-validates):
+   ```bash
+   hdlpkg add mycorp:common:fifo@^1.0.0
+   ```
    ```toml
    [dependencies]
    "mycorp:common:fifo" = "^1.0.0"
@@ -141,10 +145,17 @@ See the [manifest reference](modules/manifest.md) for every field.
 
 ## Typical workflows
 
-- **Consume a dependency**: declare it → `resolve` (writes `ip.lock`) → `install`
-  (fetch + verify into the cache) → `gen <target>` to build.
+- **Consume a dependency**: declare it (`hdlpkg add`) → `resolve` (writes `ip.lock`)
+  → `install` (fetch + verify into the cache) → `gen <target>` to build.
+- **Reproducible / CI builds**: commit `ip.lock`, then build with `install --locked`
+  and `gen --locked <target>` — these use the *exact* pinned versions and never
+  re-resolve, so the build is byte-for-byte the same everywhere. `hdlpkg resolve`
+  is the one command that updates the lock to newer compatible versions.
 - **Publish a core**: `validate` → `pack` → `publish --registry …` (append-only;
   `yank` to retire a bad version).
+- **Consume from a published registry**: `resolve`/`install`/`tree --registry <dir>`
+  resolve and fetch directly from a registry you (or someone else) published to —
+  not just `pull` by exact VLNV.
 - **Hand off to a vendor tool**: `gen <target>` for the simulator/synth inputs, or
   `export-ipxact` for an IP-XACT description.
 

@@ -78,6 +78,16 @@ def test_pack_missing_fileset_file_raises(tmp_path: Path) -> None:
         pack_core(manifest, tmp_path)
 
 
+def test_pack_rejects_fileset_path_escaping_core(tmp_path: Path) -> None:
+    escaping = (
+        '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="1.0.0"\n'
+        '[filesets.rtl]\nfiles = ["../outside.sv"]\n'
+    )
+    (tmp_path / "ip.toml").write_text(escaping, encoding="utf-8")
+    with pytest.raises(PackagingError, match="escapes the core directory"):
+        pack_core(Manifest.from_str(escaping), tmp_path)
+
+
 def test_extract_rejects_path_traversal(tmp_path: Path) -> None:
     # Craft a malicious archive whose member escapes the destination.
     raw = io.BytesIO()

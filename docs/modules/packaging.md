@@ -35,10 +35,13 @@ key and lockfile checksum are the packed-content digest.
 absolute, contain `..`, or are not regular files/dirs — so a malicious archive cannot
 write outside the destination (path-traversal protection).
 
+`pack_core` also rejects fileset paths that **escape the core directory** (absolute
+paths or `..`), so a manifest cannot pack a file from outside its own tree.
+
 ## Errors
 
-`PackagingError` — a missing fileset file while packing, a corrupt archive, or an
-unsafe member while extracting.
+`PackagingError` — a missing fileset file or a path escaping the core while packing,
+a corrupt archive, or an unsafe member while extracting.
 
 ## Example
 

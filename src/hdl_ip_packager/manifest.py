@@ -50,9 +50,22 @@ from .exceptions import HdlPackagerError, ManifestError
 from .version import Version, VersionConstraint
 from .vlnv import PackageRef, Vlnv
 
-__all__ = ["MANIFEST_FILENAME", "Dependency", "Fileset", "Manifest", "Target"]
+__all__ = [
+    "MANIFEST_FILENAME",
+    "MANIFEST_SCHEMA_VERSION",
+    "Dependency",
+    "Fileset",
+    "Manifest",
+    "Target",
+]
 
 MANIFEST_FILENAME = "ip.toml"
+
+# The ip.toml schema version this hdlpkg understands. An optional top-level
+# ``schema = N`` key lets the format evolve after 1.0 with a clear migration
+# path: a manifest written for a newer schema is rejected with a clear message
+# rather than mis-parsed. Absent ``schema`` means the original (1) format.
+MANIFEST_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -99,6 +112,7 @@ class Manifest:
     dependencies: tuple[Dependency, ...] = ()
     filesets: dict[str, Fileset] = field(default_factory=dict)
     targets: dict[str, Target] = field(default_factory=dict)
+    schema_version: int = MANIFEST_SCHEMA_VERSION
 
     # ----------------------------------------------------------------- loaders
     @classmethod
@@ -127,6 +141,8 @@ class Manifest:
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Manifest:
         """Build and validate a manifest from an already-parsed mapping."""
+        schema = cls._parse_schema(data.get("schema", MANIFEST_SCHEMA_VERSION))
+
         pkg = data.get("package")
         if not isinstance(pkg, dict):
             raise ManifestError("Missing required [package] table.")
@@ -146,7 +162,20 @@ class Manifest:
             dependencies=dependencies,
             filesets=filesets,
             targets=targets,
+            schema_version=schema,
         )
+
+    @staticmethod
+    def _parse_schema(value: object) -> int:
+        """Validate the optional top-level ``schema`` version (defaults to 1)."""
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ManifestError(f"Top-level 'schema' must be an integer, got {value!r}.")
+        if value != MANIFEST_SCHEMA_VERSION:
+            raise ManifestError(
+                f"Unsupported ip.toml schema version {value}; this hdlpkg supports "
+                f"{MANIFEST_SCHEMA_VERSION}. Upgrade hdlpkg or migrate the manifest."
+            )
+        return value
 
     # --------------------------------------------------------------- helpers
     @staticmethod

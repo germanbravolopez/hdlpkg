@@ -50,7 +50,9 @@ A writable registry with a structured, **append-only** on-disk layout:
 | `yank(vlnv)` | Drop a `.yanked` marker that hides the version from new resolves without breaking existing lockfiles. Idempotent; raises if never published. |
 | `versions` / `manifest` / `artifact_bytes` | As per the interface; `versions` skips yanked entries. |
 
-This backs `hdlpkg publish`/`pull`/`yank`.
+This backs `hdlpkg publish`/`pull`/`yank`, and — via `resolve`/`install`/`tree
+--registry DIR` — is also a **read** source you can resolve and install directly
+from (not just `pull` by VLNV).
 
 ## Building the resolver's input
 
