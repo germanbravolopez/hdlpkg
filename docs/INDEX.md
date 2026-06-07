@@ -9,7 +9,9 @@ quick-find reference.
 
 | File | What's in it |
 |------|-------------|
-| `docs/ai_agent_instructions.md` | **Start here** — briefing, file map, coding + testability rules, obligations |
+| `docs/user_guide.md` | **New users start here** — what the tool does + a hands-on walkthrough |
+| `docs/modules/` | The user manual: one reference page per module + the CLI (`modules/README.md` indexes it) |
+| `docs/ai_agent_instructions.md` | **Agents start here** — briefing, file map, coding + testability rules, obligations |
 | `docs/architecture.md` | Module map, data model, subsystem designs, data flow |
 | `docs/progress_tracker.md` | Status, ordered roadmap, open issues, milestones |
 | `docs/research/state_of_the_art.md` | Survey of package managers + HDL tools; design rationale + sources |
@@ -134,6 +136,9 @@ quick-find reference.
 
 | Topic | Where |
 |-------|-------|
+| Getting started / what the tool does | `docs/user_guide.md` |
+| How a specific module behaves (reference) | `docs/modules/<module>.md` (indexed by `docs/modules/README.md`) |
+| Every CLI command + flag | `docs/modules/cli.md` |
 | Why these design choices | `docs/research/state_of_the_art.md` |
 | How a manifest is parsed | `src/hdl_ip_packager/manifest.py` + `docs/architecture.md` §3 |
 | Constraint syntax (`^`, `~`, ranges) | `src/hdl_ip_packager/version.py` + `docs/architecture.md` §3 |

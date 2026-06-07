@@ -35,7 +35,10 @@ reuse versioned IP the way software reuses packages.
 
 ## 2. Module map
 
-All source lives under [src/hdl_ip_packager/](../src/hdl_ip_packager/).
+All source lives under [src/hdl_ip_packager/](../src/hdl_ip_packager/). This page is
+the *design* view (how modules fit and why); for the per-module **reference** (public
+API, behavior, errors, examples) see the [module manual](modules/README.md), and for a
+task-oriented intro see the [user guide](user_guide.md).
 
 | Module | File | Status | Responsibility |
 |--------|------|--------|----------------|

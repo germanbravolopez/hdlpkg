@@ -11,15 +11,20 @@ reference (every file, concept, and topic) see [INDEX.md](./INDEX.md).
 docs/
 ├── README.md                     (this file - docs folder navigation)
 ├── INDEX.md                      (project-wide quick-find: files, concepts, topics)
+├── user_guide.md                 (start here if you are new - what it does + a walkthrough)
 ├── ai_agent_instructions.md      (agent/contributor onboarding - start here)
 ├── architecture.md               (module map, data model, subsystem designs, data flow)
 ├── progress_tracker.md           (status + ordered roadmap; read before working)
+├── modules/                      (the user manual: one page per module + the CLI)
+│   └── README.md                 (module-reference index)
 └── research/
     └── state_of_the_art.md       (survey of package managers + HDL tools; design rationale)
 ```
 
-As subsystems land (resolver, registry, backends), add a per-module page under
-`docs/modules/<name>.md` and register it here and in `INDEX.md`.
+The per-module reference (a "user manual") lives under `docs/modules/`, one page per
+module plus the CLI command reference — see [modules/README.md](./modules/README.md).
+When a new module lands, add its page there and register it in that index and in
+[INDEX.md](./INDEX.md).
 
 ---
 
@@ -27,6 +32,8 @@ As subsystems land (resolver, registry, backends), add a per-module page under
 
 | Document | Purpose | Read time |
 |----------|---------|-----------|
+| [user_guide.md](./user_guide.md) | **New here? Start here** — what the tool does and a hands-on walkthrough | 8 min |
+| [modules/](./modules/README.md) | The user manual: per-module reference + the full CLI command reference | As needed |
 | [ai_agent_instructions.md](./ai_agent_instructions.md) | Briefing, file map, coding + testability rules, agent obligations | 6 min |
 | [architecture.md](./architecture.md) | How it is built and how it grows | 12 min |
 | [progress_tracker.md](./progress_tracker.md) | What is done, the roadmap, open issues | 5 min |
