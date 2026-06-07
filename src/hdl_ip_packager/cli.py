@@ -24,7 +24,12 @@ from .ipxact import to_ipxact
 from .lockfile import LOCKFILE_FILENAME, Lockfile, sha256_digest
 from .manifest import MANIFEST_FILENAME, Manifest
 from .packaging import artifact_filename, extract_ipkg, pack_core
-from .registry import LocalDirectoryRegistry, LocalRegistry, available_from_registry
+from .registry import (
+    LocalDirectoryRegistry,
+    LocalRegistry,
+    Registry,
+    available_from_registry,
+)
 from .resolver import Resolution
 from .resolver import resolve as resolve_deps
 from .sbom import build_cyclonedx
@@ -97,6 +102,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         help=f"where to write the lockfile (default: ./{LOCKFILE_FILENAME} next to the manifest)",
     )
+    p_resolve.add_argument(
+        "--registry",
+        metavar="DIR",
+        help="resolve from a published registry directory (overrides --search)",
+    )
     p_resolve.set_defaults(func=_cmd_resolve)
 
     p_install = sub.add_parser(
@@ -125,6 +135,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=f"install exactly from an existing {LOCKFILE_FILENAME} without re-resolving "
         "(reproducible builds); fail if it is missing",
+    )
+    p_install.add_argument(
+        "--registry",
+        metavar="DIR",
+        help="fetch from a published registry directory (overrides --search)",
     )
     p_install.set_defaults(func=_cmd_install)
 
@@ -200,6 +215,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="directory to scan for dependency cores (repeatable; default: the "
         "manifest's parent directory)",
+    )
+    p_tree.add_argument(
+        "--registry",
+        metavar="DIR",
+        help="resolve from a published registry directory (overrides --search)",
     )
     p_tree.set_defaults(func=_cmd_tree)
 
@@ -307,7 +327,7 @@ def _resolve_local(
     return resolution, registry
 
 
-def _build_lock(resolution: Resolution, registry: LocalDirectoryRegistry) -> Lockfile:
+def _build_lock(resolution: Resolution, registry: Registry) -> Lockfile:
     """Build a lockfile, taking each pinned core's source/checksum from *registry*."""
     sources = {vlnv: registry.source_for(vlnv) for vlnv in resolution.vlnvs}
     checksums = {vlnv: sha256_digest(registry.artifact_bytes(vlnv)) for vlnv in resolution.vlnvs}
@@ -318,6 +338,22 @@ def _local_registry(manifest_path: Path, search: list[str] | None) -> LocalDirec
     """A local-directory registry over *search* (default: the manifest's parent)."""
     search_dirs = search or [str(manifest_path.resolve().parent)]
     return LocalDirectoryRegistry([Path(d) for d in search_dirs])
+
+
+def _reader_registry(manifest_path: Path, args: argparse.Namespace) -> Registry:
+    """The registry to resolve/fetch from: a published `--registry`, else a `--search` scan."""
+    registry = getattr(args, "registry", None)
+    if registry:
+        return LocalRegistry(registry)
+    return _local_registry(manifest_path, args.search)
+
+
+def _resolve(manifest_path: Path, args: argparse.Namespace) -> tuple[Resolution, Registry]:
+    """Resolve *manifest_path* against the selected registry (published or local-scan)."""
+    root = Manifest.from_path(manifest_path)
+    registry = _reader_registry(manifest_path, args)
+    resolution = resolve_deps(root, available_from_registry(registry, root))
+    return resolution, registry
 
 
 def _load_lockfile(manifest_path: Path) -> Lockfile:
@@ -333,7 +369,7 @@ def _load_lockfile(manifest_path: Path) -> Lockfile:
 
 def _cmd_resolve(args: argparse.Namespace) -> int:
     manifest_path = Path(args.path)
-    resolution, registry = _resolve_local(manifest_path, args.search)
+    resolution, registry = _resolve(manifest_path, args)
     lock = _build_lock(resolution, registry)
     output = Path(args.output) if args.output else manifest_path.parent / LOCKFILE_FILENAME
     output.write_text(lock.to_toml(), encoding="utf-8")
@@ -352,7 +388,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
     if args.locked:
         # Reproducible install: fetch exactly what ip.lock pins, no re-resolve, no rewrite.
         lock = _load_lockfile(manifest_path)
-        registry = _local_registry(manifest_path, args.search)
+        registry = _reader_registry(manifest_path, args)
         fetched = {pkg.vlnv: registry.fetch(pkg.vlnv, cache) for pkg in lock.packages}
         lock.verify(fetched)  # fail closed if any fetched digest disagrees with the lock
         print(
@@ -363,7 +399,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
             print(f"  {pkg.vlnv}")
         return 0
 
-    resolution, registry = _resolve_local(manifest_path, args.search)
+    resolution, registry = _resolve(manifest_path, args)
     lock = _build_lock(resolution, registry)
     fetched = {vlnv: registry.fetch(vlnv, cache) for vlnv in resolution.vlnvs}
     # The just-fetched digests must match what the lockfile pinned (fail closed).
@@ -478,7 +514,7 @@ def _cmd_gen(args: argparse.Namespace) -> int:
 def _cmd_tree(args: argparse.Namespace) -> int:
     manifest_path = Path(args.path)
     root = Manifest.from_path(manifest_path)
-    resolution, registry = _resolve_local(manifest_path, args.search)
+    resolution, registry = _resolve(manifest_path, args)
     manifests = {vlnv.ref: registry.manifest(vlnv) for vlnv in resolution.vlnvs}
     print(render_dependency_tree(root, resolution.selected, manifests))
     return 0

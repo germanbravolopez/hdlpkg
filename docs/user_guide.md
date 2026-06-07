@@ -153,6 +153,9 @@ See the [manifest reference](modules/manifest.md) for every field.
   is the one command that updates the lock to newer compatible versions.
 - **Publish a core**: `validate` → `pack` → `publish --registry …` (append-only;
   `yank` to retire a bad version).
+- **Consume from a published registry**: `resolve`/`install`/`tree --registry <dir>`
+  resolve and fetch directly from a registry you (or someone else) published to —
+  not just `pull` by exact VLNV.
 - **Hand off to a vendor tool**: `gen <target>` for the simulator/synth inputs, or
   `export-ipxact` for an IP-XACT description.
 

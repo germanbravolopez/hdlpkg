@@ -125,7 +125,7 @@ _None._
 | Git-backed registry | `registry.py` | A `Registry` backend resolving cores from a Git channel (tags/refs). Deferred from M4: needs the `git` CLI + a remote to implement and test honestly. Mirror the `LocalDirectoryRegistry`/`HttpRegistry` shape. |
 | OCI artifact registry | `registry.py` | The differentiator backend: store/fetch cores as OCI artifacts (Docker-registry infra). Deferred from M4: needs a live OCI registry (or a mock) and the manifest/blob API; significant standalone work. |
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git/OCI backends. Checksums + SBOM already ship; this adds authenticity on top. |
-| Resolve/install from a published or remote registry | `cli.py`, `registry.py` | _Surfaced by the external consumer demo._ `resolve`/`install`/`gen`/`tree` only scan local source trees (`LocalDirectoryRegistry` via `--search`); `publish`/`pull` use the published `LocalRegistry` (`--registry`). So the CLI cannot yet resolve/install *directly from* a published (or HTTP/OCI) registry — you `pull` published cores by exact VLNV. The `Registry` interface + `available_from_registry` already support it; only the CLI plumbing (a `--registry` option on resolve/install, and a fetch-then-extract for `gen`) is missing. The cleanest pre-1.0 step toward the full publish->consume loop. |
+| Resolve/install over HTTP/OCI + `gen` from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry DIR` now consume a **local published** `LocalRegistry` directly (the producer->consumer loop closes for local registries). Remaining: wire `HttpRegistry` into `--registry` (resolve/install over HTTP), the OCI backend, and a fetch-then-extract so `gen` can build straight from a registry (it still needs loose sources via `--search`/`pull`). |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
 
 ---
@@ -169,6 +169,13 @@ _None._
   on a default cp1252 Windows console. Surfaced by an external consumer demo project
   (a diamond-dependency SoC built against the tool in a venv). Added an ASCII-output
   regression test. Files: `treeview.py`, `tests/unit/test_treeview.py`.
+- [x] **Resolve/install/tree from a published registry** (`--registry DIR`). These
+  commands previously only scanned local source trees (`--search`); they can now
+  resolve and fetch **directly from a `LocalRegistry`** that `hdlpkg publish` wrote,
+  closing the producer->consumer loop for local registries (the gap the demo
+  surfaced). Added `Registry.source_for` (the lockfile records `registry:<dir>`).
+  HTTP/OCI registries and `gen`-from-registry remain open. Files: `cli.py`,
+  `registry.py`, `tests/integration/test_registry_resolve_cli.py`.
 
 ### Non-blocking + backlog batch (develop) — June 2026
 - [x] **Richer dependency fileset selection — honor `Fileset.depend`.** `backends/edam.py`

@@ -43,23 +43,25 @@ overwrite an existing `ip.toml` unless `--force`.
 
 ## Resolve & fetch
 
-### `resolve [path] [--search DIR …] [--output FILE]`
-[Resolve](resolver.md) the dependency graph against a
-[local-directory registry](registry.md) over the `--search` dirs and write a
-deterministic [`ip.lock`](lockfile.md) (default next to the manifest). Prints the
-chosen VLNVs.
+### `resolve [path] [--search DIR …] [--registry DIR] [--output FILE]`
+[Resolve](resolver.md) the dependency graph and write a deterministic
+[`ip.lock`](lockfile.md) (default next to the manifest). By default it resolves
+against a [local-directory registry](registry.md) over the `--search` dirs; with
+**`--registry DIR`** it resolves directly from a **published registry** (the layout
+`hdlpkg publish` writes) instead. Prints the chosen VLNVs.
 
-### `install [path] [--search DIR …] [--cache-dir DIR] [--output FILE] [--locked]`
+### `install [path] [--search DIR …] [--registry DIR] [--cache-dir DIR] [--output FILE] [--locked]`
 Resolve **and fetch**: every pinned core is fetched into the
 [content-addressed cache](cache.md) (`--cache-dir`, default `~/.hdlpkg/cache`), each
 fetched digest is verified against the lockfile (**fails closed**), and the lockfile
-is written. With **`--locked`** it instead installs *exactly* from an existing
+is written. `--registry DIR` fetches from a **published registry** instead of the
+`--search` source trees. With **`--locked`** it instead installs *exactly* from an existing
 `ip.lock` **without re-resolving** (the reproducible-build / `npm ci` mode), verifies
 every fetched digest against the lock, and does not rewrite it; it fails if `ip.lock`
 is missing. (`hdlpkg resolve` is what updates the lock to the newest compatible
 versions.)
 
-### <a id="tree"></a>`tree [path] [--search DIR …]`
+### <a id="tree"></a>`tree [path] [--search DIR …] [--registry DIR]`
 Resolve and **print the dependency graph** as an ASCII tree
 ([`treeview`](../../src/hdl_ip_packager/treeview.py)), annotating each edge with its
 constraint and the chosen version; diamonds are expanded once and later marked `(*)`.
