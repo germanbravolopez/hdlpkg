@@ -51,6 +51,17 @@ def _collect(manifest: Manifest, core_dir: Path) -> dict[str, bytes]:
     for fileset in manifest.filesets.values():
         for relative in fileset.files:
             arcname = relative.replace("\\", "/")
+            # A fileset must stay inside the core: reject absolute paths and any
+            # ``..`` that would pack a file from outside the core directory (which
+            # would also produce an .ipkg extract_ipkg later refuses to unpack).
+            if (
+                arcname.startswith("/")
+                or ".." in arcname.split("/")
+                or Path(relative).is_absolute()
+            ):
+                raise PackagingError(
+                    f"Fileset '{fileset.name}' path escapes the core directory: {relative!r}"
+                )
             try:
                 files[arcname] = (core_dir / relative).read_bytes()
             except OSError as exc:

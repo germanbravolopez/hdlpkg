@@ -48,7 +48,9 @@ An unknown target name raises `ValueError`.
 
 `get_backend(toolflow) -> Backend` returns the backend for a `[targets.*].toolflow`
 value; `supported_toolflows()` lists them. An unknown tool flow raises `BackendError`.
-Every backend rejects a file type it cannot handle and a missing top, raising
+Every backend uses shared `Backend` guards — `_reject_unsupported` (a file type it
+cannot handle) and `_require_top` (a missing top, or a `top` that is not a safe HDL
+identifier, since the top is interpolated into generated scripts) — each raising
 `BackendError`.
 
 | `toolflow` | Backend | Emits | Notes |
