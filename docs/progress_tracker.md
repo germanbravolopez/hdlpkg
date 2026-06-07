@@ -18,9 +18,14 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: `0.7.0` — supply-chain: CycloneDX SBOM via `hdlpkg pack --sbom` (M8);
-see the Release plan. (Released as `0.7.0`, not `1.0.0`: the formats are still pre-1.0
-and the 1.0.0 stability gate is not yet met.)
+**Version**: `0.8.0` — the pre-1.0 completeness pass + backlog batch on top of the
+M8 SBOM work: reproducible lockfile-driven builds (`install --locked`/`gen
+--locked`), `hdlpkg add`, the `ip.toml` `schema` key, pack/top hardening, the `tree`
+Windows fix, `resolve`/`install`/`tree --registry`, `Fileset.depend`, three more
+backends (Icarus/GHDL/Yosys), and Dependabot. Shipped as `0.8.0`, not `1.0.0`: the
+formats are still moving (multi-version lockfile shape and a possible `scheme` key are
+recorded as open issues) and the 1.0.0 stability gate (rc soak, OCI protocol,
+third-party consume) is not yet met. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
 pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
@@ -54,9 +59,11 @@ pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
 - **Tooling** — pytest (markers + coverage gate + foldable summary), ruff, mypy
   strict on `src/`, CI workflow, and a cross-platform test-summary renderer.
 
-**Next**: all roadmap milestones (M1–M8) are delivered; the remaining work is the
-`1.0.0` stability gate (see the Release plan), plus the open backends/signing issues.
-(M8 SBOM generation is implemented on `main`, awaiting the `0.7.0` release.)
+**Next**: all roadmap milestones (M1–M8) are delivered; the remaining work toward
+`1.0.0` is the stability gate (see the Release plan) — frozen formats, an `rc` soak,
+the OCI protocol, and a third-party publish/consume — plus the open
+backends/signing and the newly recorded versioning issues (multi-version
+coexistence, unification semantics, non-SemVer schemes).
 
 ---
 
@@ -127,6 +134,9 @@ _None._
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git/OCI backends. Checksums + SBOM already ship; this adds authenticity on top. |
 | Resolve/install over HTTP/OCI + `gen` from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry DIR` now consume a **local published** `LocalRegistry` directly (the producer->consumer loop closes for local registries). Remaining: wire `HttpRegistry` into `--registry` (resolve/install over HTTP), the OCI backend, and a fetch-then-extract so `gen` can build straight from a registry (it still needs loose sources via `--search`/`pull`). |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
+| Multi-version coexistence (two versions of one package in one design) | `resolver.py`, `lockfile.py`, `backends/edam.py`, `cli.py` | **Required future feature.** Today the resolver is **single-version-per-package**, fail-on-conflict. Some designs genuinely need *incompatible majors* of one IP to coexist — e.g. the external consumer demo's `soc_conflict/`: `fifo -> bus_pkg ^1` and `legacy -> bus_pkg ^2`, where v2 is a breaking change (it renamed `DATA_WIDTH` -> `BUS_DATA_BITS`), so no single version satisfies both. The work splits into two halves with very different risk: **(a) Bookkeeping (pure, safe):** the resolver/lockfile/`tree` keep *multiple* selected versions when ranges fall in SemVer-incompatible groups; `ip.lock` records more than one version of the same package. **(b) Physical coexistence at `gen` (the hard part):** SystemVerilog/Verilog put every `module`/`package` name in **one global namespace**, so two `package bus_pkg;` declarations collide at elaboration and the tool cannot know which one a consumer's `import bus_pkg::*` means. Making them build together requires **automatic name-mangling** — rename each version's declared symbols with a version-unique suffix (`bus_pkg` -> `bus_pkg__v1` / `bus_pkg__v2`) and rewrite *every reference* in each consumer to the version *that consumer resolved to*. That means editing HDL **source**, which the tool currently treats as opaque blobs; naive regex is unsafe (comments, macros, partial-name matches, hierarchical refs), so it likely needs an HDL-aware frontend (cf. the parked "source-unit tokenizing" backlog item). VHDL is slightly better placed (logical libraries give a namespace) but still needs `library`/`use`-clause rewriting. **Until (b) is built, `gen` must refuse to emit two versions of one package** with a clear message pointing at this limitation. Cargo/npm get multi-version "for free" only because their *compiler* namespaces each package automatically; HDL gives no such thing, so we must synthesize it. |
+| Unification semantics for resolution (sub-issue of multi-version) | `resolver.py` | A prerequisite decision for multi-version coexistence: **when does the resolver collapse to one version vs. keep several?** Two models: **Cargo-style (recommended)** — unify all dependents whose ranges are SemVer-compatible (same major) to the newest that satisfies them, and only allow *distinct* versions across *incompatible* majors (so the demo's `soc/` still resolves to a single `bus_pkg 1.1.0`; only `soc_conflict/` would get two). **Honor-exact-pins** — keep a distinct version per dependent whenever their selected versions differ at all, even within one major (more copies, more mangling, diverges from npm/Cargo norms). This choice changes the resolver contract and the lockfile shape, so it must be settled before (a) above lands. |
+| Non-SemVer / custom version schemes | `version.py`, `manifest.py`, `resolver.py` | The tool assumes **SemVer 2.0.0** everywhere (`Version` + `VersionConstraint` parse, precedence, caret/tilde ranges). Real HDL IP is frequently versioned otherwise: date/calendar-based (`2024.1` Vivado-style, `YY.MM` CalVer), monotonic revisions (`r3`, `rev12`), `git describe` (`1.2-14-gabcdef`), or opaque vendor tags. The tool must define what happens when a manifest's `version` is **not** SemVer. Behaviors to specify: **(1)** the strict default — reject a non-SemVer `version` at manifest-parse time with a clear `ManifestError` naming the offending string (better than mis-ordering it); **(2)** an opt-in `scheme` field in `[package]` (e.g. `scheme = "semver" \| "calver" \| "opaque"`) selecting the precedence/constraint engine, giving a forward-compatible migration path; **(3)** an **opaque/pinned** mode that supports only **exact-match** constraints (no ranges, no newest-compatible selection) so such cores can still be resolved and locked **deterministically** even without a total order. Implement at least (1) explicitly before the 1.0 format freeze; (2)/(3) can follow behind the `schema`/`scheme` keys. |
 
 ---
 
@@ -141,6 +151,21 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Release 0.8.0 — June 2026
+- [x] **Tagged `0.8.0`** per the Release plan: ships the pre-1.0 completeness pass +
+  the non-blocking/backlog batch that landed on `main` after the `0.7.0` tag —
+  reproducible lockfile-driven builds (`install --locked`/`gen --locked`), `hdlpkg
+  add`, the optional `ip.toml` `schema` key, pack-path + tool-flow `top` hardening,
+  the `hdlpkg tree` Windows (cp1252) fix, `resolve`/`install`/`tree --registry`
+  consuming a published `LocalRegistry`, `Fileset.depend`-aware EDAM assembly, three
+  more tool-flow backends (Icarus/GHDL/Yosys), Dependabot, and the per-module user
+  manual. Shipped as `0.8.0` rather than `1.0.0`: the `ip.toml`/`ip.lock` formats are
+  still moving (multi-version coexistence, unification semantics, and non-SemVer
+  version schemes are now recorded as Open Non-Blocking Issues) and the 1.0.0
+  stability gate (an `rc` soak, the OCI registry protocol, a third-party
+  publish/consume) is not yet met. Bumped `pyproject.toml` + `__init__.py`. Also
+  recorded the three versioning issues above.
 
 ### Pre-1.0 completeness pass — June 2026
 - [x] **Reproducible, lockfile-driven builds** (`install --locked`, `gen --locked`).
