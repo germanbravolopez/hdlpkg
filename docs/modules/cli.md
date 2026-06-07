@@ -66,7 +66,7 @@ constraint and the chosen version; diamonds are expanded once and later marked `
 
 ```
 acme:comm:uart:1.2.0
-└── acme:common:fifo ^1.0.0 -> 1.0.0
+`-- acme:common:fifo ^1.0.0 -> 1.0.0
 ```
 
 ## Package, publish, distribute

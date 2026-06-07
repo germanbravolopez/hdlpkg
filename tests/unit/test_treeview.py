@@ -50,8 +50,8 @@ def test_tree_has_root_line_and_sorted_children() -> None:
     top, resolved, manifests = _build()
     out = render_dependency_tree(top, resolved, manifests).splitlines()
     assert out[0] == "acme:app:top:2.0.0"
-    assert out[1].startswith("├── acme:x:leaf")  # sorted before mid
-    assert out[2].startswith("└── acme:x:mid")
+    assert out[1].startswith("|-- acme:x:leaf")  # sorted before mid
+    assert out[2].startswith("`-- acme:x:mid")
 
 
 def test_tree_annotates_resolved_versions() -> None:
@@ -67,6 +67,12 @@ def test_repeated_node_is_marked_and_not_re_expanded() -> None:
     assert out.count("(*)") == 1
     mid_branch = out.splitlines()[-1]
     assert "acme:x:leaf" in mid_branch and mid_branch.strip().endswith("(*)")
+
+
+def test_output_is_ascii_safe() -> None:
+    # Box-drawing characters crash on a cp1252 Windows console; keep it ASCII.
+    top, resolved, manifests = _build()
+    assert render_dependency_tree(top, resolved, manifests).isascii()
 
 
 def test_unresolved_dependency_is_labelled() -> None:

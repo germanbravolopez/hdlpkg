@@ -77,7 +77,7 @@ hdlpkg validate examples/uart/ip.toml
 ```bash
 hdlpkg tree examples/uart/ip.toml --search examples
 # acme:comm:uart:1.2.0
-# └── acme:common:fifo ^1.0.0 -> 1.0.0
+# `-- acme:common:fifo ^1.0.0 -> 1.0.0
 ```
 
 `--search examples` tells `hdlpkg` where to discover candidate cores.

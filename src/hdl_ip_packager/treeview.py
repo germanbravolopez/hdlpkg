@@ -39,7 +39,7 @@ def render_dependency_tree(
         items = sorted(deps, key=lambda d: str(d.ref))
         for index, dep in enumerate(items):
             last = index == len(items) - 1
-            connector = "└── " if last else "├── "
+            connector = "`-- " if last else "|-- "
             vlnv = resolved.get(dep.ref)
             version = str(vlnv.version) if vlnv is not None else "(unresolved)"
             repeated = dep.ref in expanded
@@ -50,7 +50,7 @@ def render_dependency_tree(
             expanded.add(dep.ref)
             child = manifests.get(dep.ref)
             if child is not None and child.dependencies:
-                walk(child.dependencies, prefix + ("    " if last else "│   "))
+                walk(child.dependencies, prefix + ("    " if last else "|   "))
 
     walk(root.dependencies, "")
     return "\n".join(lines)
