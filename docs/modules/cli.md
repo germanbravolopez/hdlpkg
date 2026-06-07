@@ -60,10 +60,11 @@ acme:comm:uart:1.2.0
 ## Package, publish, distribute
 
 ### `pack [path] [--output FILE] [--sbom [FILE]] [--search DIR …]`
-Build a deterministic [`.ipkg`](packaging.md) (default `<vlnv>.ipkg`) and print its
-size + SHA-256. With `--sbom`, also write a [CycloneDX SBOM](sbom.md) (default
-`<vlnv>.cdx.json`), resolving dependencies over `--search` so the SBOM pins concrete
-versions.
+Build a deterministic [`.ipkg`](packaging.md) (default
+`<vendor>-<library>-<name>-<version>.ipkg`) and print its size + SHA-256. With
+`--sbom`, also write a [CycloneDX SBOM](sbom.md) (default
+`<vendor>.<library>.<name>.<version>.cdx.json`), resolving dependencies over
+`--search` so the SBOM pins concrete versions.
 
 ### `publish [path] --registry DIR`
 Pack the core and publish it into a writable [`LocalRegistry`](registry.md)
