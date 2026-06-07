@@ -61,4 +61,6 @@ lock.verify({pkg.vlnv: recompute_digest(pkg.vlnv) for pkg in lock.packages})
 ```
 
 `hdlpkg resolve` writes the lockfile; `hdlpkg install` writes it and then verifies
-every fetched core against it. See [the CLI page](cli.md).
+every fetched core against it. For reproducible builds, `hdlpkg install --locked` and
+`hdlpkg gen --locked` consume the committed lockfile *without re-resolving* (failing
+if it is missing). See [the CLI page](cli.md).

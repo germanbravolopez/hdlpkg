@@ -145,8 +145,12 @@ See the [manifest reference](modules/manifest.md) for every field.
 
 ## Typical workflows
 
-- **Consume a dependency**: declare it → `resolve` (writes `ip.lock`) → `install`
-  (fetch + verify into the cache) → `gen <target>` to build.
+- **Consume a dependency**: declare it (`hdlpkg add`) → `resolve` (writes `ip.lock`)
+  → `install` (fetch + verify into the cache) → `gen <target>` to build.
+- **Reproducible / CI builds**: commit `ip.lock`, then build with `install --locked`
+  and `gen --locked <target>` — these use the *exact* pinned versions and never
+  re-resolve, so the build is byte-for-byte the same everywhere. `hdlpkg resolve`
+  is the one command that updates the lock to newer compatible versions.
 - **Publish a core**: `validate` → `pack` → `publish --registry …` (append-only;
   `yank` to retire a bad version).
 - **Hand off to a vendor tool**: `gen <target>` for the simulator/synth inputs, or

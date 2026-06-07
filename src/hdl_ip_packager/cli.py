@@ -19,7 +19,7 @@ from . import __version__
 from .backends import CoreSource, build_eda_design, get_backend
 from .cache import ContentAddressedCache, default_cache_root
 from .editing import add_dependency
-from .exceptions import BackendError, HdlPackagerError, ManifestError
+from .exceptions import BackendError, HdlPackagerError, LockfileError, ManifestError
 from .ipxact import to_ipxact
 from .lockfile import LOCKFILE_FILENAME, Lockfile, sha256_digest
 from .manifest import MANIFEST_FILENAME, Manifest
@@ -120,6 +120,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_install.add_argument(
         "--output", help=f"where to write the lockfile (default: ./{LOCKFILE_FILENAME})"
     )
+    p_install.add_argument(
+        "--locked",
+        action="store_true",
+        help=f"install exactly from an existing {LOCKFILE_FILENAME} without re-resolving "
+        "(reproducible builds); fail if it is missing",
+    )
     p_install.set_defaults(func=_cmd_install)
 
     p_pack = sub.add_parser("pack", help="package this core into a distributable .ipkg")
@@ -176,6 +182,12 @@ def build_parser() -> argparse.ArgumentParser:
         "manifest's parent directory)",
     )
     p_gen.add_argument("--output", metavar="DIR", help="output directory (default: ./gen/<target>)")
+    p_gen.add_argument(
+        "--locked",
+        action="store_true",
+        help=f"use the dependency versions pinned in {LOCKFILE_FILENAME} instead of "
+        "re-resolving (reproducible generation); fail if it is missing",
+    )
     p_gen.set_defaults(func=_cmd_gen)
 
     p_tree = sub.add_parser("tree", help="print the resolved dependency graph")
@@ -290,8 +302,7 @@ def _resolve_local(
 ) -> tuple[Resolution, LocalDirectoryRegistry]:
     """Resolve *manifest_path* against a local-directory registry over *search*."""
     root = Manifest.from_path(manifest_path)
-    search_dirs = search or [str(manifest_path.resolve().parent)]
-    registry = LocalDirectoryRegistry([Path(d) for d in search_dirs])
+    registry = _local_registry(manifest_path, search)
     resolution = resolve_deps(root, available_from_registry(registry, root))
     return resolution, registry
 
@@ -301,6 +312,23 @@ def _build_lock(resolution: Resolution, registry: LocalDirectoryRegistry) -> Loc
     sources = {vlnv: registry.source_for(vlnv) for vlnv in resolution.vlnvs}
     checksums = {vlnv: sha256_digest(registry.artifact_bytes(vlnv)) for vlnv in resolution.vlnvs}
     return Lockfile.from_resolution(resolution, sources=sources, checksums=checksums)
+
+
+def _local_registry(manifest_path: Path, search: list[str] | None) -> LocalDirectoryRegistry:
+    """A local-directory registry over *search* (default: the manifest's parent)."""
+    search_dirs = search or [str(manifest_path.resolve().parent)]
+    return LocalDirectoryRegistry([Path(d) for d in search_dirs])
+
+
+def _load_lockfile(manifest_path: Path) -> Lockfile:
+    """Load the ``ip.lock`` next to *manifest_path*; raise if it is missing (for --locked)."""
+    lock_path = manifest_path.parent / LOCKFILE_FILENAME
+    if not lock_path.is_file():
+        raise LockfileError(
+            f"--locked needs an existing {lock_path}, but none was found; "
+            f"run 'hdlpkg resolve' first."
+        )
+    return Lockfile.from_path(lock_path)
 
 
 def _cmd_resolve(args: argparse.Namespace) -> int:
@@ -318,12 +346,26 @@ def _cmd_resolve(args: argparse.Namespace) -> int:
 
 def _cmd_install(args: argparse.Namespace) -> int:
     manifest_path = Path(args.path)
-    resolution, registry = _resolve_local(manifest_path, args.search)
-    lock = _build_lock(resolution, registry)
-
     cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
     cache = ContentAddressedCache(cache_root)
-    fetched: dict[Vlnv, str] = {vlnv: registry.fetch(vlnv, cache) for vlnv in resolution.vlnvs}
+
+    if args.locked:
+        # Reproducible install: fetch exactly what ip.lock pins, no re-resolve, no rewrite.
+        lock = _load_lockfile(manifest_path)
+        registry = _local_registry(manifest_path, args.search)
+        fetched = {pkg.vlnv: registry.fetch(pkg.vlnv, cache) for pkg in lock.packages}
+        lock.verify(fetched)  # fail closed if any fetched digest disagrees with the lock
+        print(
+            f"Installed {len(fetched)} locked package(s) into {cache_root} "
+            f"(from {LOCKFILE_FILENAME})"
+        )
+        for pkg in lock.packages:
+            print(f"  {pkg.vlnv}")
+        return 0
+
+    resolution, registry = _resolve_local(manifest_path, args.search)
+    lock = _build_lock(resolution, registry)
+    fetched = {vlnv: registry.fetch(vlnv, cache) for vlnv in resolution.vlnvs}
     # The just-fetched digests must match what the lockfile pinned (fail closed).
     lock.verify(fetched)
 
@@ -397,10 +439,17 @@ def _cmd_gen(args: argparse.Namespace) -> int:
         known = ", ".join(sorted(root.targets)) or "(none)"
         raise BackendError(f"Unknown target {args.target!r}; the manifest defines: {known}.")
 
-    resolution, registry = _resolve_local(manifest_path, args.search)
+    if args.locked:
+        # Reproducible generation: pin dependency versions from ip.lock, no re-resolve.
+        lock = _load_lockfile(manifest_path)
+        registry = _local_registry(manifest_path, args.search)
+        dep_vlnvs = [pkg.vlnv for pkg in lock.packages]
+    else:
+        resolution, registry = _resolve_local(manifest_path, args.search)
+        dep_vlnvs = list(resolution.vlnvs)
     dependencies = [
         CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
-        for vlnv in resolution.vlnvs
+        for vlnv in dep_vlnvs
     ]
     design = build_eda_design(
         CoreSource(manifest=root, root=str(manifest_path.resolve().parent)),

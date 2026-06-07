@@ -102,12 +102,12 @@ quick-find reference.
 | `hdlpkg init [dir]` | implemented | Scaffold a starter `ip.toml` (flags or interactive prompts) |
 | `hdlpkg add <dep> [path] [--version]` | implemented | Add/update a dependency in `ip.toml` (text-preserving) |
 | `hdlpkg resolve [path] [--search DIR] [--output]` | implemented | Resolve deps against a local registry, write `ip.lock` |
-| `hdlpkg install [path] [--search] [--cache-dir]` | implemented | Resolve + fetch into the content-addressed cache (verified) |
+| `hdlpkg install [path] [--search] [--cache-dir] [--locked]` | implemented | Resolve + fetch into the verified cache; `--locked` installs exactly from `ip.lock` (no re-resolve) |
 | `hdlpkg pack [path] [--output] [--sbom] [--search]` | implemented | Build a deterministic `.ipkg`; `--sbom` also writes a CycloneDX SBOM |
 | `hdlpkg publish [path] --registry DIR` | implemented | Publish a core to a local registry (append-only) |
 | `hdlpkg pull <vlnv> --registry DIR [--output]` | implemented | Fetch a core by VLNV into the cache; optionally extract |
 | `hdlpkg yank <vlnv> --registry DIR` | implemented | Hide a published version from new resolves |
-| `hdlpkg gen <target> [--search DIR] [--output DIR]` | implemented | Generate tool-flow inputs (Verilator `.vc` / Vivado `.tcl`) for a target |
+| `hdlpkg gen <target> [--search DIR] [--output DIR] [--locked]` | implemented | Generate tool-flow inputs (Verilator/Vivado/Icarus/GHDL/Yosys); `--locked` pins deps from `ip.lock` |
 | `hdlpkg tree [--search DIR]` | implemented | Print the resolved dependency graph as a tree |
 | `hdlpkg export-ipxact [--output FILE]` | implemented | Export an IP-XACT (IEEE 1685-2014) component XML |
 
