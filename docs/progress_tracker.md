@@ -22,13 +22,13 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 see the Release plan. (Released as `0.7.0`, not `1.0.0`: the formats are still pre-1.0
 and the 1.0.0 stability gate is not yet met.)
 
-**Stage**: Foundation. The pure core is implemented, fully typed, linted, and
-unit-tested (151 passing tests, ~96% coverage):
+**Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
+pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
 - **Versioning** — SemVer 2.0.0 `Version` + `VersionConstraint` (caret/tilde/range
   grammar, pre-release precedence).
 - **Identity** — `PackageRef` and `Vlnv` (`vendor:library:name:version`).
 - **Manifest** — `ip.toml` parsing/validation (`[package]`, `[dependencies]`,
-  `[filesets]`, `[targets]`).
+  `[filesets]`, `[targets]`), with an optional `schema` version for a migration path.
 - **Resolver** — backtracking, newest-compatible dependency resolution (one `Vlnv`
   per package, fail-on-conflict); pure, fed by an in-memory version index.
 - **Lockfile** — deterministic `ip.lock` (serialize/parse/verify a `Resolution`
@@ -41,14 +41,16 @@ unit-tested (151 passing tests, ~96% coverage):
 - **Packaging** — deterministic `.ipkg` artifact (`pack_core`/`extract_ipkg`); the
   packed-content digest is what the cache and lockfile pin.
 - **Backends** — tool-flow generation (`backends/`): a pure EDAM-like intermediate
-  (`build_eda_design`) feeding Verilator (`.vc`) and Vivado (`.tcl`) backends.
+  (`build_eda_design`, honoring `Fileset.depend`) feeding Verilator, Vivado, Icarus,
+  GHDL, and Yosys backends behind shared, hardened guards.
 - **IP-XACT** — IEEE 1685-2014 component export (`ipxact.py`: `to_ipxact`) behind
   `hdlpkg export-ipxact`.
 - **Supply-chain** — content checksums (SHA-256) everywhere, plus a deterministic
   CycloneDX SBOM (`sbom.py`: `build_cyclonedx`) emitted by `hdlpkg pack --sbom`
   (Sigstore signing deferred).
-- **CLI** — `info`/`validate`/`init`/`resolve`/`install`/`pack`/`publish`/`pull`/
-  `yank`/`gen`/`tree`/`export-ipxact` work; `add` is wired and reports planned status.
+- **CLI** — all commands implemented: `info`/`validate`/`init`/`add`/`resolve`/
+  `install`/`pack`/`publish`/`pull`/`yank`/`gen`/`tree`/`export-ipxact`. `install
+  --locked` and `gen --locked` give reproducible, lockfile-driven builds.
 - **Tooling** — pytest (markers + coverage gate + foldable summary), ruff, mypy
   strict on `src/`, CI workflow, and a cross-platform test-summary renderer.
 
@@ -124,8 +126,6 @@ _None._
 | OCI artifact registry | `registry.py` | The differentiator backend: store/fetch cores as OCI artifacts (Docker-registry infra). Deferred from M4: needs a live OCI registry (or a mock) and the manifest/blob API; significant standalone work. |
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git/OCI backends. Checksums + SBOM already ship; this adds authenticity on top. |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
-| Factor shared backend guards | `backends/base.py`, `backends/*.py` | _From PR #2 code review._ The "missing top" check and the "unsupported file type" rejection are copy-pasted across all five backends. Lift them to helpers on the `Backend` ABC (e.g. `_require_top(design)`, `_reject_unsupported(design, supported)`) so a 6th backend doesn't re-copy the boilerplate and the error wording can't drift. Cleanup only — no behavior change. |
-| Escape/validate generated tool-flow inputs | `backends/icarus.py`, `backends/ghdl.py`, `backends/yosys.py`, `manifest.py` | _From PR #2 code review._ Generated shell scripts/command files interpolate `design.toplevel` (and `name`) without quoting; the manifest `top` field is a free-form string (only type-checked in `manifest.py`). A `top` containing spaces/shell metacharacters yields a malformed `run_*.sh`/`.ys`. Harden by quoting interpolations and/or validating `top`/module-name segments. File paths are already quoted. Low likelihood, real correctness gap for generated artifacts. |
 
 ---
 
@@ -140,6 +140,29 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Pre-1.0 completeness pass — June 2026
+- [x] **Reproducible, lockfile-driven builds** (`install --locked`, `gen --locked`).
+  Both build *exactly* from a committed `ip.lock` without re-resolving (the `npm ci`
+  / `cargo --locked` model), verifying fetched digests against the lock and failing
+  if it is missing; `hdlpkg resolve` remains the one command that updates the lock.
+  Closes the "the lockfile isn't actually consumed" gap. Files: `cli.py`,
+  `tests/integration/test_locked_cli.py`.
+- [x] **`hdlpkg add`** inserts/updates a dependency in `ip.toml` via a pure,
+  text-preserving line editor (`editing.py`) — keeps formatting/comments, refuses a
+  self-dependency, and re-validates before writing. The last planned CLI stub is
+  gone (the empty planned-command machinery was removed). Files: `editing.py`,
+  `cli.py`, `tests/unit/test_editing.py`, `tests/unit/test_cli.py`.
+- [x] **`ip.toml` schema version** — an optional top-level `schema` key (default 1);
+  a manifest written for a newer schema is rejected with a clear message rather than
+  mis-parsed, giving the format a migration path before the 1.0 freeze. Files:
+  `manifest.py`, `tests/unit/test_manifest.py`.
+- [x] **Hardening** — `pack` now rejects fileset paths that escape the core directory
+  (`..`/absolute); the tool-flow `top` is validated as a safe HDL identifier before
+  it is interpolated into generated scripts; and the per-backend "missing top" /
+  "unsupported file type" guards were factored onto the `Backend` ABC (resolving the
+  two PR-review findings). Files: `packaging.py`, `backends/base.py`, `backends/*.py`,
+  `tests/integration/test_packaging.py`, `tests/unit/test_backends.py`.
 
 ### Non-blocking + backlog batch (develop) — June 2026
 - [x] **Richer dependency fileset selection — honor `Fileset.depend`.** `backends/edam.py`
