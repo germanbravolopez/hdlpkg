@@ -74,8 +74,14 @@ the merged commit on `main` afterwards (see [README](../README.md) -> Releasing)
 | VLNV identity | [src/hdl_ip_packager/vlnv.py](../src/hdl_ip_packager/vlnv.py) |
 | `ip.toml` parsing/validation | [src/hdl_ip_packager/manifest.py](../src/hdl_ip_packager/manifest.py) |
 | Exception hierarchy | [src/hdl_ip_packager/exceptions.py](../src/hdl_ip_packager/exceptions.py) |
-| Resolver (planned seam) | [src/hdl_ip_packager/resolver.py](../src/hdl_ip_packager/resolver.py) |
-| Registry/cache (planned seam) | [src/hdl_ip_packager/registry.py](../src/hdl_ip_packager/registry.py) |
+| Resolver | [src/hdl_ip_packager/resolver.py](../src/hdl_ip_packager/resolver.py) |
+| Lockfile (`ip.lock`) | [src/hdl_ip_packager/lockfile.py](../src/hdl_ip_packager/lockfile.py) |
+| Content-addressed cache | [src/hdl_ip_packager/cache.py](../src/hdl_ip_packager/cache.py) |
+| Registry (local/HTTP/writable) | [src/hdl_ip_packager/registry.py](../src/hdl_ip_packager/registry.py) |
+| Packaging (`.ipkg`) | [src/hdl_ip_packager/packaging.py](../src/hdl_ip_packager/packaging.py) |
+| Tool-flow backends (`gen`) | [src/hdl_ip_packager/backends/](../src/hdl_ip_packager/backends/) |
+| IP-XACT / SBOM / tree view | [ipxact.py](../src/hdl_ip_packager/ipxact.py), [sbom.py](../src/hdl_ip_packager/sbom.py), [treeview.py](../src/hdl_ip_packager/treeview.py) |
+| Per-module reference (manual) | [docs/modules/](modules/README.md) |
 | Tests | [tests/](../tests/) — see [tests/README.md](../tests/README.md) |
 | Test summary renderer | [scripts/render_test_summary.py](../scripts/render_test_summary.py) |
 | Project + tool config | [pyproject.toml](../pyproject.toml) (single source of truth) |

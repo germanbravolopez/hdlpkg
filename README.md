@@ -166,6 +166,8 @@ mkdocs serve
 
 | Document | Description |
 |----------|-------------|
+| [User guide](./docs/user_guide.md) | **Start here if you are new** — what the tool does and a hands-on walkthrough |
+| [Module manual](./docs/modules/README.md) | Per-module reference + the full `hdlpkg` command reference |
 | [AI agent instructions](./docs/ai_agent_instructions.md) | **Start here if you are an AI agent or new contributor** — briefing, file map, rules |
 | [Architecture](./docs/architecture.md) | Module map, manifest/lockfile design, data flow, roadmap |
 | [State of the art](./docs/research/state_of_the_art.md) | Research survey of package managers (pip/npm/cargo/docker) and HDL tools (FuseSoC, IP-XACT, Orbit, Bender) |

@@ -62,8 +62,24 @@ markdown_extensions:
 
 nav:
   - Home: README.md
-  - Onboarding: ai_agent_instructions.md
+  - User guide: user_guide.md
+  - Reference (manual):
+      - Overview: modules/README.md
+      - Versioning: modules/versioning.md
+      - Identity (VLNV): modules/identity.md
+      - Manifest (ip.toml): modules/manifest.md
+      - Errors: modules/exceptions.md
+      - Resolver: modules/resolver.md
+      - Lockfile (ip.lock): modules/lockfile.md
+      - Content-addressed cache: modules/cache.md
+      - Registry: modules/registry.md
+      - Packaging (.ipkg): modules/packaging.md
+      - Tool-flow backends: modules/backends.md
+      - IP-XACT export: modules/ipxact.md
+      - SBOM (CycloneDX): modules/sbom.md
+      - CLI reference: modules/cli.md
   - Architecture: architecture.md
   - Roadmap & status: progress_tracker.md
+  - Onboarding: ai_agent_instructions.md
   - Research: research/state_of_the_art.md
   - Index: INDEX.md
