@@ -110,7 +110,6 @@ quick-find reference.
 | `hdlpkg gen <target> [--search DIR] [--output DIR]` | implemented | Generate tool-flow inputs (Verilator `.vc` / Vivado `.tcl`) for a target |
 | `hdlpkg tree [--search DIR]` | implemented | Print the resolved dependency graph as a tree |
 | `hdlpkg export-ipxact [--output FILE]` | implemented | Export an IP-XACT (IEEE 1685-2014) component XML |
-| `hdlpkg export-ipxact` | planned | Export IP-XACT (IEEE 1685) for tool interop |
 
 ## Glossary
 

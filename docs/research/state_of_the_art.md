@@ -19,10 +19,10 @@ a checklist for our own design.
 | Concept | What it is | Our choice |
 |---------|-----------|------------|
 | **Manifest** | Human-authored declaration of *what a project needs*: identity, metadata, direct dependencies with version constraints. | `ip.toml` (TOML) |
-| **Lockfile** | Machine-generated record of *what was actually resolved* — exact versions + integrity hashes — for reproducible builds. | `ip.lock` (planned) |
-| **Resolver** | Turns constraints into concrete versions. | newest-compatible, SAT-ready (planned) |
-| **Registry** | Where packages are published and discovered. | local / Git / HTTP / OCI (planned) |
-| **Cache** | Local, verified copy of fetched packages so builds are offline & reproducible. | content-addressed (planned) |
+| **Lockfile** | Machine-generated record of *what was actually resolved* — exact versions + integrity hashes — for reproducible builds. | `ip.lock` (implemented) |
+| **Resolver** | Turns constraints into concrete versions. | newest-compatible, SAT-ready (implemented) |
+| **Registry** | Where packages are published and discovered. | local + HTTP (implemented); Git / OCI (planned) |
+| **Cache** | Local, verified copy of fetched packages so builds are offline & reproducible. | content-addressed (implemented) |
 | **Versioning** | The contract for "what changed". | SemVer 2.0.0 |
 | **Identity** | A globally meaningful name. | VLNV (IP-XACT-style) |
 
@@ -190,15 +190,17 @@ abstraction. Our IP-XACT export targets exactly this consumer.
 2. **VLNV identity** — align with IP-XACT/FuseSoC so names are portable. *(implemented)*
 3. **SemVer 2.0.0 + caret-default constraints** — the dominant library convention. *(implemented)*
 4. **Single-version resolution, fail-on-conflict** — HDL can't nest; mirror pip,
-   not npm. Newest-compatible selection, SAT-ready. *(planned)*
+   not npm. Newest-compatible selection, SAT-ready. *(implemented)*
 5. **Committed lockfile + per-core integrity hash** — reproducibility like Cargo/
-   Orbit/Go. *(planned)*
+   Orbit/Go. *(implemented)*
 6. **Content-addressed cache + pluggable registries, including an OCI backend** —
-   reuse battle-tested infrastructure rather than build a server. *(planned)*
+   reuse battle-tested infrastructure rather than build a server.
+   *(cache + local/HTTP registries implemented; Git/OCI backends planned)*
 7. **Tool-flow abstraction (EDAM-like)** — generate simulator/synthesis inputs
-   from one description, à la FuseSoC. *(planned)*
-8. **IP-XACT export** — interop with Vivado and other IEEE-1685 consumers. *(planned)*
-9. **Supply-chain on the roadmap** — checksums now; Sigstore signing + SBOM later. *(planned)*
+   from one description, à la FuseSoC. *(implemented — Verilator/Vivado/Icarus/GHDL/Yosys)*
+8. **IP-XACT export** — interop with Vivado and other IEEE-1685 consumers. *(implemented)*
+9. **Supply-chain on the roadmap** — checksums now; Sigstore signing + SBOM later.
+   *(checksums + CycloneDX SBOM implemented; Sigstore signing planned)*
 
 ---
 
