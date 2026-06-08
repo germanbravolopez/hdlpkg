@@ -19,7 +19,13 @@ from . import __version__
 from .backends import CoreSource, build_eda_design, get_backend
 from .cache import ContentAddressedCache, default_cache_root
 from .editing import add_dependency
-from .exceptions import BackendError, HdlPackagerError, LockfileError, ManifestError
+from .exceptions import (
+    BackendError,
+    HdlPackagerError,
+    InvalidVlnvError,
+    LockfileError,
+    ManifestError,
+)
 from .ipxact import to_ipxact
 from .lockfile import LOCKFILE_FILENAME, Lockfile, sha256_digest
 from .manifest import (
@@ -485,8 +491,20 @@ def _cmd_publish(args: argparse.Namespace) -> int:
     return 0
 
 
+def _user_vlnv(text: str) -> Vlnv:
+    """Parse a user-supplied VLNV, accepting an opaque (non-SemVer) version too.
+
+    The command line carries no scheme, so try SemVer first and fall back to an
+    opaque token; if the VLNV is unknown the registry lookup fails clearly afterward.
+    """
+    try:
+        return Vlnv.parse(text)
+    except InvalidVlnvError:
+        return Vlnv.parse(text, "opaque")
+
+
 def _cmd_pull(args: argparse.Namespace) -> int:
-    vlnv = Vlnv.parse(args.vlnv)
+    vlnv = _user_vlnv(args.vlnv)
     registry = LocalRegistry(args.registry)
     cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
     cache = ContentAddressedCache(cache_root)
@@ -499,7 +517,7 @@ def _cmd_pull(args: argparse.Namespace) -> int:
 
 
 def _cmd_yank(args: argparse.Namespace) -> int:
-    vlnv = Vlnv.parse(args.vlnv)
+    vlnv = _user_vlnv(args.vlnv)
     LocalRegistry(args.registry).yank(vlnv)
     print(f"Yanked {vlnv} in {args.registry}")
     return 0

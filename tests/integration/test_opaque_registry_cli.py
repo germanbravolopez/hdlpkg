@@ -54,3 +54,21 @@ def test_opaque_core_publishes_and_resolves_from_registry(
     lock = Lockfile.from_path(out_lock)
     assert [str(p.vlnv) for p in lock.packages] == ["acme:rf:radio:D5020100"]
     assert 'scheme   = "opaque"' in out_lock.read_text(encoding="utf-8")
+
+    # pull/yank take a VLNV string with no scheme: the opaque token must still parse.
+    cache = tmp_path / "cache"
+    pulled = tmp_path / "pulled"
+    rc = cli.main(
+        [
+            "pull",
+            "acme:rf:radio:D5020100",
+            "--registry",
+            str(registry),
+            "--cache-dir",
+            str(cache),
+            "--output",
+            str(pulled),
+        ]
+    )
+    assert rc == 0
+    assert (pulled / "ip.toml").is_file()

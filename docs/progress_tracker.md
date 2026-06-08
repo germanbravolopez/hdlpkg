@@ -189,10 +189,13 @@ _None._
   (exact-pin opaque constraints like `=D5020100`, with `^`/ranges refused), the
   lockfile (round-trips via a `scheme = "opaque"` marker per package), the tree, and
   the registry (`LocalRegistry.versions` reads the manifest for a non-SemVer version
-  directory). Verified against the consumer demo's new `soc_opaque/` (vendor IP at
-  `D502../D401../DB..` part numbers, resolved by exact pin, `gen`-built). What stays
-  open: an *ordered* non-SemVer scheme (a calver/monotonic precedence engine so such
-  versions could be *ranged*, not just exact-pinned).
+  directory) -- and `pull`/`yank`, which take a VLNV string with no scheme, parse it
+  as SemVer first and fall back to an opaque token (`cli._user_vlnv`), so pulling an
+  opaque core by VLNV works. Verified against the consumer demo's new `soc_opaque/`
+  (vendor IP at `D502../D401../DB..` part numbers, resolved by exact pin, `gen`-built,
+  published + pulled). What stays open: an *ordered* non-SemVer scheme (a
+  calver/monotonic precedence engine so such versions could be *ranged*, not just
+  exact-pinned).
 - [x] **Implementation**: a pure `compatibility_group(version, scheme)` and
   `VersionConstraint.is_exact`/`exact_version` in `version.py`; a grouped,
   scheme-aware backtracking solver keyed per `(package, compatibility-group)` node
