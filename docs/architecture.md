@@ -140,9 +140,11 @@ package and possibly more under `isolate_namespaces`.
   policy (`--on-conflict` overrides it): `fail_on_conflict` (default, raise),
   `use_latest` (collapse to newest + warn), `isolate_namespaces` (keep all in the
   lock/tree; `gen` refuses to emit two versions, since name-mangling is unbuilt).
-- **Version scheme** — `[package].scheme` is `semver` (default) or `opaque`; an
-  opaque package's dependents must pin an exact `=` version and every distinct pin is
-  its own group (honor-exact-pins). A non-SemVer `version` is rejected at parse.
+- **Version scheme** — `[package].scheme` is `semver` (default) or `opaque`. Under
+  `semver` a non-SemVer `version` is rejected at parse; `opaque` carries a non-SemVer
+  token (`OpaqueVersion`, e.g. `D5020100`), whose dependents must pin an exact `=`
+  version and every distinct pin is its own group (honor-exact-pins). Opaque VLNVs
+  round-trip through the lockfile via a `scheme` marker.
 - **Newest-compatible** selection; pre-releases excluded unless a constraint's
   operand is itself a pre-release of the same core (the `VersionConstraint` rule).
 - **Backtracking search** over candidate sets keyed per `(package, compatibility

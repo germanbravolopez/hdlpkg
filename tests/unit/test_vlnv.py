@@ -5,10 +5,25 @@ from __future__ import annotations
 import pytest
 
 from hdl_ip_packager.exceptions import InvalidVlnvError
-from hdl_ip_packager.version import Version
+from hdl_ip_packager.version import OpaqueVersion, Version
 from hdl_ip_packager.vlnv import PackageRef, Vlnv
 
 pytestmark = pytest.mark.unit
+
+
+class TestOpaqueVlnv:
+    def test_parse_opaque_scheme_accepts_non_semver(self) -> None:
+        v = Vlnv.parse("acme:x:radio:D5020100", scheme="opaque")
+        assert isinstance(v.version, OpaqueVersion)
+        assert str(v) == "acme:x:radio:D5020100"
+
+    def test_default_scheme_still_rejects_non_semver(self) -> None:
+        with pytest.raises(InvalidVlnvError):
+            Vlnv.parse("acme:x:radio:D5020100")
+
+    def test_with_version_accepts_opaque_instance(self) -> None:
+        v = PackageRef.parse("acme:x:radio").with_version(OpaqueVersion.parse("D5020100"))
+        assert str(v) == "acme:x:radio:D5020100"
 
 
 class TestVlnv:

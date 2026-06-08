@@ -76,6 +76,7 @@ quick-find reference.
 | `tests/unit/test_lockfile.py` | Lockfile model: round-trip, determinism, parse errors, checksum verification |
 | `tests/integration/test_resolve_cli.py` | `hdlpkg resolve` end to end on the bundled examples |
 | `tests/integration/test_conflict_policy_cli.py` | `on-conflict` policies end to end: fail / isolate / use_latest + `gen` refusing two versions |
+| `tests/integration/test_opaque_registry_cli.py` | Opaque (non-SemVer) version published + resolved from a registry, lockfile scheme round-trip |
 | `tests/integration/test_cache.py` | Content-addressed cache: round-trip, dedup, verify-on-read corruption |
 | `tests/integration/test_registry.py` | Local + HTTP registries, graph walker, `install` fetch-into-cache |
 | `tests/integration/test_packaging.py` | `.ipkg` pack determinism, round-trip, path-traversal guard |

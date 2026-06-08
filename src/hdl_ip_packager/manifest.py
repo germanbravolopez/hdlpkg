@@ -51,6 +51,8 @@ from .exceptions import HdlPackagerError, InvalidVersionError, ManifestError
 from .version import (
     DEFAULT_VERSION_SCHEME,
     SUPPORTED_VERSION_SCHEMES,
+    AnyVersion,
+    OpaqueVersion,
     Version,
     VersionConstraint,
     VersionScheme,
@@ -257,15 +259,18 @@ class Manifest:
         version = cls._require(pkg, "version", "package")
         if not isinstance(version, str):
             raise ManifestError("package.version must be a string.")
+        parsed: AnyVersion
         try:
-            parsed = Version.parse(version)
+            # An opaque-scheme core carries a non-SemVer token; the default semver
+            # scheme rejects anything that is not valid SemVer 2.0.0 (rather than
+            # mis-ordering it).
+            parsed = OpaqueVersion.parse(version) if scheme == "opaque" else Version.parse(version)
         except InvalidVersionError as exc:
-            # Reject a non-SemVer version explicitly rather than mis-ordering it.
-            # (Genuinely non-SemVer schemes are an open issue; even scheme="opaque"
-            # requires SemVer-shaped strings for now -- see version.py.)
+            expected = (
+                "an opaque version token" if scheme == "opaque" else "a valid SemVer 2.0.0 version"
+            )
             raise ManifestError(
-                f"package.version {version!r} is not a valid SemVer 2.0.0 version "
-                f"(scheme = {scheme!r}): {exc}."
+                f"package.version {version!r} is not {expected} (scheme = {scheme!r}): {exc}."
             ) from exc
         try:
             return PackageRef(str(vendor), str(library), str(name)).with_version(parsed)

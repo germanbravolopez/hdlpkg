@@ -197,7 +197,14 @@ class LocalRegistry(Registry):
             try:
                 found.append(ref.with_version(Version.parse(entry.name)))
             except HdlPackagerError:
-                continue
+                # A non-SemVer directory name belongs to an opaque-scheme core; read
+                # its manifest to recover the opaque version (the dir is named after it).
+                manifest_path = entry / MANIFEST_FILENAME
+                if manifest_path.is_file():
+                    try:
+                        found.append(Manifest.from_path(manifest_path).vlnv)
+                    except HdlPackagerError:
+                        continue
         return found
 
     def manifest(self, vlnv: Vlnv) -> Manifest:

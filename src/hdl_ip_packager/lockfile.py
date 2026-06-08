@@ -33,6 +33,7 @@ from pathlib import Path
 
 from .exceptions import HdlPackagerError, LockfileError
 from .resolver import Resolution
+from .version import OpaqueVersion, VersionScheme
 from .vlnv import Vlnv
 
 __all__ = [
@@ -99,6 +100,9 @@ class Lockfile:
         ]
         for pkg in sorted(self.packages, key=lambda p: str(p.vlnv)):
             lines += ["", "[[package]]", f"vlnv     = {_toml_basic_string(str(pkg.vlnv))}"]
+            if isinstance(pkg.vlnv.version, OpaqueVersion):
+                # Record the scheme so the non-SemVer version round-trips on parse.
+                lines.append('scheme   = "opaque"')
             if pkg.source:
                 lines.append(f"source   = {_toml_basic_string(pkg.source)}")
             if pkg.checksum:
@@ -143,8 +147,9 @@ class Lockfile:
         vlnv_str = entry.get("vlnv")
         if not isinstance(vlnv_str, str):
             raise LockfileError("Each [[package]] needs a 'vlnv' string.")
+        scheme: VersionScheme = "opaque" if entry.get("scheme") == "opaque" else "semver"
         try:
-            vlnv = Vlnv.parse(vlnv_str)
+            vlnv = Vlnv.parse(vlnv_str, scheme)
         except HdlPackagerError as exc:
             raise LockfileError(f"Invalid vlnv {vlnv_str!r} in lockfile: {exc}") from exc
         return LockedPackage(

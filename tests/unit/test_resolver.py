@@ -14,7 +14,7 @@ import pytest
 from hdl_ip_packager.exceptions import ResolutionError
 from hdl_ip_packager.manifest import Dependency, Manifest
 from hdl_ip_packager.resolver import Resolution, resolve
-from hdl_ip_packager.version import VersionConstraint
+from hdl_ip_packager.version import OpaqueVersion, VersionConstraint
 from hdl_ip_packager.vlnv import PackageRef, Vlnv
 
 pytestmark = pytest.mark.unit
@@ -242,3 +242,42 @@ def test_opaque_requires_exact_constraint() -> None:
     index = available(core_scheme("acme:x:vendor_ip:1.0.0", "opaque"))
     with pytest.raises(ResolutionError, match="exact '=' version"):
         resolve(root, index)
+
+
+def _opaque_core(ref: str, token: str) -> Manifest:
+    """An opaque-scheme core whose version is a genuinely non-SemVer vendor token."""
+    return Manifest(
+        vlnv=PackageRef.parse(ref).with_version(OpaqueVersion.parse(token)),
+        version_scheme="opaque",
+    )
+
+
+def test_non_semver_opaque_tokens_resolve_by_exact_pin() -> None:
+    # Vendor tags like D5020100 / D4010100 / DB010000 -- exact-pinned, never ranged.
+    root = core(
+        "acme:soc:top:1.0.0",
+        {"acme:rf:radio": "=D5020100", "acme:dsp:filter": "=D4010100", "acme:bus:db": "=DB010000"},
+    )
+    index = available(
+        _opaque_core("acme:rf:radio", "D5020100"),
+        _opaque_core("acme:rf:radio", "D5020200"),  # a different tag, not selected
+        _opaque_core("acme:dsp:filter", "D4010100"),
+        _opaque_core("acme:bus:db", "DB010000"),
+    )
+    resolution = resolve(root, index)
+    assert chosen(resolution, "acme:rf:radio") == "acme:rf:radio:D5020100"
+    assert chosen(resolution, "acme:dsp:filter") == "acme:dsp:filter:D4010100"
+    assert chosen(resolution, "acme:bus:db") == "acme:bus:db:DB010000"
+
+
+def test_distinct_opaque_tags_conflict_under_default_policy() -> None:
+    root = core("acme:soc:top:1.0.0", {"acme:rf:radio": "=D5020100", "acme:ip:wrap": "^1.0.0"})
+    index = available(
+        core("acme:ip:wrap:1.0.0", {"acme:rf:radio": "=D5020200"}),
+        _opaque_core("acme:rf:radio", "D5020100"),
+        _opaque_core("acme:rf:radio", "D5020200"),
+    )
+    with pytest.raises(ResolutionError, match="incompatible versions"):
+        resolve(root, index)
+    resolution = resolve(root, index, "isolate_namespaces")
+    assert len(resolution.by_ref[PackageRef.parse("acme:rf:radio")]) == 2

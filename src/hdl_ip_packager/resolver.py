@@ -146,12 +146,13 @@ def _edge_node(
     scheme = _scheme_of(ref, schemes)
     candidates = index.get(ref, [])
     if scheme == "opaque":
-        if not constraint.is_exact:
+        token = constraint.pinned_token
+        if token is None:
             raise ResolutionError(
                 f"{ref} uses the 'opaque' version scheme; dependents must pin an exact "
                 f"'=' version, got {constraint}."
             )
-        return (ref, compatibility_group(constraint.exact_version, "opaque"))  # type: ignore[arg-type]
+        return (ref, ("opaque", token))
     if not candidates:
         return (ref, ("missing",))
     satisfying = [m for m in candidates if constraint.matches(m.vlnv.version)]

@@ -12,9 +12,35 @@ import itertools
 import pytest
 
 from hdl_ip_packager.exceptions import InvalidConstraintError, InvalidVersionError
-from hdl_ip_packager.version import Version, VersionConstraint, compatibility_group
+from hdl_ip_packager.version import (
+    OpaqueVersion,
+    Version,
+    VersionConstraint,
+    compatibility_group,
+)
 
 pytestmark = pytest.mark.unit
+
+
+class TestOpaqueVersion:
+    @pytest.mark.parametrize("text", ["D5020100", "D4010100", "DB010000", "2024.1", "r3", "1.2"])
+    def test_parses_non_semver_tokens(self, text: str) -> None:
+        assert str(OpaqueVersion.parse(text)) == text
+
+    @pytest.mark.parametrize("text", ["", "  ", "has space", ":colon", "@bad"])
+    def test_rejects_non_tokens(self, text: str) -> None:
+        with pytest.raises(InvalidVersionError):
+            OpaqueVersion.parse(text)
+
+    def test_lexical_ordering_is_deterministic(self) -> None:
+        assert OpaqueVersion.parse("D5020100") < OpaqueVersion.parse("D5020200")
+        assert sorted([OpaqueVersion.parse("DB010001"), OpaqueVersion.parse("DB010000")]) == [
+            OpaqueVersion.parse("DB010000"),
+            OpaqueVersion.parse("DB010001"),
+        ]
+
+    def test_not_a_prerelease(self) -> None:
+        assert OpaqueVersion.parse("D5020100").is_prerelease is False
 
 
 class TestCompatibilityGroup:
@@ -55,6 +81,32 @@ class TestExactConstraint:
         assert not VersionConstraint.parse("^1.2.3").is_exact
         assert not VersionConstraint.parse(">=1.0.0,<2.0.0").is_exact
         assert VersionConstraint.parse("^1.2.3").exact_version is None
+
+    def test_pinned_token_for_semver(self) -> None:
+        assert VersionConstraint.parse("=1.2.3").pinned_token == "1.2.3"
+        assert VersionConstraint.parse("^1.2.3").pinned_token is None
+
+
+class TestOpaqueConstraint:
+    @pytest.mark.parametrize("text", ["=D5020100", "D5020100", "==2024.1", "2024.1"])
+    def test_opaque_exact_pins_parse(self, text: str) -> None:
+        c = VersionConstraint.parse(text)
+        assert c.opaque is not None
+        assert c.is_exact
+        assert c.exact_version is None  # not a SemVer Version
+
+    def test_opaque_matches_only_its_exact_token(self) -> None:
+        c = VersionConstraint.parse("=D5020100")
+        assert c.pinned_token == "D5020100"
+        assert c.matches(OpaqueVersion.parse("D5020100"))
+        assert not c.matches(OpaqueVersion.parse("D5020200"))
+
+    def test_semver_constraint_never_matches_opaque_version(self) -> None:
+        assert not VersionConstraint.parse("^1.0.0").matches(OpaqueVersion.parse("D5020100"))
+
+    def test_semver_pin_is_not_opaque(self) -> None:
+        # A SemVer-shaped =pin stays a normal SemVer constraint, not an opaque one.
+        assert VersionConstraint.parse("=1.2.3").opaque is None
 
 
 class TestVersionParsing:

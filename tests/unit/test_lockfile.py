@@ -53,6 +53,16 @@ def test_to_toml_round_trips() -> None:
     assert parsed == lock
 
 
+def test_opaque_version_round_trips_via_scheme_marker() -> None:
+    # A non-SemVer (opaque) version survives serialize/parse via a `scheme` marker.
+    lock = Lockfile(packages=(LockedPackage(Vlnv.parse("acme:x:radio:D5020100", "opaque")),))
+    toml = lock.to_toml()
+    assert 'scheme   = "opaque"' in toml
+    parsed = Lockfile.from_toml(toml)
+    assert parsed == lock
+    assert str(parsed.packages[0].vlnv) == "acme:x:radio:D5020100"
+
+
 def test_to_toml_is_deterministic_regardless_of_input_order() -> None:
     a = LockedPackage(Vlnv.parse("acme:lib:a:1.0.0"))
     b = LockedPackage(Vlnv.parse("acme:lib:b:1.0.0"))

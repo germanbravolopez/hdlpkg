@@ -143,7 +143,7 @@ _None._
 | Resolve/install over HTTP/OCI + `gen` from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry DIR` now consume a **local published** `LocalRegistry` directly (the producer->consumer loop closes for local registries). Remaining: wire `HttpRegistry` into `--registry` (resolve/install over HTTP), the OCI backend, and a fetch-then-extract so `gen` can build straight from a registry (it still needs loose sources via `--search`/`pull`). |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
 | Physical multi-version coexistence at `gen` (name-mangling) | `backends/edam.py`, `cli.py` | The **bookkeeping** half of multi-version coexistence shipped (the resolver/lock/`tree` keep incompatible versions under `isolate_namespaces`), and `gen` **refuses** to emit two versions today. The remaining **physical** half: SystemVerilog/Verilog put every `module`/`package` name in one global namespace, so two `package bus_pkg;` collide at elaboration. Building them together needs **automatic name-mangling** — rename each version's declared symbols with a version-unique suffix and rewrite *every reference* in each consumer to its resolved version. That edits HDL **source** (currently opaque blobs); naive regex is unsafe, so it needs an HDL-aware frontend (cf. the parked "source-unit tokenizing" backlog item). VHDL is slightly better placed (logical libraries) but still needs `library`/`use`-clause rewriting. |
-| Genuinely non-SemVer version *strings* (calver / `r3` / opaque tags) | `version.py`, `vlnv.py`, `lockfile.py` | The `[package].scheme` key and the strict non-SemVer **rejection** shipped, and `scheme = "opaque"` gives exact-pin/honor-distinct resolution. What remains: letting an `opaque` (or future `calver`) package carry a version string that is **not** SemVer-shaped (`2024.1`, `r3`, `1.2-14-gabcdef`). That needs an `OpaqueVersion` token type threaded through `Vlnv`/lockfile round-trip and a scheme-aware `Vlnv.parse`, plus optional calver/monotonic precedence engines. The format key reserves this path; the engines can follow without a format break. |
+| Ordered non-SemVer schemes (calver / monotonic precedence) | `version.py`, `manifest.py`, `resolver.py` | `scheme = "opaque"` ships and carries genuinely non-SemVer version *strings* (`2024.1`, `r3`, `D5020100`) via `OpaqueVersion` — but opaque is **exact-pin only**: there is no ordering, so such versions cannot be *ranged* or newest-selected. What remains is an **ordered** non-SemVer scheme: e.g. `scheme = "calver"` (`YYYY.MM` precedence) or a monotonic-revision engine, so `^2024.1` / "newest" become meaningful for those cores. Add a precedence engine behind the existing `scheme` key (no format break) and a constraint grammar that maps onto it. |
 
 ---
 
@@ -177,13 +177,22 @@ _None._
     coexistence (name-mangling, part (b)) is not built, so `gen` **refuses** to emit
     two versions of one package with a clear message (`backends/edam.py`).
 - [x] **Opt-in `[package].scheme` version scheme** (`semver` default, or `opaque`) and
-  **explicit non-SemVer rejection**. A non-SemVer `package.version` is now rejected at
-  parse time with a clear `ManifestError` naming the string (the gating minimum
-  (1) of the non-SemVer issue). `scheme = "opaque"` treats versions as opaque tokens:
-  dependents must pin an exact `=` version and every distinct pin is its own
-  compatibility group (honor-exact-pins), so the resolver never assumes compatibility
-  it cannot verify. (Genuinely non-SemVer version *strings* — calver, `r3` — remain
-  open behind this key; opaque versions are SemVer-shaped for now.)
+  **explicit non-SemVer rejection**. A non-SemVer `package.version` is rejected under
+  the default semver scheme at parse time with a clear `ManifestError` naming the
+  string (the gating minimum (1) of the non-SemVer issue). `scheme = "opaque"` treats
+  versions as opaque tokens: dependents must pin an exact `=` version and every distinct
+  pin is its own compatibility group (honor-exact-pins), so the resolver never assumes
+  compatibility it cannot verify.
+- [x] **Genuinely non-SemVer version strings under `opaque`** — a new `OpaqueVersion`
+  token (e.g. a vendor part number `D5020100`, calver `2024.1`, `r3`) is threaded
+  through `Vlnv` (a scheme-aware `Vlnv.parse`), the manifest, `VersionConstraint`
+  (exact-pin opaque constraints like `=D5020100`, with `^`/ranges refused), the
+  lockfile (round-trips via a `scheme = "opaque"` marker per package), the tree, and
+  the registry (`LocalRegistry.versions` reads the manifest for a non-SemVer version
+  directory). Verified against the consumer demo's new `soc_opaque/` (vendor IP at
+  `D502../D401../DB..` part numbers, resolved by exact pin, `gen`-built). What stays
+  open: an *ordered* non-SemVer scheme (a calver/monotonic precedence engine so such
+  versions could be *ranged*, not just exact-pinned).
 - [x] **Implementation**: a pure `compatibility_group(version, scheme)` and
   `VersionConstraint.is_exact`/`exact_version` in `version.py`; a grouped,
   scheme-aware backtracking solver keyed per `(package, compatibility-group)` node
@@ -193,11 +202,13 @@ _None._
   version and expands per VLNV; the CLI threads the policy through
   resolve/install/tree/gen and prints warnings to stderr. Verified end to end against
   the external consumer demo's `soc_conflict/` (default fails; `isolate` resolves two
-  `bus_pkg`; `gen` refuses; `use_latest` collapses to `2.0.0`) and `soc/` (diamond
-  still unifies to one `bus_pkg 1.1.0`). Files: `version.py`, `manifest.py`,
-  `resolver.py`, `treeview.py`, `backends/edam.py`, `cli.py`, `__init__.py`,
+  `bus_pkg`; `gen` refuses; `use_latest` collapses to `2.0.0`), `soc/` (diamond still
+  unifies to one `bus_pkg 1.1.0`), and `soc_opaque/` (opaque vendor part numbers).
+  Files: `version.py`, `manifest.py`, `resolver.py`, `treeview.py`, `vlnv.py`,
+  `lockfile.py`, `registry.py`, `backends/edam.py`, `cli.py`, `__init__.py`,
   `tests/unit/test_version.py`, `test_resolver.py`, `test_treeview.py`,
-  `test_manifest.py`, `test_edam.py`, `tests/integration/test_conflict_policy_cli.py`.
+  `test_manifest.py`, `test_vlnv.py`, `test_lockfile.py`, `test_edam.py`,
+  `tests/integration/test_conflict_policy_cli.py`.
 
 ### Hard gate: all PR checks must be green before merge — June 2026
 - [x] **Green CI is now an explicit, hard gate before any merge.** A real incident

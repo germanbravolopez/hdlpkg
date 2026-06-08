@@ -23,7 +23,7 @@ import re
 from dataclasses import dataclass
 
 from .exceptions import InvalidVersionError, InvalidVlnvError
-from .version import Version
+from .version import AnyVersion, OpaqueVersion, Version, VersionScheme
 
 __all__ = ["PackageRef", "Vlnv"]
 
@@ -65,8 +65,12 @@ class PackageRef:
             )
         return cls(*parts)
 
-    def with_version(self, version: Version | str) -> Vlnv:
-        """Return a fully-qualified :class:`Vlnv` by attaching *version*."""
+    def with_version(self, version: AnyVersion | str) -> Vlnv:
+        """Return a fully-qualified :class:`Vlnv` by attaching *version*.
+
+        A string is parsed as SemVer; pass an :class:`OpaqueVersion` instance for an
+        opaque-scheme core.
+        """
         if isinstance(version, str):
             try:
                 version = Version.parse(version)
@@ -85,20 +89,24 @@ class Vlnv:
     vendor: str
     library: str
     name: str
-    version: Version
+    version: AnyVersion
 
     def __post_init__(self) -> None:
         _validate_segment(self.vendor, "vendor")
         _validate_segment(self.library, "library")
         _validate_segment(self.name, "name")
-        if not isinstance(self.version, Version):
+        if not isinstance(self.version, (Version, OpaqueVersion)):
             raise InvalidVlnvError(
-                f"version must be a Version instance, got {type(self.version).__name__}"
+                f"version must be a Version or OpaqueVersion, got {type(self.version).__name__}"
             )
 
     @classmethod
-    def parse(cls, text: str) -> Vlnv:
-        """Parse ``vendor:library:name:version``; raise :class:`InvalidVlnvError` on failure."""
+    def parse(cls, text: str, scheme: VersionScheme = "semver") -> Vlnv:
+        """Parse ``vendor:library:name:version``; raise :class:`InvalidVlnvError` on failure.
+
+        *scheme* selects how the version segment is parsed: ``"semver"`` (default) or
+        ``"opaque"`` (a non-SemVer token, e.g. from an opaque-scheme lockfile entry).
+        """
         if not isinstance(text, str):
             raise InvalidVlnvError(f"VLNV must be a string, got {type(text).__name__}")
         parts = text.strip().split(":")
@@ -108,7 +116,11 @@ class Vlnv:
             )
         vendor, library, name, version_str = parts
         try:
-            version = Version.parse(version_str)
+            version: AnyVersion = (
+                OpaqueVersion.parse(version_str)
+                if scheme == "opaque"
+                else Version.parse(version_str)
+            )
         except InvalidVersionError as exc:
             raise InvalidVlnvError(f"In VLNV {text!r}: {exc}") from exc
         return cls(vendor, library, name, version)

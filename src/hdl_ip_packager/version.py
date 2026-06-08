@@ -38,6 +38,8 @@ from .exceptions import InvalidConstraintError, InvalidVersionError
 __all__ = [
     "DEFAULT_VERSION_SCHEME",
     "SUPPORTED_VERSION_SCHEMES",
+    "AnyVersion",
+    "OpaqueVersion",
     "Version",
     "VersionConstraint",
     "VersionScheme",
@@ -59,7 +61,9 @@ SUPPORTED_VERSION_SCHEMES: tuple[VersionScheme, ...] = ("semver", "opaque")
 DEFAULT_VERSION_SCHEME: VersionScheme = "semver"
 
 
-def compatibility_group(version: Version, scheme: VersionScheme = "semver") -> tuple[object, ...]:
+def compatibility_group(
+    version: AnyVersion, scheme: VersionScheme = "semver"
+) -> tuple[object, ...]:
     """Return the *compatibility group* key of *version* under *scheme*.
 
     Two versions are in the same group iff a dependent on one may transparently be
@@ -71,7 +75,7 @@ def compatibility_group(version: Version, scheme: VersionScheme = "semver") -> t
     (``^0.y`` allows patch changes only), and for ``0.0.z`` the patch. Opaque: the
     version itself, so every distinct version is its own group.
     """
-    if scheme == "opaque":
+    if isinstance(version, OpaqueVersion) or scheme == "opaque":
         return ("opaque", str(version))
     if version.major > 0:
         return ("semver", version.major)
@@ -182,6 +186,48 @@ class Version:
         return hash((self.core, self.prerelease))
 
 
+# An opaque version token: a non-SemVer identifier (calver ``2024.1``, a vendor tag
+# ``D5020100``, a monotonic ``r3``). Same character set as a VLNV segment, plus ``+``.
+_OPAQUE_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+-]*$")
+
+
+@total_ordering
+@dataclass(frozen=True)
+class OpaqueVersion:
+    """A version with no SemVer compatibility relation, used by ``scheme = "opaque"``.
+
+    The packager carries the token but does **not** interpret it: there is no
+    precedence beyond a deterministic lexical order (for stable output), no ranges,
+    and no newest-compatible selection. Dependents must pin an exact ``=`` version.
+    """
+
+    raw: str
+
+    @classmethod
+    def parse(cls, text: str) -> OpaqueVersion:
+        """Parse an opaque version token, raising :class:`InvalidVersionError` on failure."""
+        if not isinstance(text, str) or not _OPAQUE_VERSION_RE.match(text.strip()):
+            raise InvalidVersionError(f"Not a valid opaque version token: {text!r}")
+        return cls(text.strip())
+
+    @property
+    def is_prerelease(self) -> bool:
+        """Always False -- an opaque token has no pre-release concept."""
+        return False
+
+    def __str__(self) -> str:
+        return self.raw
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, OpaqueVersion):
+            return NotImplemented
+        return self.raw < other.raw  # lexical: deterministic, not semantic
+
+
+# Either kind of version a core may declare, depending on its ``[package].scheme``.
+AnyVersion = Version | OpaqueVersion
+
+
 @dataclass(frozen=True)
 class _Comparator:
     """A single primitive comparison: ``op`` in {=, >, >=, <, <=} against ``version``."""
@@ -222,6 +268,29 @@ def _tilde_upper(v: Version) -> Version:
     return Version(v.major, v.minor + 1, 0)
 
 
+def _opaque_exact_token(raw: str) -> str | None:
+    """Return the opaque exact-pin token in *raw*, or None if it is not one.
+
+    An opaque pin is a single clause (no commas) that is a bare token or ``=``/``==``
+    followed by a token, where the token is a valid opaque identifier but **not** a
+    SemVer version (so a real SemVer bare/``=`` constraint takes the normal path).
+    """
+    if "," in raw:
+        return None
+    token = raw
+    for prefix in ("==", "="):
+        if token.startswith(prefix):
+            token = token[len(prefix) :].strip()
+            break
+    if not _OPAQUE_VERSION_RE.match(token):
+        return None
+    try:
+        Version.parse(token)
+    except InvalidVersionError:
+        return token
+    return None  # it parsed as SemVer -> not opaque
+
+
 @dataclass(frozen=True)
 class VersionConstraint:
     """A parsed version constraint that a :class:`Version` may or may not satisfy.
@@ -233,6 +302,7 @@ class VersionConstraint:
     comparators: tuple[_Comparator, ...]
     raw: str
     matches_any: bool = False
+    opaque: str | None = None  # an exact pin on a non-SemVer (opaque) version token
 
     @classmethod
     def parse(cls, text: str) -> VersionConstraint:
@@ -242,6 +312,13 @@ class VersionConstraint:
         raw = text.strip()
         if raw in ("", "*", "any"):
             return cls(comparators=(), raw=raw or "*", matches_any=True)
+
+        opaque = _opaque_exact_token(raw)
+        if opaque is not None:
+            # A bare or ``=`` pin whose operand is not SemVer (e.g. ``=D5020100``,
+            # ``2024.1``): an exact match against an opaque-scheme package. Ranges of
+            # an opaque token are meaningless, so only exact pins are accepted here.
+            return cls(comparators=(), raw=raw, opaque=opaque)
 
         comparators: list[_Comparator] = []
         for token in raw.split(","):
@@ -275,13 +352,25 @@ class VersionConstraint:
 
     @property
     def is_exact(self) -> bool:
-        """True if this constraint pins a single exact version (``=X.Y.Z``)."""
+        """True if this constraint pins a single exact version (``=X.Y.Z`` or opaque)."""
+        if self.opaque is not None:
+            return True
         return len(self.comparators) == 1 and self.comparators[0].op == "="
 
     @property
     def exact_version(self) -> Version | None:
-        """The pinned version if this is an exact constraint, else ``None``."""
+        """The pinned :class:`Version` if this is an exact SemVer constraint, else ``None``."""
+        if self.opaque is not None:
+            return None
         return self.comparators[0].version if self.is_exact else None
+
+    @property
+    def pinned_token(self) -> str | None:
+        """The exact-pinned version string (SemVer or opaque), or ``None`` if not exact."""
+        if self.opaque is not None:
+            return self.opaque
+        exact = self.exact_version
+        return str(exact) if exact is not None else None
 
     def _prerelease_allowed(self, candidate: Version) -> bool:
         """A pre-release candidate is only allowed if a comparator targets its base triple."""
@@ -289,8 +378,12 @@ class VersionConstraint:
             c.version.is_prerelease and c.version.core == candidate.core for c in self.comparators
         )
 
-    def matches(self, candidate: Version) -> bool:
+    def matches(self, candidate: AnyVersion) -> bool:
         """Return True if *candidate* satisfies this constraint."""
+        if self.opaque is not None:
+            return str(candidate) == self.opaque
+        if isinstance(candidate, OpaqueVersion):
+            return False  # a SemVer constraint never matches an opaque token
         if candidate.is_prerelease and not self._prerelease_allowed(candidate):
             return False
         if self.matches_any:

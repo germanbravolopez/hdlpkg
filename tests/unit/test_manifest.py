@@ -142,6 +142,18 @@ class TestVersionScheme:
         toml = '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="0.1.0"\nscheme="opaque"\n'
         assert Manifest.from_str(toml).version_scheme == "opaque"
 
+    def test_opaque_scheme_accepts_non_semver_version(self) -> None:
+        toml = '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="D5020100"\nscheme="opaque"\n'
+        manifest = Manifest.from_str(toml)
+        assert str(manifest.vlnv.version) == "D5020100"
+
+    def test_opaque_scheme_rejects_junk_token(self) -> None:
+        toml = (
+            '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="has space"\nscheme="opaque"\n'
+        )
+        with pytest.raises(ManifestError, match="opaque version token"):
+            Manifest.from_str(toml)
+
     def test_unknown_scheme_is_rejected(self) -> None:
         toml = '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="0.1.0"\nscheme="calver"\n'
         with pytest.raises(ManifestError, match=r"Unsupported package\.scheme"):
