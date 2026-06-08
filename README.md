@@ -122,6 +122,13 @@ filesets = ["rtl"]
 top      = "uart_top"
 ```
 
+Optional keys extend this: `[package].scheme = "opaque"` for non-SemVer vendor
+version tokens (pinned exactly), and `[resolution] on-conflict = "..."`
+(`fail_on_conflict` default / `use_latest` / `isolate_namespaces`, also a
+`--on-conflict` flag) for how an incompatible version conflict is handled. See
+[docs/modules/manifest.md](docs/modules/manifest.md) and
+[resolver.md](docs/modules/resolver.md).
+
 Two complete, working cores live under [`examples/`](examples/) — a FIFO
 (`acme:common:fifo`) and a UART (`acme:comm:uart`) that depends on it:
 

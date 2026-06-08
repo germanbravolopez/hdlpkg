@@ -15,8 +15,8 @@ tests/
 │   ├── test_vlnv.py
 │   ├── test_manifest.py
 │   ├── test_scaffold.py
-│   ├── test_resolver.py            backtracking dependency resolution
-│   ├── test_lockfile.py            ip.lock model: round-trip + verification
+│   ├── test_resolver.py            resolution: backtracking, conflict policies, opaque scheme
+│   ├── test_lockfile.py            ip.lock model: round-trip + verification (+ opaque scheme marker)
 │   ├── test_cli.py
 │   ├── test_precommit_config.py    .pre-commit-config.yaml parses + keeps CI hooks
 │   ├── test_docs_site.py       mkdocs.yml parses + every nav page exists
@@ -28,6 +28,8 @@ tests/
 └── integration/                multi-module / filesystem tests            - marker: integration
     ├── test_manifest_cli_flow.py
     ├── test_resolve_cli.py         hdlpkg resolve end to end on examples/
+    ├── test_conflict_policy_cli.py on-conflict policies + gen refusing two versions
+    ├── test_opaque_registry_cli.py opaque (non-SemVer) publish/resolve/pull round-trip
     ├── test_cache.py               content-addressed cache (verify-on-read)
     ├── test_registry.py            local + HTTP registries, graph walk, install
     ├── test_packaging.py           .ipkg pack/extract determinism + safety

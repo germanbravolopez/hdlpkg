@@ -42,7 +42,7 @@ task-oriented intro see the [user guide](user_guide.md).
 
 | Module | File | Status | Responsibility |
 |--------|------|--------|----------------|
-| Versioning | [version.py](../src/hdl_ip_packager/version.py) | implemented | SemVer 2.0.0 `Version` + `VersionConstraint` (parse, precedence, matching) |
+| Versioning | [version.py](../src/hdl_ip_packager/version.py) | implemented | SemVer 2.0.0 `Version` + `VersionConstraint` (parse, precedence, matching), `compatibility_group`, and `OpaqueVersion` (non-SemVer tokens) |
 | Identity | [vlnv.py](../src/hdl_ip_packager/vlnv.py) | implemented | `PackageRef` (`vendor:library:name`) and `Vlnv` (+`:version`) |
 | Manifest | [manifest.py](../src/hdl_ip_packager/manifest.py) | implemented | Parse/validate `ip.toml` → `Manifest` (identity, deps, filesets, targets) |
 | Scaffolder | [scaffold.py](../src/hdl_ip_packager/scaffold.py) | implemented | Pure renderer for a starter `ip.toml` (behind `hdlpkg init`) |
@@ -102,8 +102,11 @@ The per-core, author-written manifest. Schema (full example in
 [manifest.py](../src/hdl_ip_packager/manifest.py) and the [README](../README.md)):
 
 - `[package]` — `vendor`, `library`, `name`, `version` (required); plus
-  `description`, `license`, `authors`, `top`, `keywords`.
+  `description`, `license`, `authors`, `top`, `keywords`, and an optional `scheme`
+  (`semver` default, or `opaque` for non-SemVer vendor version tokens).
 - `[dependencies]` — `"vendor:library:name" = "<constraint>"`.
+- `[resolution]` — optional `on-conflict` policy (`fail_on_conflict` default /
+  `use_latest` / `isolate_namespaces`) for an incompatible version conflict.
 - `[filesets.<id>]` — `files` (list), `type` (HDL kind), optional `depend`
   (targets that pull it in).
 - `[targets.<id>]` — `toolflow`, `filesets` (must reference defined filesets),

@@ -42,7 +42,11 @@ of source files with a top unit and a tool flow.
 - Cores are emitted **dependencies-first** via a topological sort (ties by VLNV);
   duplicate file paths are de-duplicated.
 
-An unknown target name raises `ValueError`.
+An unknown target name raises `ValueError`. If the dependencies contain **two versions
+of one package** (possible under the resolver's `isolate_namespaces`
+[conflict policy](resolver.md)), `build_eda_design` raises `BackendError` — HDL
+elaboration cannot host two versions in one namespace and automatic name-mangling is
+not implemented, so `gen` refuses rather than emit a design that cannot elaborate.
 
 ## Backends and the registry
 

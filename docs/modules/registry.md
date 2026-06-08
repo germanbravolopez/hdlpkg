@@ -48,7 +48,7 @@ A writable registry with a structured, **append-only** on-disk layout:
 |--------|-------------|
 | `publish_core(manifest, core_dir) -> Vlnv` | Pack the core and publish it; **refuses to overwrite** an existing version (append-only). |
 | `yank(vlnv)` | Drop a `.yanked` marker that hides the version from new resolves without breaking existing lockfiles. Idempotent; raises if never published. |
-| `versions` / `manifest` / `artifact_bytes` | As per the interface; `versions` skips yanked entries. |
+| `versions` / `manifest` / `artifact_bytes` | As per the interface; `versions` skips yanked entries. A non-SemVer ([`opaque`](versioning.md)) version directory is recovered by reading its `ip.toml`, so opaque cores resolve from a published registry too. |
 
 This backs `hdlpkg publish`/`pull`/`yank`, and — via `resolve`/`install`/`tree
 --registry DIR` — is also a **read** source you can resolve and install directly

@@ -21,7 +21,7 @@ the edges (the CLI and registry/cache). The pages below follow that flow:
 
 | Module | What it covers |
 |--------|----------------|
-| [Resolver](resolver.md) | `resolve` → one concrete version per package (backtracking, newest-compatible) |
+| [Resolver](resolver.md) | `resolve` → selected version(s) per package (Cargo-style unification, `on-conflict` policy, scheme-aware) |
 | [Lockfile (`ip.lock`)](lockfile.md) | Serialize/verify a resolution with per-core source + SHA-256 |
 
 ## Distribute

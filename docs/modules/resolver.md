@@ -1,7 +1,7 @@
 # Resolver — `resolver.py`
 
-Turns a root manifest plus the set of available core versions into one concrete
-version per package. Pure module (no I/O): the available versions are passed in, so
+Turns a root manifest plus the set of available core versions into the chosen
+version(s) per package. Pure module (no I/O): the available versions are passed in, so
 the solve is deterministic and fully unit-testable.
 
 - **Source**: [src/hdl_ip_packager/resolver.py](../../src/hdl_ip_packager/resolver.py)
@@ -9,9 +9,9 @@ the solve is deterministic and fully unit-testable.
 
 ## Purpose
 
-Given what a core depends on (constraints) and what versions exist, pick exactly one
-`Vlnv` per package that satisfies *every* accumulated constraint. The result is what
-the [lockfile](lockfile.md) records and what [install](cli.md)/[gen](backends.md)
+Given what a core depends on (constraints) and what versions exist, pick the
+version(s) of each package that satisfy every accumulated constraint. The result is
+what the [lockfile](lockfile.md) records and what [install](cli.md)/[gen](backends.md)
 build on.
 
 ## API
@@ -20,43 +20,58 @@ build on.
 def resolve(
     root: Manifest,
     available: Mapping[PackageRef, Sequence[Manifest]],
+    policy: ConflictPolicy | None = None,
 ) -> Resolution
 ```
 
 - `root` — the top-level [manifest](manifest.md) whose `[dependencies]` drive the
   solve.
 - `available` — for each package, the **manifests** of the versions a registry/cache
-  offers. Manifests (not bare versions) so each candidate's own `[dependencies]` can
-  be followed transitively. In practice this map is built by
+  offers. Manifests (not bare versions) so each candidate's own `[dependencies]` and
+  declared version *scheme* can be followed. In practice this map is built by
   [`available_from_registry`](registry.md).
+- `policy` — how to treat an *incompatible* conflict; defaults to the root manifest's
+  `[resolution] on-conflict` (`fail_on_conflict` if unset). See below.
 
 **`Resolution`** is a frozen dataclass:
 
 | Member | Description |
 |--------|-------------|
-| `selected` | `Mapping[PackageRef, Vlnv]` — one chosen VLNV per package |
+| `packages` | `tuple[Vlnv, ...]` — every selected VLNV (usually one per package) |
 | `vlnvs` (property) | the selected VLNVs sorted by string (deterministic order) |
+| `by_ref` (property) | `dict[PackageRef, tuple[Vlnv, ...]]` — selections grouped by package |
+| `warnings` | `tuple[str, ...]` — any policy-driven compromise (a `use_latest` collapse, an isolated coexistence) |
 
 ## Algorithm & guarantees
 
-- **Single version per package**, fail-on-conflict — HDL elaboration cannot host two
-  versions of the same module (unlike npm's nesting).
-- **Newest-compatible**: among versions satisfying every accumulated constraint, the
-  highest is preferred.
-- **Transitive**: a chosen candidate's own dependencies are added and solved too.
-- **Diamond-aware**: when two paths require the same package, their constraints are
-  intersected.
-- **Backtracking**: if a newest-first choice makes some transitive constraint
-  unsatisfiable, the search falls back to older versions before giving up. (Graphs
-  are small today; this can be swapped for a SAT/CDCL solver later without changing
-  the public contract.)
-- **Pre-release-aware**: pre-releases are excluded unless a constraint targets that
-  exact base version (the [version](versioning.md) rule).
+- **Compatibility unification (Cargo-style)**: dependents whose ranges fall in the
+  same compatibility group — same major for SemVer (see
+  [`compatibility_group`](versioning.md)) — always unify to the newest version
+  satisfying them all. A diamond on `^1.0` + `^1.1` collapses to one `1.1.x`.
+- **Conflict policy**: only a genuinely *incompatible* conflict (two SemVer majors, or
+  two distinct exact pins of an `opaque`-scheme package) is governed by the
+  [`ConflictPolicy`](manifest.md):
+  - `fail_on_conflict` (default) — raise `ResolutionError`.
+  - `use_latest` — collapse to the newest of the conflicting versions (single copy),
+    prune orphans, and record a `warning`.
+  - `isolate_namespaces` — keep every incompatible version in the resolve/lock/tree
+    (multi-version bookkeeping). `gen` then **refuses** to build two versions of one
+    package (name-mangling is unbuilt — see [backends](backends.md)).
+- **Scheme-aware**: a package's `[package].scheme` (`semver` or `opaque`) chooses how
+  its versions group. An `opaque` package's dependents must pin an exact `=` version
+  and every distinct pin is its own group (honor-exact-pins).
+- **Newest-compatible**, **transitive**, **backtracking** (a newest-first choice that
+  makes a transitive constraint unsatisfiable falls back to older versions), and
+  **pre-release-aware** (the [version](versioning.md) rule). The search is keyed per
+  *(package, compatibility group)* node, so two incompatible majors are independent
+  nodes that each resolve to one version. Can be swapped for a SAT/CDCL solver later
+  without changing the public contract.
 
 ## Errors
 
-`ResolutionError` if no assignment satisfies all constraints. The message names the
-offending package, the constraints on it, and the versions that were on offer.
+`ResolutionError` if no assignment satisfies all constraints, or an incompatible
+conflict is hit under `fail_on_conflict`. The message names the offending package, its
+constraints, and the versions on offer (or the conflicting versions).
 
 ## Example
 
@@ -69,6 +84,8 @@ registry = LocalDirectoryRegistry([Path("examples")])
 resolution = resolve(root, available_from_registry(registry, root))
 for vlnv in resolution.vlnvs:
     print(vlnv)            # acme:common:fifo:1.0.0
+for warning in resolution.warnings:
+    print("warning:", warning)
 ```
 
 `hdlpkg tree` prints this resolution as a graph; see [the CLI page](cli.md#tree).

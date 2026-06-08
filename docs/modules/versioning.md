@@ -4,7 +4,7 @@ Semantic-version parsing, precedence, and constraint matching. Pure module (no I
 the reference example for the project's testability rule.
 
 - **Source**: [src/hdl_ip_packager/version.py](../../src/hdl_ip_packager/version.py)
-- **Import**: `from hdl_ip_packager import Version, VersionConstraint`
+- **Import**: `from hdl_ip_packager import Version, VersionConstraint, OpaqueVersion, compatibility_group`
 
 ## Purpose
 
@@ -48,13 +48,43 @@ A parsed constraint that a `Version` may or may not satisfy. Build via
 | `*`, `any`, or empty | any stable version |
 
 `constraint.matches(version) -> bool` tests satisfaction. `str(constraint)` returns
-the original text.
+the original text. `constraint.is_exact` / `exact_version` / `pinned_token` expose a
+single `=` pin (SemVer or opaque) for the resolver.
 
 **Pre-release rule** (the Cargo rule): a constraint built from a *stable* operand
 never matches a pre-release version, so `^1.0.0` will **not** pull in `2.0.0-alpha`
 or even `1.5.0-rc.1`. A pre-release candidate is allowed only when some clause's
 operand is itself a pre-release of the *same* `MAJOR.MINOR.PATCH` (e.g. `>=1.4.0-rc.1`
 admits `1.4.0-rc.2`).
+
+## Compatibility groups — `compatibility_group(version, scheme)`
+
+The resolver groups a package's versions into *compatibility groups*: two versions in
+the same group are interchangeable (it unifies them), versions in different groups are
+incompatible (they may coexist under a [conflict policy](resolver.md)). For SemVer
+this is the Cargo rule — the **major** for `major >= 1`, the **minor** for `0.y`, the
+**patch** for `0.0.z`. For the `opaque` scheme every distinct version is its own group.
+
+## Version schemes & opaque versions
+
+A core declares a *version scheme* via [`[package].scheme`](manifest.md) — `semver`
+(default) or `opaque`:
+
+- **`semver`** — full SemVer 2.0.0 as above; a non-SemVer `version` is rejected at
+  parse.
+- **`opaque`** — the version is a non-SemVer token (a vendor part number `D5020100`,
+  calver `2024.1`, `r3`), represented by **`OpaqueVersion`**. It has *no* precedence
+  (only a deterministic lexical order for stable output), so dependents must pin an
+  **exact** version (`=D5020100`); a range like `^D5020100` is rejected. A constraint
+  whose operand is a non-SemVer token parses as an opaque exact pin
+  (`constraint.opaque`).
+
+`OpaqueVersion.parse(text)` validates the token (raising `InvalidVersionError`);
+`str()` round-trips it. `AnyVersion = Version | OpaqueVersion` is the union a
+[`Vlnv`](identity.md) may carry. Opaque versions still round-trip through the
+[lockfile](lockfile.md) via a `scheme` marker. (An *ordered* non-SemVer scheme —
+calver/monotonic precedence so such versions could be ranged — is a tracked open
+issue.)
 
 ## Errors
 

@@ -19,7 +19,8 @@ schema      = 1                 # optional ip.toml format version (default 1)
 vendor      = "acme"            # required ─┐
 library     = "comm"            # required  ├ VLNV identity
 name        = "uart"            # required  │
-version     = "1.2.0"           # required ─┘ (SemVer)
+version     = "1.2.0"           # required ─┘ (SemVer, or an opaque token if scheme="opaque")
+scheme      = "semver"          # optional version scheme: "semver" (default) | "opaque"
 description = "AXI-Lite UART"
 license     = "Apache-2.0"      # SPDX id
 authors     = ["Jane Doe <jane@acme.com>"]
@@ -29,6 +30,9 @@ keywords    = ["uart", "axi"]
 [dependencies]
 # "vendor:library:name" = "<constraint>"
 "acme:common:fifo" = "^1.0.0"
+
+[resolution]                    # optional; how to handle an incompatible conflict
+on-conflict = "fail_on_conflict"  # "fail_on_conflict" (default) | "use_latest" | "isolate_namespaces"
 
 [filesets.rtl]
 files = ["rtl/uart_top.sv", "rtl/uart_rx.sv"]
@@ -62,12 +66,21 @@ optional. Unknown fields are ignored. The keys map onto the dataclasses below.
 | `filesets` | `dict[str, Fileset]` | keyed by fileset name |
 | `targets` | `dict[str, Target]` | keyed by target name |
 | `schema_version` | `int` | the `ip.toml` format version (`MANIFEST_SCHEMA_VERSION`, default `1`) |
+| `version_scheme` | `"semver" \| "opaque"` | how this core's versions are interpreted (`[package].scheme`, default `semver`) |
+| `conflict_policy` | [`ConflictPolicy`](resolver.md) | how the resolver handles an incompatible conflict (`[resolution] on-conflict`, default `fail_on_conflict`) |
 | `ref` (property) | [`PackageRef`](identity.md) | version-less key |
 
 The optional top-level `schema` key declares the `ip.toml` format version (default
 `1`). A manifest written for a **newer** schema than this `hdlpkg` understands is
 rejected with a clear `ManifestError` rather than mis-parsed — the migration path the
-format needs once it freezes at 1.0.
+format needs once it freezes at 1.0. (Note the two distinct keys: top-level `schema`
+is the *format* version; `[package].scheme` is the *version* scheme.)
+
+The `[package].scheme` key selects the [version scheme](versioning.md): `semver`
+(default; the `version` must be valid SemVer) or `opaque` (the `version` is a
+non-SemVer token, and dependents must pin it exactly). The `[resolution] on-conflict`
+key sets the [conflict policy](resolver.md) used when an *incompatible* conflict
+arises. Both are validated and an unsupported value raises `ManifestError`.
 
 Supporting value types:
 
@@ -90,7 +103,8 @@ Supporting value types:
 Validation is strict and the error message always names the offending field:
 
 - `[package]` must exist and carry `vendor`/`library`/`name`/`version`; the version
-  must be valid SemVer and the segments valid VLNV parts.
+  must be valid SemVer (or, under `scheme = "opaque"`, a valid opaque token) and the
+  segments valid VLNV parts.
 - Each dependency key must parse as a `PackageRef` and its value as a
   `VersionConstraint`.
 - Each fileset must have a `files` list of strings.

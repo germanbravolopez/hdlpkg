@@ -55,9 +55,13 @@ loop is the spine of pip, npm, Cargo, Poetry, Go, and Bundler alike
   ([Nesbitt, *Design Tradeoffs*](https://nesbitt.io/2025/12/05/package-manager-tradeoffs.html)).
 - Conflict handling is a defining tradeoff: **pip fails** on incompatible
   versions; **npm nests** conflicting copies so each consumer gets what it asked
-  for. HDL **cannot nest** — two copies of the same module in one elaboration
-  collide — so we must resolve to a **single version per package** (pip-like), and
-  fail loudly on conflict.
+  for. HDL **cannot nest** transparently — two copies of the same module in one
+  elaboration collide — so the default is a **single version per package** (pip-like),
+  failing loudly on conflict. We refine this: SemVer-compatible dependents *unify*
+  (Cargo-style), and an *incompatible* conflict is governed by a configurable
+  `[resolution] on-conflict` policy — `fail_on_conflict` (default), `use_latest`, or
+  `isolate_namespaces` (which records the coexistence in the lock/tree, though `gen`
+  still refuses to emit two versions because automatic name-mangling is unbuilt).
 
 ### Lockfiles & reproducibility
 - Cargo set the modern convention: **lockfile by default, SemVer enforced,

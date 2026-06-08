@@ -105,13 +105,13 @@ quick-find reference.
 | `hdlpkg validate [path]` | implemented | Parse + validate a manifest (exit 0 if OK) |
 | `hdlpkg init [dir]` | implemented | Scaffold a starter `ip.toml` (flags or interactive prompts) |
 | `hdlpkg add <dep> [path] [--version]` | implemented | Add/update a dependency in `ip.toml` (text-preserving) |
-| `hdlpkg resolve [path] [--search DIR] [--registry DIR] [--output]` | implemented | Resolve deps (source scan or a published `--registry`), write `ip.lock` |
-| `hdlpkg install [path] [--search] [--registry DIR] [--cache-dir] [--locked]` | implemented | Resolve + fetch into the verified cache (source scan or a published `--registry`); `--locked` installs exactly from `ip.lock` |
+| `hdlpkg resolve [path] [--search DIR] [--registry DIR] [--output] [--on-conflict]` | implemented | Resolve deps (source scan or a published `--registry`), write `ip.lock`; `--on-conflict` overrides the policy |
+| `hdlpkg install [path] [--search] [--registry DIR] [--cache-dir] [--locked] [--on-conflict]` | implemented | Resolve + fetch into the verified cache (source scan or a published `--registry`); `--locked` installs exactly from `ip.lock` |
 | `hdlpkg pack [path] [--output] [--sbom] [--search]` | implemented | Build a deterministic `.ipkg`; `--sbom` also writes a CycloneDX SBOM |
 | `hdlpkg publish [path] --registry DIR` | implemented | Publish a core to a local registry (append-only) |
-| `hdlpkg pull <vlnv> --registry DIR [--output]` | implemented | Fetch a core by VLNV into the cache; optionally extract |
-| `hdlpkg yank <vlnv> --registry DIR` | implemented | Hide a published version from new resolves |
-| `hdlpkg gen <target> [--search DIR] [--output DIR] [--locked]` | implemented | Generate tool-flow inputs (Verilator/Vivado/Icarus/GHDL/Yosys); `--locked` pins deps from `ip.lock` |
+| `hdlpkg pull <vlnv> --registry DIR [--output]` | implemented | Fetch a core by VLNV (SemVer or opaque) into the cache; optionally extract |
+| `hdlpkg yank <vlnv> --registry DIR` | implemented | Hide a published version (SemVer or opaque VLNV) from new resolves |
+| `hdlpkg gen <target> [--search DIR] [--output DIR] [--locked] [--on-conflict]` | implemented | Generate tool-flow inputs (Verilator/Vivado/Icarus/GHDL/Yosys); `--locked` pins deps from `ip.lock`; refuses two versions of one package |
 | `hdlpkg tree [--search DIR] [--registry DIR]` | implemented | Print the resolved dependency graph as a tree |
 | `hdlpkg export-ipxact [--output FILE]` | implemented | Export an IP-XACT (IEEE 1685-2014) component XML |
 
@@ -129,10 +129,13 @@ quick-find reference.
 | **Target** | A build config: which filesets feed which tool flow + the top unit |
 | **Tool flow** | A back-end (Verilator, Vivado, …) the packager generates inputs for |
 | **EDAM** | Intermediate tool-agnostic build description (FuseSoC concept) |
-| **Resolution** | One concrete `Vlnv` chosen per package satisfying all constraints |
+| **Resolution** | The `Vlnv`(s) chosen per package satisfying all constraints (`vlnvs`/`by_ref`/`warnings`) |
 | **Content-addressed** | Stored/looked-up by SHA-256 digest (integrity + dedup) |
-| **Yank** | Retire a published version without breaking existing lockfiles |
-| **SemVer** | Semantic Versioning 2.0.0 — the versioning contract |
+| **SemVer** | Semantic Versioning 2.0.0 — the default versioning contract |
+| **Version scheme** | `[package].scheme`: `semver` (default) or `opaque` (non-SemVer vendor tokens) |
+| **Opaque version** | A non-SemVer version token (`D5020100`, `2024.1`) — exact-pinned, no ordering (`OpaqueVersion`) |
+| **Compatibility group** | The set a version belongs to for unification (SemVer major / opaque token) |
+| **Conflict policy** | `[resolution] on-conflict`: `fail_on_conflict` / `use_latest` / `isolate_namespaces` |
 | **IP-XACT** | IEEE 1685 XML standard for packaging/describing IP |
 
 ## Topics → where to look
@@ -146,6 +149,8 @@ quick-find reference.
 | How a manifest is parsed | `src/hdl_ip_packager/manifest.py` + `docs/architecture.md` §3 |
 | Constraint syntax (`^`, `~`, ranges) | `src/hdl_ip_packager/version.py` + `docs/architecture.md` §3 |
 | Pre-release matching rule | `src/hdl_ip_packager/version.py` (`VersionConstraint`) |
+| Conflict policy / multi-version coexistence | `docs/modules/resolver.md` + `src/hdl_ip_packager/resolver.py` |
+| Opaque / non-SemVer version schemes | `docs/modules/versioning.md` (`OpaqueVersion`) + `src/hdl_ip_packager/version.py` |
 | Adding a new CLI command | `src/hdl_ip_packager/cli.py` (`build_parser`) |
 | Adding a new module | `docs/ai_agent_instructions.md` + `docs/README.md` |
 | Test layout / adding tests | `tests/README.md` |

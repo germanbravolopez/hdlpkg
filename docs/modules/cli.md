@@ -14,6 +14,8 @@ delegates to the library, so every behavior stays unit-testable. Run it as the
   stderr).
 - `[path]` defaults to `./ip.toml`. `--search` is repeatable; when omitted it defaults
   to the manifest's parent directory.
+- `--on-conflict` (on `resolve`/`install`/`tree`/`gen`) overrides the manifest's
+  `[resolution] on-conflict` [policy](resolver.md) for one invocation.
 
 ## Authoring
 
@@ -43,12 +45,15 @@ overwrite an existing `ip.toml` unless `--force`.
 
 ## Resolve & fetch
 
-### `resolve [path] [--search DIR …] [--registry DIR] [--output FILE]`
+### `resolve [path] [--search DIR …] [--registry DIR] [--output FILE] [--on-conflict POLICY]`
 [Resolve](resolver.md) the dependency graph and write a deterministic
 [`ip.lock`](lockfile.md) (default next to the manifest). By default it resolves
 against a [local-directory registry](registry.md) over the `--search` dirs; with
 **`--registry DIR`** it resolves directly from a **published registry** (the layout
 `hdlpkg publish` writes) instead. Prints the chosen VLNVs.
+`--on-conflict` (`fail_on_conflict` | `use_latest` | `isolate_namespaces`) overrides
+the manifest's `[resolution] on-conflict` for an incompatible conflict; any
+policy-driven compromise is printed as a `warning:` to stderr.
 
 ### `install [path] [--search DIR …] [--registry DIR] [--cache-dir DIR] [--output FILE] [--locked]`
 Resolve **and fetch**: every pinned core is fetched into the
@@ -86,21 +91,24 @@ Pack the core and publish it into a writable [`LocalRegistry`](registry.md)
 
 ### `pull <vlnv> --registry DIR [--output DIR] [--cache-dir DIR]`
 Fetch a core by VLNV into the cache and print its digest; with `--output`, also
-extract it (with path-traversal protection) into that directory.
+extract it (with path-traversal protection) into that directory. The `<vlnv>` may
+carry an [opaque](versioning.md) (non-SemVer) version, e.g. `acme:rf:radio:D5020100`.
 
 ### `yank <vlnv> --registry DIR`
 Hide a published version from new resolves (a `.yanked` marker) without breaking
-existing lockfiles.
+existing lockfiles. `<vlnv>` may carry an opaque version too.
 
 ## Generate tool/interop outputs
 
-### `gen <target> [path] [--search DIR …] [--output DIR] [--locked]`
+### `gen <target> [path] [--search DIR …] [--output DIR] [--locked] [--on-conflict POLICY]`
 Generate tool-flow inputs for a `[targets.<target>]` via the
 [backends](backends.md): resolve dependencies, assemble the design, render, and write
 the files into `--output` (default `gen/<target>/`). Tool flow is chosen by the
 target's `toolflow` (`verilator`, `vivado`, `icarus`, `ghdl`, `yosys`). With
 **`--locked`**, the dependency versions are taken from `ip.lock` instead of being
-re-resolved (reproducible generation); it fails if `ip.lock` is missing.
+re-resolved (reproducible generation); it fails if `ip.lock` is missing. If the
+resolve kept **two versions of one package** (`isolate_namespaces`), `gen` refuses
+with a `BackendError` — it cannot host two versions in one namespace.
 
 ### `export-ipxact [path] [--output FILE]`
 Write an [IP-XACT](ipxact.md) (IEEE 1685-2014) component XML (default

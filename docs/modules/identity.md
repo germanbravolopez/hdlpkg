@@ -34,18 +34,22 @@ only letters, digits, `_`, `.`, or `-` (no `:`). A malformed segment raises
 | `PackageRef(vendor, library, name)` | Construct; validates segments. |
 | `PackageRef.parse("v:l:n") -> PackageRef` | Parse a 3-part string. Raises `InvalidVlnvError`. |
 | `vendor`, `library`, `name` | The segments. |
-| `with_version(v) -> Vlnv` | Attach a `Version` (or version string) to get a `Vlnv`. |
+| `with_version(v) -> Vlnv` | Attach a `Version`/`OpaqueVersion` instance (or a SemVer string) to get a `Vlnv`. |
 | `str(ref)` | `"vendor:library:name"`. |
 
 ## `Vlnv`
 
 | Member | Description |
 |--------|-------------|
-| `Vlnv(vendor, library, name, version)` | Construct (`version` is a `Version`). |
-| `Vlnv.parse("v:l:n:ver") -> Vlnv` | Parse a 4-part string. Raises `InvalidVlnvError`. |
-| `vendor`, `library`, `name`, `version` | The fields (`version` is a [`Version`](versioning.md)). |
+| `Vlnv(vendor, library, name, version)` | Construct (`version` is an [`AnyVersion`](versioning.md): `Version` or `OpaqueVersion`). |
+| `Vlnv.parse("v:l:n:ver", scheme="semver") -> Vlnv` | Parse a 4-part string; `scheme="opaque"` parses the version as a non-SemVer token. Raises `InvalidVlnvError`. |
+| `vendor`, `library`, `name`, `version` | The fields (`version` is a `Version` or [`OpaqueVersion`](versioning.md)). |
 | `ref` | The version-less `PackageRef` for this identity. |
 | `str(vlnv)` | `"vendor:library:name:version"`. |
+
+`Vlnv.parse` defaults to the `semver` scheme (a non-SemVer version raises); pass
+`scheme="opaque"` for an opaque core. The CLI's `pull`/`yank`, which receive a bare
+VLNV string with no scheme, try SemVer first and fall back to opaque.
 
 ## Errors
 
