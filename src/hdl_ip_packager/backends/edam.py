@@ -152,13 +152,13 @@ def _dependency_fileset_names(manifest: Manifest) -> list[str]:
 
 
 def _reject_multiversion(dependencies: Sequence[CoreSource]) -> None:
-    """Refuse to build two versions of one package.
+    """Refuse to assemble two versions of one package without mangling.
 
     HDL puts every ``module``/``package`` name in one global namespace, so two
-    versions of a core collide at elaboration. Automatic name-mangling (the
-    physical half of multi-version coexistence) is not built, so ``gen`` stops here
-    with a clear message rather than emitting a design that cannot elaborate. The
-    resolver can still *record* the coexistence under ``isolate_namespaces``.
+    versions of a core collide at elaboration. The CLI's ``gen`` first name-mangles
+    coexisting SystemVerilog *packages* (then calls this with ``allow_multiversion``);
+    reaching here means that did not happen, so it stops with a clear message rather
+    than emitting a design that cannot elaborate.
     """
     versions_by_ref: dict[PackageRef, set[str]] = {}
     for core in dependencies:
@@ -169,30 +169,35 @@ def _reject_multiversion(dependencies: Sequence[CoreSource]) -> None:
         listed = ", ".join(sorted(vers))
         raise BackendError(
             f"Cannot generate a design with two versions of {ref} ({listed}): HDL elaboration "
-            f"cannot host two versions of one package in a single namespace, and automatic "
-            f"name-mangling is not implemented. Resolve to a single version (e.g. set "
-            f"[resolution] on-conflict to 'use_latest') or split the build."
+            f"cannot host two versions of one package in a single namespace. Generate under "
+            f"[resolution] on-conflict = 'isolate_namespaces' (which name-mangles SystemVerilog "
+            f"packages), resolve to a single version ('use_latest'), or split the build."
         )
 
 
 def _topological_order(dependencies: Sequence[CoreSource]) -> list[CoreSource]:
-    """Order *dependencies* so each core follows the deps it references (ties by VLNV)."""
-    by_ref: dict[PackageRef, CoreSource] = {c.manifest.ref: c for c in dependencies}
+    """Order *dependencies* so each core follows the deps it references (ties by VLNV).
+
+    Keyed by VLNV (not the version-less ref) so two versions of one package -- present
+    under the ``isolate_namespaces`` policy -- both appear, each before its dependents.
+    """
+    by_ref: dict[PackageRef, list[CoreSource]] = {}
+    for core in dependencies:
+        by_ref.setdefault(core.manifest.ref, []).append(core)
     ordered: list[CoreSource] = []
-    visiting: set[PackageRef] = set()
-    placed: set[PackageRef] = set()
+    visiting: set[str] = set()
+    placed: set[str] = set()
 
     def visit(core: CoreSource) -> None:
-        ref = core.manifest.ref
-        if ref in placed or ref in visiting:
+        key = str(core.manifest.vlnv)
+        if key in placed or key in visiting:
             return  # already done, or a cycle (resolution forbids these) -- stop
-        visiting.add(ref)
+        visiting.add(key)
         for dep in sorted(core.manifest.dependencies, key=lambda d: str(d.ref)):
-            child = by_ref.get(dep.ref)
-            if child is not None:
+            for child in by_ref.get(dep.ref, []):
                 visit(child)
-        visiting.discard(ref)
-        placed.add(ref)
+        visiting.discard(key)
+        placed.add(key)
         ordered.append(core)
 
     for core in sorted(dependencies, key=lambda c: str(c.manifest.vlnv)):
@@ -204,6 +209,7 @@ def build_eda_design(
     root: CoreSource,
     target: str,
     dependencies: Sequence[CoreSource],
+    allow_multiversion: bool = False,
 ) -> EdaDesign:
     """Assemble the :class:`EdaDesign` for *root*'s *target* plus its *dependencies*.
 
@@ -211,17 +217,21 @@ def build_eda_design(
         root: the top-level core (its selected target drives the build).
         target: the name of a ``[targets.*]`` table in the root manifest.
         dependencies: the resolved dependency cores (any order; reordered here).
+        allow_multiversion: if False (default) two versions of one package are refused
+            (they collide in one HDL namespace). The CLI sets it True only after
+            name-mangling the sources, so the colliding names no longer clash.
 
     Raises:
-        KeyError: never -- an unknown target raises :class:`ValueError` instead.
         ValueError: if *target* is not defined in the root manifest.
+        BackendError: if two versions of one package are present and not allowed.
     """
     spec = root.manifest.targets.get(target)
     if spec is None:
         known = ", ".join(sorted(root.manifest.targets)) or "(none)"
         raise ValueError(f"Unknown target {target!r}; the manifest defines: {known}.")
 
-    _reject_multiversion(dependencies)
+    if not allow_multiversion:
+        _reject_multiversion(dependencies)
 
     files: list[EdaFile] = []
     seen: set[str] = set()

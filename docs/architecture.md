@@ -54,6 +54,7 @@ task-oriented intro see the [user guide](user_guide.md).
 | Registry | [registry.py](../src/hdl_ip_packager/registry.py) | implemented (local + HTTP + writable) | Abstract `Registry` + local-dir/HTTP/writable-local backends + graph walker (Git/OCI tracked as issues) |
 | Packaging | [packaging.py](../src/hdl_ip_packager/packaging.py) | implemented | Build/read the deterministic `.ipkg` artifact (`pack_core`, `extract_ipkg`) |
 | Backends | [backends/](../src/hdl_ip_packager/backends/) | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) | EDAM-like intermediate (`build_eda_design`) → tool inputs behind `hdlpkg gen` |
+| Name-mangling | [mangle.py](../src/hdl_ip_packager/mangle.py) | implemented (SystemVerilog packages) | Rewrite coexisting package names so two versions build together under `gen` |
 | Tree view | [treeview.py](../src/hdl_ip_packager/treeview.py) | implemented | `render_dependency_tree` → ASCII dependency graph behind `hdlpkg tree` |
 | IP-XACT | [ipxact.py](../src/hdl_ip_packager/ipxact.py) | implemented | `to_ipxact` → IEEE 1685-2014 component XML behind `hdlpkg export-ipxact` |
 | SBOM | [sbom.py](../src/hdl_ip_packager/sbom.py) | implemented (CycloneDX) | `build_cyclonedx` → deterministic CycloneDX 1.5 SBOM behind `hdlpkg pack --sbom` |
@@ -143,7 +144,8 @@ package and possibly more under `isolate_namespaces`.
   exact pins of an `opaque` core) is governed by the `[resolution] on-conflict`
   policy (`--on-conflict` overrides it): `fail_on_conflict` (default, raise),
   `use_latest` (collapse to newest + warn), `isolate_namespaces` (keep all in the
-  lock/tree; `gen` refuses to emit two versions, since name-mangling is unbuilt).
+  lock/tree; `gen` [name-mangles](#name-mangling) coexisting SystemVerilog packages so
+  they build together — module/VHDL coexistence is still refused).
 - **Version scheme** — `[package].scheme` selects how a core's versions are parsed,
   ordered, and grouped: `semver` (default; non-SemVer rejected at parse), `calver`
   (ordered numeric `2024.1`, year-as-major), `monotonic` (an ordered revision `r3`,
@@ -213,6 +215,18 @@ can state exactly what a fileset needs. Five backends ship: `VerilatorBackend`
 `GhdlBackend` (`run_ghdl.sh`, VHDL-only), and `YosysBackend` (`.ys`); all are pure
 (`generate` returns `{filename: text}`), so the CLI does the file writing. Tool
 specifics stay out of the manifest/resolver/packaging layers.
+
+### Name-mangling *(implemented for SystemVerilog packages — [mangle.py](../src/hdl_ip_packager/mangle.py))*
+When `isolate_namespaces` keeps two versions of one package, they collide in HDL's one
+global namespace. Under `gen` the pure `mangle.py` rewrites each version's SystemVerilog
+**package** name to a unique one (`bus_pkg` → `bus_pkg__v1_1_0`) and rewrites every
+consumer's references (`import`/`::`) to the version it resolved to. A comment/string
+-aware scanner touches only the unambiguous package positions (`package`/`endpackage`/
+`import`/`::`), so a coincidental signal name or a name in a comment/string is never
+changed — no parser needed. The CLI materializes the rewritten tree into
+`<output>/src/` and builds over it (`build_eda_design(allow_multiversion=True)`).
+*Module*/interface coexistence and VHDL are refused (they need a real HDL frontend).
+
 ### IP-XACT export *(implemented — [ipxact.py](../src/hdl_ip_packager/ipxact.py))*
 `export-ipxact` renders a manifest as an IEEE **1685-2014** component XML via the
 pure `to_ipxact`: VLNV identity, a `model` of one view + componentInstantiation per

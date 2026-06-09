@@ -55,8 +55,8 @@ def resolve(
   - `use_latest` — collapse to the newest of the conflicting versions (single copy),
     prune orphans, and record a `warning`.
   - `isolate_namespaces` — keep every incompatible version in the resolve/lock/tree
-    (multi-version bookkeeping). `gen` then **refuses** to build two versions of one
-    package (name-mangling is unbuilt — see [backends](backends.md)).
+    (multi-version bookkeeping). `gen` then [name-mangles](mangle.md) coexisting
+    SystemVerilog packages so they build together (module/VHDL coexistence is refused).
 - **Scheme-aware**: a package's `[package].scheme` chooses how its versions group —
   `semver` (by major), `calver` (by year), `monotonic` (one shared group), or
   `opaque` (each exact pin its own group; dependents must pin exactly). See

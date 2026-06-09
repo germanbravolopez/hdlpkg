@@ -11,12 +11,13 @@ surface is stable as features land.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
-from .backends import CoreSource, build_eda_design, get_backend
+from .backends import CoreSource, build_eda_design, get_backend, normalize_file_type
 from .cache import ContentAddressedCache, default_cache_root
 from .editing import add_dependency
 from .exceptions import (
@@ -28,6 +29,7 @@ from .exceptions import (
 )
 from .ipxact import to_ipxact
 from .lockfile import LOCKFILE_FILENAME, Lockfile, sha256_digest
+from .mangle import GenCore, GenSourceFile, ManglePlan, plan_package_mangling
 from .manifest import (
     MANIFEST_FILENAME,
     SUPPORTED_CONFLICT_POLICIES,
@@ -539,25 +541,36 @@ def _cmd_gen(args: argparse.Namespace) -> int:
         resolution, registry = _resolve_local(manifest_path, args.search, _policy(args))
         _print_warnings(resolution)
         dep_vlnvs = list(resolution.vlnvs)
+    root_source = CoreSource(manifest=root, root=str(manifest_path.resolve().parent))
     dependencies = [
         CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
         for vlnv in dep_vlnvs
     ]
-    design = build_eda_design(
-        CoreSource(manifest=root, root=str(manifest_path.resolve().parent)),
-        args.target,
-        dependencies,
-    )
-    outputs = get_backend(design.toolflow).generate(design)
 
     out_dir = Path(args.output) if args.output else Path("gen") / args.target
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Two versions of one package (the isolate_namespaces policy) collide in HDL's one
+    # namespace; mangle the SystemVerilog package names into the generated source tree
+    # so they can build together. Otherwise sources are referenced in place.
+    multiversion = _has_multiversion(dependencies)
+    plan: ManglePlan | None = None
+    if multiversion:
+        root_source, dependencies, plan = _mangle_sources(out_dir, root_source, dependencies)
+
+    design = build_eda_design(
+        root_source, args.target, dependencies, allow_multiversion=multiversion
+    )
+    outputs = get_backend(design.toolflow).generate(design)
+
     written = []
     for filename, content in outputs.items():
         dest = out_dir / filename
         dest.write_text(content, encoding="utf-8")
         written.append(dest)
 
+    if plan is not None:
+        _print_mangle_report(plan)
     print(
         f"Generated {design.toolflow} inputs for {root.vlnv} target {args.target!r} "
         f"({len(design.files)} source file(s)):"
@@ -565,6 +578,68 @@ def _cmd_gen(args: argparse.Namespace) -> int:
     for dest in written:
         print(f"  {dest}")
     return 0
+
+
+def _has_multiversion(dependencies: list[CoreSource]) -> bool:
+    """True if two of *dependencies* are different versions of the same package."""
+    refs = [str(dep.manifest.ref) for dep in dependencies]
+    return len(set(refs)) < len(refs)
+
+
+def _gen_core(source: CoreSource) -> GenCore:
+    """Read *source*'s fileset files into a :class:`GenCore` for mangling."""
+    files: list[GenSourceFile] = []
+    for fileset in source.manifest.filesets.values():
+        is_sv = normalize_file_type(fileset.type) in ("systemVerilog", "verilog")
+        for rel in fileset.files:
+            text = (Path(source.root) / rel).read_text(encoding="utf-8")
+            files.append(
+                GenSourceFile(
+                    key=(str(source.manifest.vlnv), rel), text=text, is_systemverilog=is_sv
+                )
+            )
+    return GenCore(manifest=source.manifest, files=tuple(files))
+
+
+def _mangle_sources(
+    out_dir: Path, root_source: CoreSource, dependencies: list[CoreSource]
+) -> tuple[CoreSource, list[CoreSource], ManglePlan]:
+    """Mangle coexisting package versions into ``<out_dir>/src`` and re-root the cores.
+
+    Raises ``BackendError`` (via the planner) if the conflict cannot be mangled safely.
+    """
+    sources = [root_source, *dependencies]
+    cores = [_gen_core(source) for source in sources]
+    plan = plan_package_mangling(cores)
+
+    rerooted: list[CoreSource] = []
+    for source, core in zip(sources, cores, strict=True):
+        core_dir = out_dir / "src" / _safe_dirname(str(source.manifest.vlnv))
+        for gen_file in core.files:
+            rel = gen_file.key[1]
+            dest = core_dir / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(plan.rewritten[gen_file.key], encoding="utf-8")
+        rerooted.append(CoreSource(manifest=source.manifest, root=str(core_dir)))
+    return rerooted[0], rerooted[1:], plan
+
+
+def _safe_dirname(value: str) -> str:
+    """A filesystem-safe directory name for a VLNV (``:`` -> ``_``)."""
+    return re.sub(r"[^0-9A-Za-z._-]", "_", value)
+
+
+def _print_mangle_report(plan: ManglePlan) -> None:
+    """Surface the package renames the mangler applied (to stderr)."""
+    if not plan.renamed:
+        return
+    print(
+        "warning: two versions of a package coexist (isolate_namespaces); the generated "
+        "SystemVerilog sources were name-mangled so they can build together:",
+        file=sys.stderr,
+    )
+    for name, mangled in sorted(plan.renamed.items()):
+        print(f"  package {name} -> {', '.join(mangled)}", file=sys.stderr)
 
 
 def _cmd_tree(args: argparse.Namespace) -> int:

@@ -65,12 +65,12 @@ pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
   strict on `src/`, CI workflow, and a cross-platform test-summary renderer.
 
 **Next**: all roadmap milestones (M1–M8) are delivered and the versioning contract
-that was gating the format freeze is settled. The remaining work toward `1.0.0` is the
-**operational** stability gate (see the Release plan) — the OCI protocol, a
-third-party publish/consume, and an `rc` soak — plus the still-deferred external-
-service work (Git/OCI backends, Sigstore signing) and the two follow-on versioning
-items now reduced to their *physical* halves (name-mangling at `gen`, non-SemVer
-version *strings*).
+that was gating the format freeze is settled — including ordered non-SemVer schemes
+and SystemVerilog-package name-mangling for multi-version coexistence. The remaining
+work toward `1.0.0` is the **operational** stability gate (see the Release plan) — the
+OCI protocol, a third-party publish/consume, and an `rc` soak — plus the still-deferred
+external-service work (Git/OCI backends, Sigstore signing) and the residual coexistence
+cases (two *module* versions, VHDL — both need an HDL-aware frontend).
 
 ---
 
@@ -142,7 +142,7 @@ _None._
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git/OCI backends. Checksums + SBOM already ship; this adds authenticity on top. |
 | Resolve/install over HTTP/OCI + `gen` from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry DIR` now consume a **local published** `LocalRegistry` directly (the producer->consumer loop closes for local registries). Remaining: wire `HttpRegistry` into `--registry` (resolve/install over HTTP), the OCI backend, and a fetch-then-extract so `gen` can build straight from a registry (it still needs loose sources via `--search`/`pull`). |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
-| Physical multi-version coexistence at `gen` (name-mangling) | `backends/edam.py`, `cli.py` | The **bookkeeping** half of multi-version coexistence shipped (the resolver/lock/`tree` keep incompatible versions under `isolate_namespaces`), and `gen` **refuses** to emit two versions today. The remaining **physical** half: SystemVerilog/Verilog put every `module`/`package` name in one global namespace, so two `package bus_pkg;` collide at elaboration. Building them together needs **automatic name-mangling** — rename each version's declared symbols with a version-unique suffix and rewrite *every reference* in each consumer to its resolved version. That edits HDL **source** (currently opaque blobs); naive regex is unsafe, so it needs an HDL-aware frontend (cf. the parked "source-unit tokenizing" backlog item). VHDL is slightly better placed (logical libraries) but still needs `library`/`use`-clause rewriting. |
+| Multi-version coexistence for *modules* and VHDL (beyond SV packages) | `mangle.py`, `cli.py` | SystemVerilog **package** coexistence is done (`gen` name-mangles under `isolate_namespaces`). What remains: two versions of a *module*/interface (instantiation position `foo bar (...)` is ambiguous without a real parser, so it is refused today) and **VHDL** (needs `library`/`use`-clause rewriting; refused). Both need an HDL-aware frontend (cf. the parked "source-unit tokenizing" backlog item); the package mangler's safe-context approach does not generalize to instantiations without it. |
 
 ---
 
@@ -157,6 +157,33 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Physical multi-version coexistence at `gen`: SystemVerilog package name-mangling — June 2026
+- [x] **`gen` now builds two versions of one SystemVerilog *package* together** instead
+  of refusing — the physical half of multi-version coexistence. Under `[resolution]
+  on-conflict = "isolate_namespaces"` (the policy that keeps incompatible versions),
+  `gen` automatically **name-mangles** each package version to a unique name
+  (`bus_pkg` -> `bus_pkg__v1_1_0` / `bus_pkg__v2_0_0`) and rewrites every consumer's
+  references to the version *it resolved to* (`fifo` -> `__v1_1_0`, `legacy` ->
+  `__v2_0_0`), so both elaborate in HDL's one global namespace. The rewritten sources
+  are materialized into `<output>/src/<vlnv>/…` and the generated tool file points at
+  those copies; the originals on disk are untouched. Verified end to end against the
+  external consumer demo's `soc_conflict/`.
+- [x] **Safe by construction, no full parser.** A new pure `mangle.py` carries a
+  comment/string-aware SystemVerilog scanner that rewrites a package name only in the
+  syntactically **unambiguous** positions — `package <name>` / `endpackage : <name>`
+  declarations, `import <name>::`, and `<name>::` scoped references — so a coincidental
+  signal named `bus_pkg`, or the name inside a comment or string, is never touched. The
+  pure `plan_package_mangling` computes per-file rename maps (a package's own
+  declaration vs a consumer's resolved version) and **refuses** what it cannot do
+  safely: two versions of a *module*/interface (instantiation position is ambiguous
+  without parsing) or any non-SystemVerilog (VHDL) source — those still get a clear
+  `BackendError`. Documented limitation: a macro that *constructs* a package name by
+  token pasting is left untouched. Files: `mangle.py`, `backends/edam.py`
+  (`build_eda_design(allow_multiversion=…)` + multi-version-safe topo sort), `cli.py`
+  (`gen` materializes the mangled tree, warns, reports), `__init__.py`,
+  `tests/unit/test_mangle.py`, `tests/integration/test_mangle_gen_cli.py`. (Remaining:
+  module/interface coexistence and VHDL — both deferred as needing a real HDL frontend.)
 
 ### Ordered non-SemVer schemes: CalVer + monotonic — June 2026
 - [x] **Added two ordered non-SemVer version schemes behind `[package].scheme`** so

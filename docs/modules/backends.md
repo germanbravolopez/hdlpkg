@@ -44,9 +44,11 @@ of source files with a top unit and a tool flow.
 
 An unknown target name raises `ValueError`. If the dependencies contain **two versions
 of one package** (possible under the resolver's `isolate_namespaces`
-[conflict policy](resolver.md)), `build_eda_design` raises `BackendError` — HDL
-elaboration cannot host two versions in one namespace and automatic name-mangling is
-not implemented, so `gen` refuses rather than emit a design that cannot elaborate.
+[conflict policy](resolver.md)), `build_eda_design` raises `BackendError` unless
+`allow_multiversion=True`. The CLI's `gen` sets that flag only **after**
+[name-mangling](mangle.md) the coexisting SystemVerilog packages, so the colliding
+names no longer clash; a conflict the mangler cannot handle (two *module* versions, or
+VHDL) still gets a clear `BackendError`.
 
 ## Backends and the registry
 

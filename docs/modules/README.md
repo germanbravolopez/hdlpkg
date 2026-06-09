@@ -37,6 +37,7 @@ the edges (the CLI and registry/cache). The pages below follow that flow:
 | Module | What it covers |
 |--------|----------------|
 | [Tool-flow backends](backends.md) | EDAM intermediate → Verilator / Vivado / Icarus / GHDL / Yosys inputs |
+| [Name-mangling](mangle.md) | SystemVerilog package renaming so two versions coexist in one `gen` build |
 | [IP-XACT export](ipxact.md) | IEEE 1685-2014 component XML |
 | [SBOM (CycloneDX)](sbom.md) | Deterministic CycloneDX 1.5 bill of materials |
 

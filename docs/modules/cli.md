@@ -107,8 +107,10 @@ the files into `--output` (default `gen/<target>/`). Tool flow is chosen by the
 target's `toolflow` (`verilator`, `vivado`, `icarus`, `ghdl`, `yosys`). With
 **`--locked`**, the dependency versions are taken from `ip.lock` instead of being
 re-resolved (reproducible generation); it fails if `ip.lock` is missing. If the
-resolve kept **two versions of one package** (`isolate_namespaces`), `gen` refuses
-with a `BackendError` — it cannot host two versions in one namespace.
+resolve kept **two versions of one package** (`isolate_namespaces`), `gen`
+[name-mangles](mangle.md) the coexisting SystemVerilog packages into `<output>/src/`
+(rewriting each consumer to its resolved version) so they build together; a
+*module*/VHDL coexistence it cannot mangle still gets a `BackendError`.
 
 ### `export-ipxact [path] [--output FILE]`
 Write an [IP-XACT](ipxact.md) (IEEE 1685-2014) component XML (default

@@ -23,12 +23,14 @@ tests/
 │   ├── test_edam.py            build_eda_design: selection, topo order, dedup
 │   ├── test_backends.py        Verilator .vc / Vivado .tcl rendering
 │   ├── test_treeview.py        render_dependency_tree: ordering + diamond marking
+│   ├── test_mangle.py          SV package mangler: safe rewrite + planner refusals
 │   ├── test_ipxact.py          to_ipxact: IEEE 1685-2014 component XML
 │   └── test_sbom.py            build_cyclonedx: CycloneDX SBOM + determinism
 └── integration/                multi-module / filesystem tests            - marker: integration
     ├── test_manifest_cli_flow.py
     ├── test_resolve_cli.py         hdlpkg resolve end to end on examples/
-    ├── test_conflict_policy_cli.py on-conflict policies + gen refusing two versions
+    ├── test_conflict_policy_cli.py on-conflict policies + gen refusing module coexistence
+    ├── test_mangle_gen_cli.py     gen name-mangles coexisting SV packages end to end
     ├── test_opaque_registry_cli.py opaque (non-SemVer) publish/resolve/pull round-trip
     ├── test_cache.py               content-addressed cache (verify-on-read)
     ├── test_registry.py            local + HTTP registries, graph walk, install

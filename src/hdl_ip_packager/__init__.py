@@ -36,6 +36,16 @@ from .exceptions import (
 )
 from .ipxact import IPXACT_NAMESPACE, to_ipxact
 from .lockfile import LockedPackage, Lockfile, sha256_digest
+from .mangle import (
+    GenCore,
+    GenSourceFile,
+    ManglePlan,
+    declared_modules,
+    declared_packages,
+    mangled_name,
+    plan_package_mangling,
+    rewrite_sv_packages,
+)
 from .manifest import (
     MANIFEST_SCHEMA_VERSION,
     SUPPORTED_CONFLICT_POLICIES,
@@ -91,6 +101,8 @@ __all__ = [
     "EdaDesign",
     "EdaFile",
     "Fileset",
+    "GenCore",
+    "GenSourceFile",
     "HdlPackagerError",
     "HttpRegistry",
     "InvalidConstraintError",
@@ -101,6 +113,7 @@ __all__ = [
     "LockedPackage",
     "Lockfile",
     "LockfileError",
+    "ManglePlan",
     "Manifest",
     "ManifestError",
     "MonotonicVersion",
@@ -123,14 +136,19 @@ __all__ = [
     "build_cyclonedx",
     "build_eda_design",
     "compatibility_group",
+    "declared_modules",
+    "declared_packages",
     "default_cache_root",
     "extract_ipkg",
     "get_backend",
+    "mangled_name",
     "manifest_from_ipkg",
     "pack_core",
     "parse_version",
+    "plan_package_mangling",
     "render_dependency_tree",
     "resolve",
+    "rewrite_sv_packages",
     "sha256_digest",
     "supported_toolflows",
     "to_ipxact",
