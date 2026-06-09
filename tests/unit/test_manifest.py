@@ -154,14 +154,31 @@ class TestVersionScheme:
         with pytest.raises(ManifestError, match="opaque version token"):
             Manifest.from_str(toml)
 
+    def test_calver_scheme_accepts_numeric_version(self) -> None:
+        toml = '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="2024.1"\nscheme="calver"\n'
+        manifest = Manifest.from_str(toml)
+        assert manifest.version_scheme == "calver"
+        assert str(manifest.vlnv.version) == "2024.1"
+
+    def test_monotonic_scheme_accepts_revision_version(self) -> None:
+        toml = '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="r3"\nscheme="monotonic"\n'
+        manifest = Manifest.from_str(toml)
+        assert manifest.version_scheme == "monotonic"
+        assert str(manifest.vlnv.version) == "r3"
+
     def test_unknown_scheme_is_rejected(self) -> None:
-        toml = '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="0.1.0"\nscheme="calver"\n'
+        toml = '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="0.1.0"\nscheme="bogus"\n'
         with pytest.raises(ManifestError, match=r"Unsupported package\.scheme"):
             Manifest.from_str(toml)
 
     def test_non_semver_version_is_rejected_explicitly(self) -> None:
         toml = '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="2024.1"\n'
-        with pytest.raises(ManifestError, match="not a valid SemVer"):
+        with pytest.raises(ManifestError, match="not valid for scheme 'semver'"):
+            Manifest.from_str(toml)
+
+    def test_calver_scheme_rejects_non_numeric_version(self) -> None:
+        toml = '[package]\nvendor="a"\nlibrary="b"\nname="c"\nversion="r3"\nscheme="calver"\n'
+        with pytest.raises(ManifestError, match="not valid for scheme 'calver'"):
             Manifest.from_str(toml)
 
 

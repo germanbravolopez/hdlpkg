@@ -57,7 +57,7 @@ For the docs site: `pip install -e ".[docs]"`.)
 | **Fileset** | A named group of source files of one HDL type (e.g. `rtl`, `tb`). |
 | **Target** | A build: which filesets feed which tool flow, and the top unit. |
 | **Constraint** | A version range a dependency accepts: `^1.2.0`, `~1.2.0`, `>=1,<2` (or `=D5020100` for an opaque core). |
-| **Version scheme** | `[package].scheme`: `semver` (default) or `opaque` (non-SemVer vendor tokens, pinned exactly). |
+| **Version scheme** | `[package].scheme`: `semver` (default), `calver` (`2024.1`, year-as-major), `monotonic` (`r3`), or `opaque` (uninterpreted tokens, pinned exactly). |
 | **Conflict policy** | `[resolution] on-conflict`: how an incompatible conflict is handled — `fail_on_conflict` (default), `use_latest`, or `isolate_namespaces`. |
 | **`ip.lock`** | The generated, committed record pinning each dependency to one exact version + checksum. |
 | **Registry** | Where cores live to be fetched/published (a local dir, an HTTP index, …). |

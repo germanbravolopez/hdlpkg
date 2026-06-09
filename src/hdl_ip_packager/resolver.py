@@ -137,11 +137,12 @@ def _edge_node(
 ) -> _Node:
     """The ``(ref, group)`` node a single dependency edge belongs to.
 
-    For an opaque package the constraint must be an exact ``=`` pin (raises
-    otherwise) and each distinct pin is its own group. For SemVer the group is that
-    of the newest available version satisfying the constraint (so caret ranges map
-    to one major); if none satisfy, the newest available version's group keeps the
-    node so the search reports a clear "no version satisfies" failure.
+    For an opaque package the constraint must be an exact pin (raises otherwise) and
+    each distinct pin is its own group. For an *ordered* scheme (semver/calver/
+    monotonic) the group is that of the newest available version satisfying the
+    constraint (so a caret range maps to one compatibility group); if none satisfy,
+    the newest available version's group keeps the node so the search reports a clear
+    "no version satisfies" failure.
     """
     scheme = _scheme_of(ref, schemes)
     candidates = index.get(ref, [])
@@ -157,7 +158,7 @@ def _edge_node(
         return (ref, ("missing",))
     satisfying = [m for m in candidates if constraint.matches(m.vlnv.version)]
     pivot = satisfying[0] if satisfying else candidates[0]  # index is newest-first
-    return (ref, compatibility_group(pivot.vlnv.version, "semver"))
+    return (ref, compatibility_group(pivot.vlnv.version, scheme))
 
 
 def _solve(

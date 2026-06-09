@@ -23,7 +23,15 @@ import re
 from dataclasses import dataclass
 
 from .exceptions import InvalidVersionError, InvalidVlnvError
-from .version import AnyVersion, OpaqueVersion, Version, VersionScheme
+from .version import (
+    AnyVersion,
+    CalVer,
+    MonotonicVersion,
+    OpaqueVersion,
+    Version,
+    VersionScheme,
+    parse_version,
+)
 
 __all__ = ["PackageRef", "Vlnv"]
 
@@ -95,9 +103,10 @@ class Vlnv:
         _validate_segment(self.vendor, "vendor")
         _validate_segment(self.library, "library")
         _validate_segment(self.name, "name")
-        if not isinstance(self.version, (Version, OpaqueVersion)):
+        if not isinstance(self.version, (Version, OpaqueVersion, CalVer, MonotonicVersion)):
             raise InvalidVlnvError(
-                f"version must be a Version or OpaqueVersion, got {type(self.version).__name__}"
+                f"version must be a Version/OpaqueVersion/CalVer/MonotonicVersion, "
+                f"got {type(self.version).__name__}"
             )
 
     @classmethod
@@ -116,11 +125,7 @@ class Vlnv:
             )
         vendor, library, name, version_str = parts
         try:
-            version: AnyVersion = (
-                OpaqueVersion.parse(version_str)
-                if scheme == "opaque"
-                else Version.parse(version_str)
-            )
+            version: AnyVersion = parse_version(version_str, scheme)
         except InvalidVersionError as exc:
             raise InvalidVlnvError(f"In VLNV {text!r}: {exc}") from exc
         return cls(vendor, library, name, version)

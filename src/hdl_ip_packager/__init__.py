@@ -60,11 +60,14 @@ from .version import (
     DEFAULT_VERSION_SCHEME,
     SUPPORTED_VERSION_SCHEMES,
     AnyVersion,
+    CalVer,
+    MonotonicVersion,
     OpaqueVersion,
     Version,
     VersionConstraint,
     VersionScheme,
     compatibility_group,
+    parse_version,
 )
 from .vlnv import PackageRef, Vlnv
 
@@ -80,6 +83,7 @@ __all__ = [
     "AnyVersion",
     "Backend",
     "BackendError",
+    "CalVer",
     "ConflictPolicy",
     "ContentAddressedCache",
     "CoreSource",
@@ -99,6 +103,7 @@ __all__ = [
     "LockfileError",
     "Manifest",
     "ManifestError",
+    "MonotonicVersion",
     "OpaqueVersion",
     "PackageRef",
     "PackagingError",
@@ -123,6 +128,7 @@ __all__ = [
     "get_backend",
     "manifest_from_ipkg",
     "pack_core",
+    "parse_version",
     "render_dependency_tree",
     "resolve",
     "sha256_digest",

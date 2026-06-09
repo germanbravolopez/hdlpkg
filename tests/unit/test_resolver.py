@@ -14,7 +14,7 @@ import pytest
 from hdl_ip_packager.exceptions import ResolutionError
 from hdl_ip_packager.manifest import Dependency, Manifest
 from hdl_ip_packager.resolver import Resolution, resolve
-from hdl_ip_packager.version import OpaqueVersion, VersionConstraint
+from hdl_ip_packager.version import OpaqueVersion, VersionConstraint, parse_version
 from hdl_ip_packager.vlnv import PackageRef, Vlnv
 
 pytestmark = pytest.mark.unit
@@ -242,6 +242,75 @@ def test_opaque_requires_exact_constraint() -> None:
     index = available(core_scheme("acme:x:vendor_ip:1.0.0", "opaque"))
     with pytest.raises(ResolutionError, match="exact '=' version"):
         resolve(root, index)
+
+
+# --- ordered non-SemVer schemes (calver / monotonic) ------------------------
+
+
+def _ordered_core(
+    ref: str, token: str, scheme: str, deps: dict[str, str] | None = None
+) -> Manifest:
+    """A core on an ordered non-SemVer *scheme* (calver/monotonic) with deps."""
+    dependencies = tuple(
+        Dependency(PackageRef.parse(r), VersionConstraint.parse(spec))
+        for r, spec in (deps or {}).items()
+    )
+    return Manifest(
+        vlnv=PackageRef.parse(ref).with_version(parse_version(token, scheme)),  # type: ignore[arg-type]
+        version_scheme=scheme,  # type: ignore[arg-type]
+        dependencies=dependencies,
+    )
+
+
+def test_calver_unifies_within_a_year() -> None:
+    # Two dependents on the same year unify to the newest matching calver release.
+    root = core("acme:soc:top:1.0.0", {"acme:eda:tool": "^2024.1", "acme:ip:wrap": "^1.0.0"})
+    index = available(
+        core("acme:ip:wrap:1.0.0", {"acme:eda:tool": "^2024.2"}),
+        _ordered_core("acme:eda:tool", "2024.1", "calver"),
+        _ordered_core("acme:eda:tool", "2024.5", "calver"),
+        _ordered_core("acme:eda:tool", "2025.1", "calver"),
+    )
+    resolution = resolve(root, index)
+    assert chosen(resolution, "acme:eda:tool") == "acme:eda:tool:2024.5"
+
+
+def test_calver_incompatible_years_follow_policy() -> None:
+    root = core("acme:soc:top:1.0.0", {"acme:eda:tool": "^2024.1", "acme:ip:wrap": "^1.0.0"})
+    index = available(
+        core("acme:ip:wrap:1.0.0", {"acme:eda:tool": "^2025.1"}),
+        _ordered_core("acme:eda:tool", "2024.5", "calver"),
+        _ordered_core("acme:eda:tool", "2025.1", "calver"),
+    )
+    with pytest.raises(ResolutionError, match="incompatible versions"):
+        resolve(root, index)
+    resolution = resolve(root, index, "isolate_namespaces")
+    assert len(resolution.by_ref[PackageRef.parse("acme:eda:tool")]) == 2
+
+
+def test_monotonic_unifies_to_newest() -> None:
+    # Monotonic revisions are all one group: ^rN means "at least rN", newest wins.
+    root = core("acme:soc:top:1.0.0", {"acme:hw:block": "^r3", "acme:ip:wrap": "^1.0.0"})
+    index = available(
+        core("acme:ip:wrap:1.0.0", {"acme:hw:block": "^r5"}),
+        _ordered_core("acme:hw:block", "r3", "monotonic"),
+        _ordered_core("acme:hw:block", "r5", "monotonic"),
+        _ordered_core("acme:hw:block", "r12", "monotonic"),
+    )
+    resolution = resolve(root, index)
+    assert chosen(resolution, "acme:hw:block") == "acme:hw:block:r12"
+
+
+def test_monotonic_conflicting_exact_pins_are_unsatisfiable() -> None:
+    # =r3 and =r5 cannot both hold in one (shared) group -> a hard failure, not coexistence.
+    root = core("acme:soc:top:1.0.0", {"acme:hw:block": "=r3", "acme:ip:wrap": "^1.0.0"})
+    index = available(
+        core("acme:ip:wrap:1.0.0", {"acme:hw:block": "=r5"}),
+        _ordered_core("acme:hw:block", "r3", "monotonic"),
+        _ordered_core("acme:hw:block", "r5", "monotonic"),
+    )
+    with pytest.raises(ResolutionError):
+        resolve(root, index, "isolate_namespaces")
 
 
 def _opaque_core(ref: str, token: str) -> Manifest:

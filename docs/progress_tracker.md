@@ -143,7 +143,6 @@ _None._
 | Resolve/install over HTTP/OCI + `gen` from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry DIR` now consume a **local published** `LocalRegistry` directly (the producer->consumer loop closes for local registries). Remaining: wire `HttpRegistry` into `--registry` (resolve/install over HTTP), the OCI backend, and a fetch-then-extract so `gen` can build straight from a registry (it still needs loose sources via `--search`/`pull`). |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
 | Physical multi-version coexistence at `gen` (name-mangling) | `backends/edam.py`, `cli.py` | The **bookkeeping** half of multi-version coexistence shipped (the resolver/lock/`tree` keep incompatible versions under `isolate_namespaces`), and `gen` **refuses** to emit two versions today. The remaining **physical** half: SystemVerilog/Verilog put every `module`/`package` name in one global namespace, so two `package bus_pkg;` collide at elaboration. Building them together needs **automatic name-mangling** — rename each version's declared symbols with a version-unique suffix and rewrite *every reference* in each consumer to its resolved version. That edits HDL **source** (currently opaque blobs); naive regex is unsafe, so it needs an HDL-aware frontend (cf. the parked "source-unit tokenizing" backlog item). VHDL is slightly better placed (logical libraries) but still needs `library`/`use`-clause rewriting. |
-| Ordered non-SemVer schemes (calver / monotonic precedence) | `version.py`, `manifest.py`, `resolver.py` | `scheme = "opaque"` ships and carries genuinely non-SemVer version *strings* (`2024.1`, `r3`, `D5020100`) via `OpaqueVersion` — but opaque is **exact-pin only**: there is no ordering, so such versions cannot be *ranged* or newest-selected. What remains is an **ordered** non-SemVer scheme: e.g. `scheme = "calver"` (`YYYY.MM` precedence) or a monotonic-revision engine, so `^2024.1` / "newest" become meaningful for those cores. Add a precedence engine behind the existing `scheme` key (no format break) and a constraint grammar that maps onto it. |
 
 ---
 
@@ -158,6 +157,31 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Ordered non-SemVer schemes: CalVer + monotonic — June 2026
+- [x] **Added two ordered non-SemVer version schemes behind `[package].scheme`** so
+  such cores can be *ranged* and newest-selected, not just exact-pinned. `scheme =
+  "calver"` carries ordered numeric date/calendar versions (`2024.1`, `2024.10`,
+  `2025.2.3`) with the **first component (year) as the compatibility boundary**:
+  `^2024.1` == `>=2024.1, <2025`, `~2024.1` == `>=2024.1, <2024.2`, and same-year
+  dependents unify (year-as-major, Cargo-style). `scheme = "monotonic"` carries a
+  single ordered revision (`r3`, `rev12`, `12`); all revisions are **one
+  compatibility group** (newer supersedes), so `^r3` == `>=r3` selects the newest
+  while `~r3`/`=r3` pin exactly. Two distinct exact monotonic pins are a hard
+  unsatisfiable failure (one shared group), not a coexistence.
+- [x] **Implementation**: new ordered `CalVer` and `MonotonicVersion` value types and
+  a `parse_version(text, scheme)` dispatcher in `version.py`; `VersionConstraint`
+  gained a *deferred* ordered-clause path (`ordered`) that interprets `^`/`~`/ranges
+  against the candidate's scheme at match time (the dependency's scheme is unknown at
+  parse) — for non-SemVer schemes a **bare** constraint means *exact* (those schemes
+  lack SemVer's caret default; use `^`/`~`/ranges explicitly). `compatibility_group`,
+  the resolver's `_edge_node` grouping, manifest/`Vlnv` parsing, and the lockfile
+  `scheme` marker all extend to the new schemes; `LocalRegistry.versions` already
+  recovers a non-SemVer version directory from its manifest. Files: `version.py`,
+  `manifest.py`, `vlnv.py`, `resolver.py`, `lockfile.py`, `__init__.py`,
+  `tests/unit/test_version.py`, `test_resolver.py`, `test_manifest.py`,
+  `test_vlnv.py`, `test_lockfile.py`. (Remaining versioning work is now only the
+  *physical* multi-version coexistence at `gen` — name-mangling.)
 
 ### Versioning contract for the 1.0 freeze: conflict policies, multi-version, opaque scheme — June 2026
 - [x] **Settled the resolver contract that was gating the 1.0 format freeze** —
@@ -193,9 +217,8 @@ _None._
   as SemVer first and fall back to an opaque token (`cli._user_vlnv`), so pulling an
   opaque core by VLNV works. Verified against the consumer demo's new `soc_opaque/`
   (vendor IP at `D502../D401../DB..` part numbers, resolved by exact pin, `gen`-built,
-  published + pulled). What stays open: an *ordered* non-SemVer scheme (a
-  calver/monotonic precedence engine so such versions could be *ranged*, not just
-  exact-pinned).
+  published + pulled). (The ordered non-SemVer schemes — calver/monotonic — landed
+  next; see the milestone above.)
 - [x] **Implementation**: a pure `compatibility_group(version, scheme)` and
   `VersionConstraint.is_exact`/`exact_version` in `version.py`; a grouped,
   scheme-aware backtracking solver keyed per `(package, compatibility-group)` node

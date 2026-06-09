@@ -132,9 +132,11 @@ quick-find reference.
 | **Resolution** | The `Vlnv`(s) chosen per package satisfying all constraints (`vlnvs`/`by_ref`/`warnings`) |
 | **Content-addressed** | Stored/looked-up by SHA-256 digest (integrity + dedup) |
 | **SemVer** | Semantic Versioning 2.0.0 — the default versioning contract |
-| **Version scheme** | `[package].scheme`: `semver` (default) or `opaque` (non-SemVer vendor tokens) |
-| **Opaque version** | A non-SemVer version token (`D5020100`, `2024.1`) — exact-pinned, no ordering (`OpaqueVersion`) |
-| **Compatibility group** | The set a version belongs to for unification (SemVer major / opaque token) |
+| **Version scheme** | `[package].scheme`: `semver` (default) / `calver` (`2024.1`) / `monotonic` (`r3`) / `opaque` (uninterpreted token) |
+| **CalVer** | Ordered numeric calendar version (`2024.1`); year-as-major (`^2024.1` = `>=2024.1, <2025`) — `CalVer` |
+| **Monotonic version** | An ordered revision (`r3`, `12`); one shared compatibility group, `^r3` = `>=r3` — `MonotonicVersion` |
+| **Opaque version** | A non-SemVer version token (`D5020100`) — exact-pinned, no ordering (`OpaqueVersion`) |
+| **Compatibility group** | The set a version belongs to for unification (SemVer major / CalVer year / one monotonic group / opaque token) |
 | **Conflict policy** | `[resolution] on-conflict`: `fail_on_conflict` / `use_latest` / `isolate_namespaces` |
 | **IP-XACT** | IEEE 1685 XML standard for packaging/describing IP |
 
@@ -150,7 +152,7 @@ quick-find reference.
 | Constraint syntax (`^`, `~`, ranges) | `src/hdl_ip_packager/version.py` + `docs/architecture.md` §3 |
 | Pre-release matching rule | `src/hdl_ip_packager/version.py` (`VersionConstraint`) |
 | Conflict policy / multi-version coexistence | `docs/modules/resolver.md` + `src/hdl_ip_packager/resolver.py` |
-| Opaque / non-SemVer version schemes | `docs/modules/versioning.md` (`OpaqueVersion`) + `src/hdl_ip_packager/version.py` |
+| Non-SemVer version schemes (calver / monotonic / opaque) | `docs/modules/versioning.md` (`CalVer` / `MonotonicVersion` / `OpaqueVersion`) + `src/hdl_ip_packager/version.py` |
 | Adding a new CLI command | `src/hdl_ip_packager/cli.py` (`build_parser`) |
 | Adding a new module | `docs/ai_agent_instructions.md` + `docs/README.md` |
 | Test layout / adding tests | `tests/README.md` |

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from hdl_ip_packager.exceptions import InvalidVlnvError
-from hdl_ip_packager.version import OpaqueVersion, Version
+from hdl_ip_packager.version import CalVer, MonotonicVersion, OpaqueVersion, Version
 from hdl_ip_packager.vlnv import PackageRef, Vlnv
 
 pytestmark = pytest.mark.unit
@@ -24,6 +24,22 @@ class TestOpaqueVlnv:
     def test_with_version_accepts_opaque_instance(self) -> None:
         v = PackageRef.parse("acme:x:radio").with_version(OpaqueVersion.parse("D5020100"))
         assert str(v) == "acme:x:radio:D5020100"
+
+
+class TestOrderedVlnv:
+    def test_parse_calver_scheme(self) -> None:
+        v = Vlnv.parse("acme:eda:tool:2024.1", scheme="calver")
+        assert isinstance(v.version, CalVer)
+        assert str(v) == "acme:eda:tool:2024.1"
+
+    def test_parse_monotonic_scheme(self) -> None:
+        v = Vlnv.parse("acme:hw:block:r3", scheme="monotonic")
+        assert isinstance(v.version, MonotonicVersion)
+        assert str(v) == "acme:hw:block:r3"
+
+    def test_calver_scheme_rejects_non_numeric(self) -> None:
+        with pytest.raises(InvalidVlnvError):
+            Vlnv.parse("acme:hw:block:r3", scheme="calver")
 
 
 class TestVlnv:

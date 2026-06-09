@@ -122,8 +122,9 @@ filesets = ["rtl"]
 top      = "uart_top"
 ```
 
-Optional keys extend this: `[package].scheme = "opaque"` for non-SemVer vendor
-version tokens (pinned exactly), and `[resolution] on-conflict = "..."`
+Optional keys extend this: `[package].scheme` selects the version scheme — `semver`
+(default), `calver` (`2024.1`, year-as-major), `monotonic` (`r3`), or `opaque`
+(non-SemVer tokens pinned exactly) — and `[resolution] on-conflict = "..."`
 (`fail_on_conflict` default / `use_latest` / `isolate_namespaces`, also a
 `--on-conflict` flag) for how an incompatible version conflict is handled. See
 [docs/modules/manifest.md](docs/modules/manifest.md) and

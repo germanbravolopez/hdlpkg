@@ -63,6 +63,19 @@ def test_opaque_version_round_trips_via_scheme_marker() -> None:
     assert str(parsed.packages[0].vlnv) == "acme:x:radio:D5020100"
 
 
+@pytest.mark.parametrize(
+    ("vlnv", "scheme"),
+    [("acme:eda:tool:2024.1", "calver"), ("acme:hw:block:r3", "monotonic")],
+)
+def test_ordered_versions_round_trip_via_scheme_marker(vlnv: str, scheme: str) -> None:
+    lock = Lockfile(packages=(LockedPackage(Vlnv.parse(vlnv, scheme)),))  # type: ignore[arg-type]
+    toml = lock.to_toml()
+    assert f'scheme   = "{scheme}"' in toml
+    parsed = Lockfile.from_toml(toml)
+    assert parsed == lock
+    assert str(parsed.packages[0].vlnv) == vlnv
+
+
 def test_to_toml_is_deterministic_regardless_of_input_order() -> None:
     a = LockedPackage(Vlnv.parse("acme:lib:a:1.0.0"))
     b = LockedPackage(Vlnv.parse("acme:lib:b:1.0.0"))

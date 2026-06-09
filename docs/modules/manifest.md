@@ -19,8 +19,8 @@ schema      = 1                 # optional ip.toml format version (default 1)
 vendor      = "acme"            # required ─┐
 library     = "comm"            # required  ├ VLNV identity
 name        = "uart"            # required  │
-version     = "1.2.0"           # required ─┘ (SemVer, or an opaque token if scheme="opaque")
-scheme      = "semver"          # optional version scheme: "semver" (default) | "opaque"
+version     = "1.2.0"           # required ─┘ (per scheme: SemVer / calver / monotonic / opaque token)
+scheme      = "semver"          # optional version scheme: "semver" (default) | "calver" | "monotonic" | "opaque"
 description = "AXI-Lite UART"
 license     = "Apache-2.0"      # SPDX id
 authors     = ["Jane Doe <jane@acme.com>"]
@@ -77,8 +77,9 @@ format needs once it freezes at 1.0. (Note the two distinct keys: top-level `sch
 is the *format* version; `[package].scheme` is the *version* scheme.)
 
 The `[package].scheme` key selects the [version scheme](versioning.md): `semver`
-(default; the `version` must be valid SemVer) or `opaque` (the `version` is a
-non-SemVer token, and dependents must pin it exactly). The `[resolution] on-conflict`
+(default; valid SemVer), `calver` (ordered numeric `2024.1`, year-as-major),
+`monotonic` (an ordered revision `r3`, one shared group), or `opaque` (an
+uninterpreted token, pinned exactly). The `[resolution] on-conflict`
 key sets the [conflict policy](resolver.md) used when an *incompatible* conflict
 arises. Both are validated and an unsupported value raises `ManifestError`.
 

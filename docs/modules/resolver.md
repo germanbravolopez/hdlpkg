@@ -57,9 +57,10 @@ def resolve(
   - `isolate_namespaces` — keep every incompatible version in the resolve/lock/tree
     (multi-version bookkeeping). `gen` then **refuses** to build two versions of one
     package (name-mangling is unbuilt — see [backends](backends.md)).
-- **Scheme-aware**: a package's `[package].scheme` (`semver` or `opaque`) chooses how
-  its versions group. An `opaque` package's dependents must pin an exact `=` version
-  and every distinct pin is its own group (honor-exact-pins).
+- **Scheme-aware**: a package's `[package].scheme` chooses how its versions group —
+  `semver` (by major), `calver` (by year), `monotonic` (one shared group), or
+  `opaque` (each exact pin its own group; dependents must pin exactly). See
+  [versioning](versioning.md).
 - **Newest-compatible**, **transitive**, **backtracking** (a newest-first choice that
   makes a transitive constraint unsatisfiable falls back to older versions), and
   **pre-release-aware** (the [version](versioning.md) rule). The search is keyed per

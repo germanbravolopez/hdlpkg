@@ -42,7 +42,7 @@ task-oriented intro see the [user guide](user_guide.md).
 
 | Module | File | Status | Responsibility |
 |--------|------|--------|----------------|
-| Versioning | [version.py](../src/hdl_ip_packager/version.py) | implemented | SemVer 2.0.0 `Version` + `VersionConstraint` (parse, precedence, matching), `compatibility_group`, and `OpaqueVersion` (non-SemVer tokens) |
+| Versioning | [version.py](../src/hdl_ip_packager/version.py) | implemented | `Version` (SemVer) + `VersionConstraint`, `compatibility_group`, and the non-SemVer schemes `CalVer` / `MonotonicVersion` / `OpaqueVersion` (`parse_version`) |
 | Identity | [vlnv.py](../src/hdl_ip_packager/vlnv.py) | implemented | `PackageRef` (`vendor:library:name`) and `Vlnv` (+`:version`) |
 | Manifest | [manifest.py](../src/hdl_ip_packager/manifest.py) | implemented | Parse/validate `ip.toml` → `Manifest` (identity, deps, filesets, targets) |
 | Scaffolder | [scaffold.py](../src/hdl_ip_packager/scaffold.py) | implemented | Pure renderer for a starter `ip.toml` (behind `hdlpkg init`) |
@@ -103,7 +103,8 @@ The per-core, author-written manifest. Schema (full example in
 
 - `[package]` — `vendor`, `library`, `name`, `version` (required); plus
   `description`, `license`, `authors`, `top`, `keywords`, and an optional `scheme`
-  (`semver` default, or `opaque` for non-SemVer vendor version tokens).
+  (`semver` default / `calver` / `monotonic` / `opaque` — how the `version` is
+  interpreted and ordered).
 - `[dependencies]` — `"vendor:library:name" = "<constraint>"`.
 - `[resolution]` — optional `on-conflict` policy (`fail_on_conflict` default /
   `use_latest` / `isolate_namespaces`) for an incompatible version conflict.
@@ -143,11 +144,12 @@ package and possibly more under `isolate_namespaces`.
   policy (`--on-conflict` overrides it): `fail_on_conflict` (default, raise),
   `use_latest` (collapse to newest + warn), `isolate_namespaces` (keep all in the
   lock/tree; `gen` refuses to emit two versions, since name-mangling is unbuilt).
-- **Version scheme** — `[package].scheme` is `semver` (default) or `opaque`. Under
-  `semver` a non-SemVer `version` is rejected at parse; `opaque` carries a non-SemVer
-  token (`OpaqueVersion`, e.g. `D5020100`), whose dependents must pin an exact `=`
-  version and every distinct pin is its own group (honor-exact-pins). Opaque VLNVs
-  round-trip through the lockfile via a `scheme` marker.
+- **Version scheme** — `[package].scheme` selects how a core's versions are parsed,
+  ordered, and grouped: `semver` (default; non-SemVer rejected at parse), `calver`
+  (ordered numeric `2024.1`, year-as-major), `monotonic` (an ordered revision `r3`,
+  one shared group), or `opaque` (an uninterpreted token, pinned exactly). For the
+  non-SemVer schemes a bare constraint means *exact*; `^`/`~`/ranges are explicit.
+  Non-SemVer VLNVs round-trip through the lockfile via a `scheme` marker.
 - **Newest-compatible** selection; pre-releases excluded unless a constraint's
   operand is itself a pre-release of the same core (the `VersionConstraint` rule).
 - **Backtracking search** over candidate sets keyed per `(package, compatibility

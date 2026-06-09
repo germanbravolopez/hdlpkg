@@ -52,10 +52,9 @@ from .version import (
     DEFAULT_VERSION_SCHEME,
     SUPPORTED_VERSION_SCHEMES,
     AnyVersion,
-    OpaqueVersion,
-    Version,
     VersionConstraint,
     VersionScheme,
+    parse_version,
 )
 from .vlnv import PackageRef, Vlnv
 
@@ -261,16 +260,13 @@ class Manifest:
             raise ManifestError("package.version must be a string.")
         parsed: AnyVersion
         try:
-            # An opaque-scheme core carries a non-SemVer token; the default semver
-            # scheme rejects anything that is not valid SemVer 2.0.0 (rather than
-            # mis-ordering it).
-            parsed = OpaqueVersion.parse(version) if scheme == "opaque" else Version.parse(version)
+            # The version is parsed by its declared scheme: the default semver scheme
+            # rejects anything that is not valid SemVer 2.0.0 (rather than mis-ordering
+            # it); calver/monotonic/opaque parse their own token shapes.
+            parsed = parse_version(version, scheme)
         except InvalidVersionError as exc:
-            expected = (
-                "an opaque version token" if scheme == "opaque" else "a valid SemVer 2.0.0 version"
-            )
             raise ManifestError(
-                f"package.version {version!r} is not {expected} (scheme = {scheme!r}): {exc}."
+                f"package.version {version!r} is not valid for scheme {scheme!r}: {exc}."
             ) from exc
         try:
             return PackageRef(str(vendor), str(library), str(name)).with_version(parsed)

@@ -4,7 +4,7 @@ Semantic-version parsing, precedence, and constraint matching. Pure module (no I
 the reference example for the project's testability rule.
 
 - **Source**: [src/hdl_ip_packager/version.py](../../src/hdl_ip_packager/version.py)
-- **Import**: `from hdl_ip_packager import Version, VersionConstraint, OpaqueVersion, compatibility_group`
+- **Import**: `from hdl_ip_packager import Version, VersionConstraint, OpaqueVersion, CalVer, MonotonicVersion, compatibility_group, parse_version`
 
 ## Purpose
 
@@ -65,26 +65,35 @@ incompatible (they may coexist under a [conflict policy](resolver.md)). For SemV
 this is the Cargo rule — the **major** for `major >= 1`, the **minor** for `0.y`, the
 **patch** for `0.0.z`. For the `opaque` scheme every distinct version is its own group.
 
-## Version schemes & opaque versions
+## Version schemes
 
-A core declares a *version scheme* via [`[package].scheme`](manifest.md) — `semver`
-(default) or `opaque`:
+A core declares a *version scheme* via [`[package].scheme`](manifest.md); each maps
+to a version type, and `parse_version(text, scheme)` is the dispatcher:
 
-- **`semver`** — full SemVer 2.0.0 as above; a non-SemVer `version` is rejected at
-  parse.
-- **`opaque`** — the version is a non-SemVer token (a vendor part number `D5020100`,
-  calver `2024.1`, `r3`), represented by **`OpaqueVersion`**. It has *no* precedence
-  (only a deterministic lexical order for stable output), so dependents must pin an
-  **exact** version (`=D5020100`); a range like `^D5020100` is rejected. A constraint
-  whose operand is a non-SemVer token parses as an opaque exact pin
-  (`constraint.opaque`).
+| `scheme` | Type | Ordering | Constraints |
+|----------|------|----------|-------------|
+| `semver` (default) | `Version` | full SemVer 2.0.0 | `^`/`~`/ranges; major-grouped |
+| `calver` | `CalVer` | numeric components | `^2024.1` = `>=2024.1, <2025` (year-as-major); `~`, ranges |
+| `monotonic` | `MonotonicVersion` | by revision integer | `^r3` = `>=r3` (one shared group); `~r3`/`=r3` pin |
+| `opaque` | `OpaqueVersion` | none (lexical for output) | exact pin only (`=D5020100`) |
 
-`OpaqueVersion.parse(text)` validates the token (raising `InvalidVersionError`);
-`str()` round-trips it. `AnyVersion = Version | OpaqueVersion` is the union a
-[`Vlnv`](identity.md) may carry. Opaque versions still round-trip through the
-[lockfile](lockfile.md) via a `scheme` marker. (An *ordered* non-SemVer scheme —
-calver/monotonic precedence so such versions could be ranged — is a tracked open
-issue.)
+- **`CalVer`** — a tuple of integer `components` (`2024.1` -> `(2024, 1)`) plus the
+  raw literal; ordered component-wise. The first component (year) is the
+  compatibility boundary, so caret/tilde and `compatibility_group` are year-based.
+- **`MonotonicVersion`** — a single integer `revision` with an optional letter prefix
+  (`r3`); ordered by the integer, all in one compatibility group.
+- **`OpaqueVersion`** — an uninterpreted token; no precedence, so dependents must pin
+  it exactly.
+
+**Bare constraints for non-SemVer schemes mean *exact*** (those schemes lack SemVer's
+caret default) — use `^` / `~` / ranges explicitly for flexibility. Because the
+dependency's scheme is unknown when a constraint string is parsed, an explicit-operator
+non-SemVer constraint is stored as deferred clauses (`constraint.ordered`) and
+interpreted against the candidate's type at match time. `AnyVersion = Version |
+OpaqueVersion | CalVer | MonotonicVersion` is the union a [`Vlnv`](identity.md) may
+carry, and every non-SemVer version round-trips through the [lockfile](lockfile.md)
+via a `scheme` marker. (Still open: an *ordered* scheme with a richer precedence,
+e.g. `git describe` tags.)
 
 ## Errors
 
