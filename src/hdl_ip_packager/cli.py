@@ -11,6 +11,7 @@ surface is stable as features land.
 from __future__ import annotations
 
 import argparse
+import getpass
 import re
 import sys
 from collections.abc import Sequence
@@ -19,9 +20,16 @@ from pathlib import Path
 from . import __version__
 from .backends import CoreSource, build_eda_design, get_backend, normalize_file_type
 from .cache import ContentAddressedCache, default_cache_root
+from .credentials import (
+    default_credentials_path,
+    load_credentials,
+    registry_host,
+    save_credentials,
+)
 from .editing import add_dependency
 from .exceptions import (
     BackendError,
+    CredentialsError,
     HdlPackagerError,
     InvalidVlnvError,
     LockfileError,
@@ -39,9 +47,9 @@ from .manifest import (
 from .packaging import artifact_filename, extract_ipkg, pack_core
 from .registry import (
     LocalDirectoryRegistry,
-    LocalRegistry,
     Registry,
     available_from_registry,
+    registry_from_location,
 )
 from .resolver import Resolution
 from .resolver import resolve as resolve_deps
@@ -50,6 +58,11 @@ from .scaffold import DEFAULT_VERSION, ScaffoldOptions, render_manifest
 from .treeview import render_dependency_tree
 from .version import VersionConstraint
 from .vlnv import PackageRef, Vlnv
+
+_REGISTRY_HELP = (
+    "a local directory, or a network URL (http(s)://... or oci://...); "
+    "use 'hdlpkg login' first for a private registry"
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -117,8 +130,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_resolve.add_argument(
         "--registry",
-        metavar="DIR",
-        help="resolve from a published registry directory (overrides --search)",
+        metavar="LOCATION",
+        help="resolve from a published registry (overrides --search); " + _REGISTRY_HELP,
     )
     _add_conflict_arg(p_resolve)
     p_resolve.set_defaults(func=_cmd_resolve)
@@ -152,8 +165,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_install.add_argument(
         "--registry",
-        metavar="DIR",
-        help="fetch from a published registry directory (overrides --search)",
+        metavar="LOCATION",
+        help="fetch from a published registry (overrides --search); " + _REGISTRY_HELP,
     )
     _add_conflict_arg(p_install)
     p_install.set_defaults(func=_cmd_install)
@@ -178,26 +191,35 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_pack.set_defaults(func=_cmd_pack)
 
-    p_publish = sub.add_parser("publish", help="publish this core to a local registry")
+    p_publish = sub.add_parser("publish", help="publish this core to a registry")
     p_publish.add_argument(
         "path", nargs="?", default=MANIFEST_FILENAME, help="path to the manifest"
     )
-    p_publish.add_argument(
-        "--registry", required=True, metavar="DIR", help="registry root directory"
-    )
+    p_publish.add_argument("--registry", required=True, metavar="LOCATION", help=_REGISTRY_HELP)
     p_publish.set_defaults(func=_cmd_publish)
 
     p_pull = sub.add_parser("pull", help="download a core from a registry by VLNV")
     p_pull.add_argument("vlnv", help="the core to pull, e.g. acme:common:fifo:1.0.0")
-    p_pull.add_argument("--registry", required=True, metavar="DIR", help="registry root directory")
+    p_pull.add_argument("--registry", required=True, metavar="LOCATION", help=_REGISTRY_HELP)
     p_pull.add_argument("--output", metavar="DIR", help="extract the core into this directory")
     p_pull.add_argument("--cache-dir", metavar="DIR", help="cache root (default: ~/.hdlpkg/cache)")
     p_pull.set_defaults(func=_cmd_pull)
 
     p_yank = sub.add_parser("yank", help="hide a published version from new resolves")
     p_yank.add_argument("vlnv", help="the core version to yank, e.g. acme:common:fifo:1.0.0")
-    p_yank.add_argument("--registry", required=True, metavar="DIR", help="registry root directory")
+    p_yank.add_argument("--registry", required=True, metavar="LOCATION", help=_REGISTRY_HELP)
     p_yank.set_defaults(func=_cmd_yank)
+
+    p_login = sub.add_parser("login", help="store an auth token for a private registry")
+    p_login.add_argument(
+        "registry", metavar="LOCATION", help="registry URL, e.g. oci://harbor.corp/ip"
+    )
+    p_login.add_argument("--token", help="the bearer token (omit to be prompted without echo)")
+    p_login.set_defaults(func=_cmd_login)
+
+    p_logout = sub.add_parser("logout", help="remove a stored registry auth token")
+    p_logout.add_argument("registry", metavar="LOCATION", help="registry URL to forget")
+    p_logout.set_defaults(func=_cmd_logout)
 
     p_gen = sub.add_parser("gen", help="generate tool-flow inputs for a target")
     p_gen.add_argument("target", help="the [targets.*] to build (e.g. sim, synth)")
@@ -234,8 +256,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_tree.add_argument(
         "--registry",
-        metavar="DIR",
-        help="resolve from a published registry directory (overrides --search)",
+        metavar="LOCATION",
+        help="resolve from a published registry (overrides --search); " + _REGISTRY_HELP,
     )
     _add_conflict_arg(p_tree)
     p_tree.set_defaults(func=_cmd_tree)
@@ -383,11 +405,16 @@ def _local_registry(manifest_path: Path, search: list[str] | None) -> LocalDirec
     return LocalDirectoryRegistry([Path(d) for d in search_dirs])
 
 
+def _selected_registry(location: str) -> Registry:
+    """Build the registry named by a ``--registry`` location, wiring in stored credentials."""
+    return registry_from_location(location, credentials=load_credentials())
+
+
 def _reader_registry(manifest_path: Path, args: argparse.Namespace) -> Registry:
     """The registry to resolve/fetch from: a published `--registry`, else a `--search` scan."""
     registry = getattr(args, "registry", None)
     if registry:
-        return LocalRegistry(registry)
+        return _selected_registry(registry)
     return _local_registry(manifest_path, args.search)
 
 
@@ -487,7 +514,7 @@ def _cmd_pack(args: argparse.Namespace) -> int:
 def _cmd_publish(args: argparse.Namespace) -> int:
     manifest_path = Path(args.path)
     manifest = Manifest.from_path(manifest_path)
-    registry = LocalRegistry(args.registry)
+    registry = _selected_registry(args.registry)
     vlnv = registry.publish_core(manifest, manifest_path.parent)
     print(f"Published {vlnv} to {args.registry}")
     return 0
@@ -507,7 +534,7 @@ def _user_vlnv(text: str) -> Vlnv:
 
 def _cmd_pull(args: argparse.Namespace) -> int:
     vlnv = _user_vlnv(args.vlnv)
-    registry = LocalRegistry(args.registry)
+    registry = _selected_registry(args.registry)
     cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
     cache = ContentAddressedCache(cache_root)
     digest = registry.fetch(vlnv, cache)
@@ -520,8 +547,34 @@ def _cmd_pull(args: argparse.Namespace) -> int:
 
 def _cmd_yank(args: argparse.Namespace) -> int:
     vlnv = _user_vlnv(args.vlnv)
-    LocalRegistry(args.registry).yank(vlnv)
+    _selected_registry(args.registry).yank(vlnv)
     print(f"Yanked {vlnv} in {args.registry}")
+    return 0
+
+
+def _cmd_login(args: argparse.Namespace) -> int:
+    host = registry_host(args.registry)
+    if host is None:
+        raise CredentialsError(
+            f"{args.registry!r} is a local registry and needs no login; "
+            "use an http(s):// or oci:// location."
+        )
+    token = args.token if args.token is not None else getpass.getpass(f"Token for {host}: ")
+    if not token:
+        raise CredentialsError("No token provided.")
+    path = default_credentials_path()
+    save_credentials(load_credentials(path).with_token(host, token), path)
+    print(f"Stored credentials for {host} in {path}")
+    return 0
+
+
+def _cmd_logout(args: argparse.Namespace) -> int:
+    host = registry_host(args.registry)
+    if host is None:
+        raise CredentialsError(f"{args.registry!r} is a local registry; nothing to log out of.")
+    path = default_credentials_path()
+    save_credentials(load_credentials(path).without(host), path)
+    print(f"Removed credentials for {host}")
     return 0
 
 

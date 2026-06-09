@@ -21,9 +21,17 @@ from .backends import (
     supported_toolflows,
 )
 from .cache import ContentAddressedCache, default_cache_root
+from .credentials import (
+    CredentialStore,
+    default_credentials_path,
+    load_credentials,
+    registry_host,
+    save_credentials,
+)
 from .editing import add_dependency
 from .exceptions import (
     BackendError,
+    CredentialsError,
     HdlPackagerError,
     InvalidConstraintError,
     InvalidVersionError,
@@ -63,8 +71,10 @@ from .registry import (
     HttpRegistry,
     LocalDirectoryRegistry,
     LocalRegistry,
+    OciRegistry,
     Registry,
     available_from_registry,
+    registry_from_location,
 )
 from .resolver import Resolution, resolve
 from .sbom import CYCLONEDX_SPEC_VERSION, build_cyclonedx
@@ -100,6 +110,8 @@ __all__ = [
     "ConflictPolicy",
     "ContentAddressedCache",
     "CoreSource",
+    "CredentialStore",
+    "CredentialsError",
     "Dependency",
     "EdaDesign",
     "EdaFile",
@@ -120,6 +132,7 @@ __all__ = [
     "Manifest",
     "ManifestError",
     "MonotonicVersion",
+    "OciRegistry",
     "OpaqueVersion",
     "PackageRef",
     "PackagingError",
@@ -144,17 +157,22 @@ __all__ = [
     "declared_vhdl_entities",
     "declared_vhdl_packages",
     "default_cache_root",
+    "default_credentials_path",
     "extract_ipkg",
     "get_backend",
+    "load_credentials",
     "mangled_name",
     "manifest_from_ipkg",
     "pack_core",
     "parse_version",
     "plan_package_mangling",
+    "registry_from_location",
+    "registry_host",
     "render_dependency_tree",
     "resolve",
     "rewrite_sv_packages",
     "rewrite_vhdl_packages",
+    "save_credentials",
     "sha256_digest",
     "supported_toolflows",
     "to_ipxact",

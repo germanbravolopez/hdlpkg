@@ -46,18 +46,23 @@ Implemented today:
 - **Lockfile (`ip.lock`)** — a deterministic, verifiable record of a resolve
   (exact VLNVs + source + SHA-256), written by `hdlpkg resolve`.
 - **Content-addressed cache + registries** — a SHA-256-keyed local cache with
-  verify-on-read, fed by local-directory and HTTP registry backends; `hdlpkg
-  install` resolves and fetches dependencies into it.
-- **Packaging + distribution** — a deterministic `.ipkg` artifact with `pack`,
-  append-only `publish` (with `yank`), and `pull` (fetch by VLNV into the cache).
-- **CLI (`hdlpkg`)** — `info`, `validate`, `init`, `resolve`, `install`, `pack`,
-  `publish`, `pull`, and `yank` work today; the rest is wired and reports planned
-  status.
+  verify-on-read, fed by **local-directory, HTTP, and OCI** registry backends behind one
+  `--registry` location (a path, `http(s)://`, or `oci://`); `hdlpkg install` resolves and
+  fetches dependencies into it.
+- **Private, self-hosted distribution** — publish/consume cores over an internal HTTP server
+  or any **OCI registry** (Harbor, Artifactory, Nexus, GitLab, Zot, ECR/ACR) without going
+  public; `hdlpkg login` stores a per-host bearer token so a team shares IP inside its
+  network. A deterministic `.ipkg` artifact backs `pack`, append-only `publish` (with
+  `yank`), and `pull` (fetch by VLNV into the cache).
+- **CLI (`hdlpkg`)** — all commands are implemented: `info`, `validate`, `init`, `add`,
+  `resolve`, `install`, `pack`, `publish`, `pull`, `yank`, `login`, `logout`, `gen`, `tree`,
+  `export-ipxact`.
 
 Designed and on the roadmap (see the progress tracker):
 
-- Additional **registries** (Git-backed channel, OCI artifact registry).
-- Tool-flow **generation** (EDAM) and **IP-XACT export** for Vivado/other-tool interop.
+- A **Git-backed** registry channel and the OCI **token-exchange** auth flow for managed
+  registries.
+- Tool-flow **generation** straight from a registry (it builds from local/extracted sources today).
 
 ---
 
@@ -100,6 +105,11 @@ hdlpkg gen sim ip.toml --search ../cores     # generate Verilator/Vivado inputs 
 hdlpkg tree ip.toml --search ../cores        # print the resolved dependency graph
 hdlpkg export-ipxact ip.toml                 # export an IP-XACT (IEEE 1685) component XML
 python -m hdl_ip_packager info   # same CLI, invoked as a module
+
+# Private, self-hosted registry (HTTP or OCI) -- log in once, then publish/consume:
+hdlpkg login oci://harbor.corp.local/ip            # stores a per-host bearer token
+hdlpkg publish ip.toml --registry oci://harbor.corp.local/ip
+hdlpkg resolve ip.toml --registry oci://harbor.corp.local/ip   # nothing leaves your network
 ```
 
 A minimal `ip.toml`:

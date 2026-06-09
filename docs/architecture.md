@@ -47,11 +47,12 @@ task-oriented intro see the [user guide](user_guide.md).
 | Manifest | [manifest.py](../src/hdl_ip_packager/manifest.py) | implemented | Parse/validate `ip.toml` → `Manifest` (identity, deps, filesets, targets) |
 | Scaffolder | [scaffold.py](../src/hdl_ip_packager/scaffold.py) | implemented | Pure renderer for a starter `ip.toml` (behind `hdlpkg init`) |
 | Errors | [exceptions.py](../src/hdl_ip_packager/exceptions.py) | implemented | One exception hierarchy rooted at `HdlPackagerError` |
-| CLI | [cli.py](../src/hdl_ip_packager/cli.py) | implemented | `hdlpkg` entry point; all commands implemented (`info`/`validate`/`init`/`add`/`resolve`/`install`/`pack`/`publish`/`pull`/`yank`/`gen`/`tree`/`export-ipxact`) |
+| CLI | [cli.py](../src/hdl_ip_packager/cli.py) | implemented | `hdlpkg` entry point; all commands implemented (`info`/`validate`/`init`/`add`/`resolve`/`install`/`pack`/`publish`/`pull`/`yank`/`login`/`logout`/`gen`/`tree`/`export-ipxact`) |
 | Resolver | [resolver.py](../src/hdl_ip_packager/resolver.py) | implemented | Constraints → selected `Vlnv`(s) (backtracking, Cargo-style unification, `[resolution] on-conflict` policy, scheme-aware) |
 | Lockfile | [lockfile.py](../src/hdl_ip_packager/lockfile.py) | implemented | Serialize/parse/verify `ip.lock` (a `Resolution` + per-core source + SHA-256) |
 | Cache | [cache.py](../src/hdl_ip_packager/cache.py) | implemented | Content-addressed local blob store (SHA-256 key, verify-on-read, atomic writes) |
-| Registry | [registry.py](../src/hdl_ip_packager/registry.py) | implemented (local + HTTP + writable) | Abstract `Registry` + local-dir/HTTP/writable-local backends + graph walker (Git/OCI tracked as issues) |
+| Registry | [registry.py](../src/hdl_ip_packager/registry.py) | implemented (local + HTTP + OCI, all writable) | Abstract `Registry` + local-dir/writable-local/HTTP/OCI backends + `registry_from_location` scheme dispatch + graph walker (Git tracked as an issue) |
+| Credentials | [credentials.py](../src/hdl_ip_packager/credentials.py) | implemented | Per-host bearer tokens for private registries (`hdlpkg login`); pure `CredentialStore` + TOML load/save |
 | Packaging | [packaging.py](../src/hdl_ip_packager/packaging.py) | implemented | Build/read the deterministic `.ipkg` artifact (`pack_core`, `extract_ipkg`) |
 | Backends | [backends/](../src/hdl_ip_packager/backends/) | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) | EDAM-like intermediate (`build_eda_design`) → tool inputs behind `hdlpkg gen` |
 | Name-mangling | [mangle.py](../src/hdl_ip_packager/mangle.py) | implemented (SystemVerilog + VHDL packages) | Rewrite coexisting package names so two versions build together under `gen` |
@@ -171,25 +172,46 @@ atomic (temp file + `os.replace`) and idempotent (content-addressing dedupes).
 offline reuse. The registry backends fetch into this store; a blob is a core's
 packed `.ipkg` (see Packaging below).
 
-### Registry *(implemented: local + HTTP — [registry.py](../src/hdl_ip_packager/registry.py))*
-`Registry` is an ABC with `versions()`, `manifest()`, `artifact_bytes()`, and a
-shared `fetch()` that stores a core's artifact in the content-addressed cache
+### Registry *(implemented: local + HTTP + OCI — [registry.py](../src/hdl_ip_packager/registry.py))*
+`Registry` is an ABC with `versions()`, `manifest()`, `artifact_bytes()`, `publish_core()`,
+and a shared `fetch()` that stores a core's packed `.ipkg` in the content-addressed cache
 (verified). `available_from_registry()` walks the dependency graph to build the
-`Mapping[PackageRef, Sequence[Manifest]]` the resolver consumes. Two read backends ship:
+`Mapping[PackageRef, Sequence[Manifest]]` the resolver consumes. Four backends ship:
 - **`LocalDirectoryRegistry`** — cores discovered by scanning directory trees for
-  `ip.toml` (the `examples/` layout); backs `hdlpkg resolve`/`install`.
-- **`HttpRegistry`** — cores served by a static HTTP index
-  (`{base}/{vendor}/{library}/{name}/versions.json` + `.../{version}/ip.toml`).
+  `ip.toml` (the `examples/` layout); read-only.
+- **`LocalRegistry`** — a writable, append-only local directory store (publish / pull /
+  yank), with a `.yanked` marker that retires a version without breaking old lockfiles.
+- **`HttpRegistry`** — a network registry over a simple HTTP layout
+  (`{base}/{vendor}/{library}/{name}/versions.json` + `.../{version}/{ip.toml,core.ipkg}`):
+  reads via `GET`, publishes via `PUT` (any `PUT`-capable store — a small service, object
+  storage, WebDAV — can host it).
+- **`OciRegistry`** — a network registry over the **OCI distribution v2 API**, so cores
+  live as OCI artifacts in any standard registry (Harbor, Artifactory, Nexus, GitLab, Zot,
+  ECR/ACR). A core's `ip.toml` is the artifact config blob and its `.ipkg` is the single
+  layer, tagged with the version; the package maps to repository
+  `{prefix}/{vendor}/{library}/{name}`. `oci://` uses HTTPS, `oci+http://` plaintext.
 
-Still designed but **tracked as open issues** (they need external tooling / live
-services to build and test): a **Git-backed channel** and — the differentiator —
-an **OCI artifact** registry (reuse Docker-registry infra: content-addressable,
-immutable, ubiquitous).
+**`registry_from_location(location, credentials=…)`** is the single entry point the CLI
+uses: it dispatches a location string to the right backend by URL scheme (bare path /
+`path:` → local, `http(s)://` → HTTP, `oci://` / `oci+http://` → OCI) and wires in the
+stored token, so the rest of the CLI is backend-agnostic and the on-disk lockfile/protocol
+surface is stable. The network backends are **private by design**: a per-host bearer token
+from [credentials.py](../src/hdl_ip_packager/credentials.py) (set by `hdlpkg login`)
+authenticates a self-hosted registry, so teams share IP inside a company network without
+publishing publicly. A core's "artifact" is its deterministic `.ipkg` (see Packaging
+below), so its SHA-256 is the same content address the cache keys on and the lockfile pins.
 
-A writable **`LocalRegistry`** adds publishing (append-only, with **yank** to retire
-a version without breaking existing lockfiles); it backs `hdlpkg publish`/`pull`/
-`yank`. A core's "artifact" is its packed `.ipkg` bytes
-(see Packaging below); the interface is unchanged by that.
+A **Git-backed channel** remains a tracked open issue (it needs `git` + a live remote to
+build and test honestly). The token-exchange (Docker `WWW-Authenticate` realm) flow for
+OCI is a documented future refinement — today the stored token is presented directly as a
+bearer credential, which self-hosted registries can be configured to accept.
+
+### Credentials *(implemented — [credentials.py](../src/hdl_ip_packager/credentials.py))*
+A pure `CredentialStore` maps a **registry host** (`oci://harbor.corp/ip/a` and
+`.../ip/b` share one token for `harbor.corp`) to a bearer token, with TOML
+serialization; the thin `load_credentials`/`save_credentials` pair is the only I/O,
+writing `~/.hdlpkg/credentials.toml` (override with `HDLPKG_CREDENTIALS`) owner-only where
+the OS allows. `hdlpkg login`/`logout` manage it; `registry_from_location` reads it.
 
 ### Packaging *(implemented — [packaging.py](../src/hdl_ip_packager/packaging.py))*
 `pack_core` builds a **deterministic** `.ipkg` (a gzip+tar of `ip.toml` plus every

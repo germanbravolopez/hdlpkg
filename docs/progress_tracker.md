@@ -23,10 +23,12 @@ for the 1.0 freeze** — Cargo-style unification, a `[resolution] on-conflict` p
 (`fail_on_conflict` default / `use_latest` / `isolate_namespaces`) that allows
 multi-version coexistence in the resolve/lock/tree (with `gen` refusing two versions),
 and the `[package].scheme` key (`semver` / `opaque`) with explicit non-SemVer
-rejection. With the resolver contract and the `ip.toml`/`ip.lock` format shapes now
-settled, the remaining gate to `1.0.0` is the **operational** half — the OCI registry
-protocol, a third-party publish/consume, and an `rc` soak — not the format churn that
-held it back. See the Release plan.
+rejection, **and the operational distribution protocol** — HTTP + OCI registry backends
+behind one `registry_from_location` abstraction, with `hdlpkg login` bearer-token auth for
+private, self-hosted registries. With the resolver contract, the `ip.toml`/`ip.lock` format
+shapes, and the registry/OCI protocol now settled, the remaining gate to `1.0.0` is narrow:
+a **third-party publish/consume** and a **`1.0.0-rc.1` soak** with no format changes — not
+the format or protocol churn that held it back. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
 pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
@@ -64,14 +66,15 @@ pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
 - **Tooling** — pytest (markers + coverage gate + foldable summary), ruff, mypy
   strict on `src/`, CI workflow, and a cross-platform test-summary renderer.
 
-**Next**: all roadmap milestones (M1–M8) are delivered and the versioning contract
-that was gating the format freeze is settled — including ordered non-SemVer schemes
-and SystemVerilog-package name-mangling for multi-version coexistence. The remaining
-work toward `1.0.0` is the **operational** stability gate (see the Release plan) — the
-OCI protocol, a third-party publish/consume, and an `rc` soak — plus the still-deferred
-external-service work (Git/OCI backends, Sigstore signing) and the residual coexistence
-case (two *module*/*entity* versions — needs an HDL-aware frontend; package coexistence
-is done for both SystemVerilog and VHDL).
+**Next**: all roadmap milestones (M1–M8) are delivered, the versioning contract that was
+gating the format freeze is settled (ordered non-SemVer schemes + SV/VHDL package
+name-mangling), and the **registry/OCI protocol is now implemented** — local, HTTP, and OCI
+backends behind one abstraction, with `hdlpkg login` auth for private self-hosted sharing.
+The remaining work toward `1.0.0` is the narrow stability gate (see the Release plan) — a
+third-party publish/consume and a `1.0.0-rc.1` soak — plus still-deferred external-service
+work (Git-backed registry, the OCI token-exchange auth flow, Sigstore signing) and the
+residual coexistence case (two *module*/*entity* versions — needs an HDL-aware frontend;
+package coexistence is done for both SystemVerilog and VHDL).
 
 ---
 
@@ -139,10 +142,10 @@ _None._
 |-------|------|-------|
 | Full compile/elaborate/simulate of the consumer demo's SV + VHDL outputs | consumer demo (`verify.py`, `demo.py`, `.github/workflows/verify.yml`), `backends/` | **Strengthen the end-to-end proof.** Today the consumer demo (and the in-repo `gen` tests) only assert that `gen` *emits* the right tool-flow inputs (`.vc`/`run_ghdl.sh`/mangled sources); nothing actually **builds** them. Add a real toolchain pass that compiles, elaborates, and simulates the generated designs — `verilator`/`icarus` for the SystemVerilog SoCs (`soc/`, `soc_conflict/`) and `ghdl` for the VHDL one (`soc_vhdl/`) — so we prove the generated flows genuinely elaborate (and that the package name-mangling produces designs that *build*, not just text that looks right). Needs the HDL toolchains installed on the runner (e.g. `ghdl`, `verilator`/`iverilog` via apt or a setup action), so it is a separate, possibly opt-in CI lane from the pure-Python `verify` matrix. This feeds the 1.0 **third-party consume** confidence but does not itself gate the release. |
 | Encrypted IP distribution (IEEE 1735) | `packaging.py`, `registry.py`, `manifest.py`, `cli.py` | **Future feature.** Let a producer distribute a core whose HDL source is **encrypted**, so a consumer can resolve/install/`gen` against it (the tool can drive a tool flow) without the source ever being readable on disk. Two distinct layers, decide which to build: **(a) Standard HDL IP encryption (IEEE 1735 / `pragma protect`)** — the cross-vendor norm. Each source file carries an encrypted envelope (a symmetric session key wrapped under each *tool vendor's* public key + AES/RSA-encrypted payload, IEEE 1735 v1/v2 with "rights" digests). The EDA tool decrypts at compile time; the packager's job is to **carry, not break** these envelopes — pack/`extract`/SBOM must treat an encrypted file as opaque, the deterministic-pack digest still pins ciphertext, and `gen` must not assume it can read the source. The tool would *not* implement the crypto itself (vendor keys live in the EDA tools); at most it could shell out to `vivado -encrypt`/`vlog +protect` to *produce* envelopes. **(b) At-rest/transport encryption of the `.ipkg`** — encrypt the whole artifact in the registry/cache for confidential distribution (e.g. age/GPG or an OCI-layer key), decrypted on `pull` with a consumer key. This is independent of HDL-tool semantics and simpler, but does **not** give the per-tool, compile-time protection (a) does. Open questions: where keys/recipients are declared (a `[package]`/`[encryption]` manifest key vs. out-of-band), how it interacts with content-addressing (the digest must pin what is *stored*), how the SBOM marks a component encrypted, and how `validate`/`info` behave when source is unreadable. Needs a real EDA tool (or an interop fixture) to test (a) honestly — defer like the Git/OCI/Sigstore work. |
-| Git-backed registry | `registry.py` | A `Registry` backend resolving cores from a Git channel (tags/refs). Deferred from M4: needs the `git` CLI + a remote to implement and test honestly. Mirror the `LocalDirectoryRegistry`/`HttpRegistry` shape. |
-| OCI artifact registry | `registry.py` | The differentiator backend: store/fetch cores as OCI artifacts (Docker-registry infra). Deferred from M4: needs a live OCI registry (or a mock) and the manifest/blob API; significant standalone work. |
-| Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git/OCI backends. Checksums + SBOM already ship; this adds authenticity on top. |
-| Resolve/install over HTTP/OCI + `gen` from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry DIR` now consume a **local published** `LocalRegistry` directly (the producer->consumer loop closes for local registries). Remaining: wire `HttpRegistry` into `--registry` (resolve/install over HTTP), the OCI backend, and a fetch-then-extract so `gen` can build straight from a registry (it still needs loose sources via `--search`/`pull`). |
+| Git-backed registry | `registry.py` | A `Registry` backend resolving cores from a Git channel (tags/refs). Deferred from M4: needs the `git` CLI + a remote to implement and test honestly. Mirror the `LocalDirectoryRegistry`/`HttpRegistry`/`OciRegistry` shape. |
+| OCI token-exchange auth flow | `registry.py`, `credentials.py` | `OciRegistry` presents the stored `hdlpkg login` token **directly** as a bearer credential (which self-hosted Harbor/Zot/Artifactory can accept) and the HTTP backend likewise. Some managed registries instead require the Docker token-exchange dance (a `401` + `WWW-Authenticate: Bearer realm=...,service=...,scope=...`, then a `GET realm` for an access token). Add that exchange (and optional username/password / `~/.docker/config.json` reuse) so any registry works out of the box; needs a live or mock token endpoint to test honestly. |
+| Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git backend. Checksums + SBOM already ship; this adds authenticity on top. |
+| `gen` straight from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry` now consume **local, HTTP, and OCI** registries directly (the producer->consumer loop is closed over the network). Remaining: a fetch-then-extract path so `gen` can build straight from a registry — it still needs loose sources via `--search` (point it at extracted/`pull`ed trees). |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
 | Multi-version coexistence for *modules*/*entities* (beyond packages) | `mangle.py`, `cli.py` | **Package** coexistence is done for both SystemVerilog and VHDL (`gen` name-mangles under `isolate_namespaces`). What remains: two versions of a SystemVerilog *module*/interface or a VHDL *entity*. Unlike a package reference (`::` / `use work.`), an *instantiation* position (`foo bar (...)` in SV, `label : entity work.foo` / component instantiation in VHDL) cannot be disambiguated from other constructs without a real parser, so it is refused today. Needs an HDL-aware frontend (cf. the parked "source-unit tokenizing" backlog item). |
 
@@ -159,6 +162,47 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Stable registry protocol: HTTP + OCI backends behind one abstraction, with login auth — June 2026
+- [x] **Network registries are now first-class, so teams can share IP privately on their
+  own servers** — the operational half of the 1.0 "stable registry/OCI protocol" gate.
+  `resolve`/`install`/`tree`/`publish`/`pull` accept a `--registry` **location** dispatched
+  by URL scheme through a single `registry_from_location()` factory: a bare path / `path:` /
+  `file://` -> the writable local `LocalRegistry`, `http(s)://` -> `HttpRegistry`, and
+  `oci://` / `oci+http://` -> the new `OciRegistry`. The CLI is now backend-agnostic (the
+  one place a backend is chosen is the factory), which is what makes the on-disk and wire
+  protocol surface stable for 1.0.
+- [x] **`OciRegistry`: cores as OCI artifacts over the OCI distribution v2 API**, so a core
+  lives in any standard registry (Harbor, Artifactory, Nexus, GitLab, Zot, ECR/ACR) — all of
+  which are **self-hostable and private by default**. A core's `ip.toml` is the artifact
+  *config* blob and its deterministic `.ipkg` is the single *layer*, tagged with the version;
+  the package maps to repository `{prefix}/{vendor}/{library}/{name}`. Implements blob upload
+  (HEAD-skip + POST/PUT monolithic), manifest/tag PUT+GET, and `tags/list`, append-only
+  (refuses to overwrite a tag). `oci://` uses HTTPS, `oci+http://` plaintext (internal/dev).
+  Because the layer is the `.ipkg`, its OCI digest **is** the content address the cache keys
+  on and the lockfile pins.
+- [x] **`HttpRegistry` promoted to a writable, authenticated network registry** (was a
+  read-only static index): reads via `GET`, publishes via `PUT` (so any `PUT`-capable store —
+  a small service, object storage, WebDAV — can host it), append-only, opaque-version tolerant.
+- [x] **`hdlpkg login` / `logout` + a credentials subsystem (`credentials.py`)** make the
+  network backends private. A pure `CredentialStore` maps a **registry host** to a bearer
+  token (hosts share one token across repos) with TOML serialization; the thin
+  `load_credentials`/`save_credentials` pair is the only I/O, writing
+  `~/.hdlpkg/credentials.toml` (override with `HDLPKG_CREDENTIALS`) owner-only where the OS
+  allows. Every network request carries `Authorization: Bearer <token>`, so resolve/install/
+  publish against a private registry "just work" after one login; missing/wrong credentials
+  fail closed. (The Docker token-exchange flow for managed registries is a tracked refinement;
+  the stored token is presented directly today.)
+- [x] **Tested honestly with no live service**: a localhost auth+`PUT` HTTP server and a
+  minimal in-memory **OCI distribution v2** mock exercise the full publish -> resolve ->
+  install -> pull flow through the real CLI for both backends, plus append-only, auth-required,
+  and error paths; the `CredentialStore`, `registry_from_location` dispatch, and `login`/
+  `logout` have unit tests. Files: `src/hdl_ip_packager/credentials.py`, `registry.py`,
+  `cli.py`, `exceptions.py` (`CredentialsError`), `__init__.py`,
+  `tests/unit/test_credentials.py`, `test_registry_location.py`, `test_login_cli.py`,
+  `tests/integration/test_http_registry_cli.py`, `test_oci_registry_cli.py`. Remaining toward
+  1.0: a third-party publish/consume and a `1.0.0-rc.1` soak (see the Release plan); Git
+  backend, the OCI token-exchange flow, and `gen`-from-registry stay Open Non-Blocking.
 
 ### VHDL package name-mangling for multi-version coexistence — June 2026
 - [x] **`gen` now name-mangles coexisting VHDL packages too**, the direct analogue of

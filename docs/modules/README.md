@@ -29,7 +29,8 @@ the edges (the CLI and registry/cache). The pages below follow that flow:
 | Module | What it covers |
 |--------|----------------|
 | [Content-addressed cache](cache.md) | SHA-256-keyed local blob store with verify-on-read |
-| [Registry](registry.md) | The `Registry` interface + local / HTTP / writable-local backends |
+| [Registry](registry.md) | The `Registry` interface + local / HTTP / OCI backends and `registry_from_location` |
+| [Credentials](credentials.md) | Per-host bearer tokens for private registries (`hdlpkg login`) |
 | [Packaging (`.ipkg`)](packaging.md) | The deterministic `.ipkg` artifact: build, extract, read |
 
 ## Generate & interop

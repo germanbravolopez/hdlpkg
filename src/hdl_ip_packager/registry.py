@@ -4,23 +4,32 @@ A *registry* is where IP cores live so they can be discovered, fetched, and (lat
 published. Multiple backends coexist behind one :class:`Registry` interface; the
 resolver and the CLI depend only on the interface, never a concrete backend.
 
-Implemented backends:
+Backends (one per registry kind):
 
-* :class:`LocalDirectoryRegistry` -- cores discovered by scanning local directory
+* :class:`LocalDirectoryRegistry` -- read-only discovery by scanning local directory
   trees for ``ip.toml`` (the layout the bundled ``examples/`` use).
-* :class:`HttpRegistry` -- cores served by a static HTTP index with the layout
-  ``{base}/{vendor}/{library}/{name}/versions.json`` and
-  ``{base}/{vendor}/{library}/{name}/{version}/ip.toml``.
+* :class:`LocalRegistry` -- a writable, append-only local directory store (publish /
+  pull / yank).
+* :class:`HttpRegistry` -- a network registry over a simple HTTP layout
+  (``{base}/{vendor}/{library}/{name}/versions.json`` + ``.../{version}/{ip.toml,core.ipkg}``),
+  readable and writable (``PUT``), with optional bearer-token auth.
+* :class:`OciRegistry` -- a network registry over the OCI distribution v2 API, so
+  cores live as OCI artifacts in any standard registry (Harbor, Artifactory, GitLab,
+  Zot, ...), readable and writable, with optional bearer-token auth.
 
-Both feed :func:`available_from_registry`, which walks the dependency graph to
-build the ``Mapping[PackageRef, Sequence[Manifest]]`` the resolver consumes, and
-``fetch`` stores the core's artifact in the content-addressed cache (verifying it).
+All feed :func:`available_from_registry`, which walks the dependency graph to build
+the ``Mapping[PackageRef, Sequence[Manifest]]`` the resolver consumes; ``fetch``
+stores the core's packed ``.ipkg`` artifact in the content-addressed cache (verifying
+it). A core's "artifact" is its deterministic ``.ipkg`` (see ``packaging.py``), so its
+SHA-256 is the same content address the cache keys on and the lockfile pins.
 
-At this milestone a core's "artifact" is its manifest bytes -- enough to exercise
-discover -> resolve -> fetch -> verify end to end. Packaging (M5) replaces the
-artifact with the packed core without changing this interface. The Git and OCI
-backends are tracked as open issues (they need external tooling/live services to
-implement and test); the design intent is in ``docs/architecture.md``.
+The network backends are **private by design**: a token from
+``hdl_ip_packager.credentials`` (set by ``hdlpkg login``) authenticates a self-hosted
+registry, so teams can share IP inside a company network without publishing publicly.
+:func:`registry_from_location` is the one entry point the CLI uses -- it dispatches a
+location string to the right backend by URL scheme (a bare path / ``path:`` -> local,
+``http(s)://`` -> HTTP, ``oci://`` / ``oci+http://`` -> OCI) and wires in the stored
+token. The Git-backed channel remains an open issue.
 """
 
 from __future__ import annotations
@@ -30,20 +39,25 @@ import json
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .cache import ContentAddressedCache
+from .credentials import CredentialStore, registry_host
 from .exceptions import HdlPackagerError, RegistryError
+from .lockfile import sha256_digest
 from .manifest import MANIFEST_FILENAME, Manifest
 from .packaging import IPKG_SUFFIX, pack_core
-from .version import Version
+from .version import OpaqueVersion, Version
 from .vlnv import PackageRef, Vlnv
 
 __all__ = [
     "HttpRegistry",
     "LocalDirectoryRegistry",
     "LocalRegistry",
+    "OciRegistry",
     "Registry",
     "available_from_registry",
+    "registry_from_location",
 ]
 
 _IPKG_NAME = f"core{IPKG_SUFFIX}"
@@ -69,9 +83,13 @@ class Registry(abc.ABC):
         """Fetch *vlnv*'s artifact, store it in *cache*, and return its digest."""
         return cache.put(self.artifact_bytes(vlnv))
 
-    def publish(self, artifact_path: str) -> Vlnv:
-        """Publish a packaged artifact (overridden by writable backends in M5)."""
+    def publish_core(self, manifest: Manifest, core_dir: str | Path) -> Vlnv:
+        """Pack and publish the core at *core_dir*; raise on a read-only backend."""
         raise RegistryError("This registry does not support publishing.")
+
+    def yank(self, vlnv: Vlnv) -> None:
+        """Hide *vlnv* from new resolves; raise on a backend that cannot yank."""
+        raise RegistryError("This registry does not support yanking.")
 
     def source_for(self, vlnv: Vlnv) -> str:
         """A lockfile ``source`` string describing where *vlnv* came from (best effort)."""
@@ -131,32 +149,69 @@ class LocalDirectoryRegistry(Registry):
         return self._path(vlnv).parent
 
 
-class HttpRegistry(Registry):
-    """A registry served by a static HTTP index (read-only)."""
+def _version_token(name: str) -> Version | OpaqueVersion:
+    """Parse a version directory/index name as SemVer, falling back to an opaque token.
 
-    def __init__(self, base_url: str) -> None:
+    The registry index only carries the version *string*; the authoritative scheme
+    comes from the fetched manifest. An opaque token round-trips to the same string,
+    so it still addresses the right manifest/artifact regardless of the real scheme.
+    """
+    try:
+        return Version.parse(name)
+    except HdlPackagerError:
+        return OpaqueVersion(name)
+
+
+class HttpRegistry(Registry):
+    """A network registry over a simple HTTP layout (readable + writable, token auth).
+
+    Layout: ``{base}/{vendor}/{library}/{name}/versions.json`` (a JSON array of version
+    strings) and ``{base}/{vendor}/{library}/{name}/{version}/`` holding ``ip.toml`` and
+    ``core.ipkg``. Reads use ``GET``; :meth:`publish_core` uses ``PUT`` (so any
+    ``PUT``-capable store -- a small service, object storage, WebDAV -- can host it).
+    An optional bearer *token* (from ``hdlpkg login``) authenticates a private registry.
+    """
+
+    def __init__(self, base_url: str, token: str | None = None) -> None:
         self.base_url = base_url.rstrip("/")
+        self.token = token
+
+    def _headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.token}"} if self.token else {}
 
     def _get(self, url: str) -> bytes:
+        request = urllib.request.Request(url, headers=self._headers())
         try:
-            with urllib.request.urlopen(url) as response:
+            with urllib.request.urlopen(request) as response:
                 data: bytes = response.read()
                 return data
         except (urllib.error.URLError, OSError) as exc:
             raise RegistryError(f"HTTP registry request failed for {url}: {exc}") from exc
 
+    def _put(self, url: str, data: bytes, content_type: str) -> None:
+        headers = {**self._headers(), "Content-Type": content_type}
+        request = urllib.request.Request(url, data=data, headers=headers, method="PUT")
+        try:
+            with urllib.request.urlopen(request):
+                return
+        except (urllib.error.URLError, OSError) as exc:
+            raise RegistryError(f"HTTP registry PUT failed for {url}: {exc}") from exc
+
+    def _package_url(self, ref: PackageRef) -> str:
+        return f"{self.base_url}/{ref.vendor}/{ref.library}/{ref.name}"
+
     def _core_url(self, vlnv: Vlnv) -> str:
-        return f"{self.base_url}/{vlnv.vendor}/{vlnv.library}/{vlnv.name}/{vlnv.version}"
+        return f"{self._package_url(vlnv.ref)}/{vlnv.version}"
 
     def versions(self, ref: PackageRef) -> list[Vlnv]:
-        url = f"{self.base_url}/{ref.vendor}/{ref.library}/{ref.name}/versions.json"
+        url = f"{self._package_url(ref)}/versions.json"
         try:
             raw = self._get(url)
         except RegistryError:
             return []  # an unknown package is "no versions", not an error
         try:
             names = json.loads(raw)
-            return [ref.with_version(Version.parse(str(name))) for name in names]
+            return [ref.with_version(_version_token(str(name))) for name in names]
         except (json.JSONDecodeError, HdlPackagerError) as exc:
             raise RegistryError(f"Malformed versions index at {url}: {exc}") from exc
 
@@ -169,6 +224,31 @@ class HttpRegistry(Registry):
 
     def artifact_bytes(self, vlnv: Vlnv) -> bytes:
         return self._get(f"{self._core_url(vlnv)}/{_IPKG_NAME}")
+
+    def publish_core(self, manifest: Manifest, core_dir: str | Path) -> Vlnv:
+        """Upload the core (append-only): refuse if its version is already indexed."""
+        vlnv = manifest.vlnv
+        names = [str(existing.version) for existing in self.versions(vlnv.ref)]
+        if str(vlnv.version) in names:
+            raise RegistryError(f"{vlnv} is already published (registries are append-only).")
+        manifest_bytes = (Path(core_dir) / MANIFEST_FILENAME).read_bytes()
+        self._put(f"{self._core_url(vlnv)}/{MANIFEST_FILENAME}", manifest_bytes, "application/toml")
+        self._put(
+            f"{self._core_url(vlnv)}/{_IPKG_NAME}",
+            pack_core(manifest, core_dir),
+            "application/octet-stream",
+        )
+        updated = sorted([*names, str(vlnv.version)])
+        self._put(
+            f"{self._package_url(vlnv.ref)}/versions.json",
+            json.dumps(updated).encode("utf-8"),
+            "application/json",
+        )
+        return vlnv
+
+    def source_for(self, vlnv: Vlnv) -> str:
+        """The lockfile ``source`` for *vlnv*: a reference to this HTTP registry."""
+        return f"registry:{self.base_url}"
 
 
 class LocalRegistry(Registry):
@@ -241,6 +321,203 @@ class LocalRegistry(Registry):
     def source_for(self, vlnv: Vlnv) -> str:
         """The lockfile ``source`` for *vlnv*: a reference to this published registry."""
         return f"registry:{_display_path(self.root)}"
+
+
+_OCI_MANIFEST_TYPE = "application/vnd.oci.image.manifest.v1+json"
+_OCI_CONFIG_TYPE = "application/vnd.hdlpkg.core.config.v1+toml"
+_OCI_LAYER_TYPE = "application/vnd.hdlpkg.ipkg.v1.tar+gzip"
+_OCI_ARTIFACT_TYPE = "application/vnd.hdlpkg.core.v1"
+
+
+class OciRegistry(Registry):
+    """A network registry over the OCI distribution v2 API (readable + writable).
+
+    Cores are stored as OCI artifacts in any standard registry (Harbor, Artifactory,
+    Nexus, GitLab, Zot, ECR/ACR, ...): a core's ``ip.toml`` is the artifact *config*
+    blob and its packed ``.ipkg`` is the single *layer*, tagged with the version. The
+    package maps to the repository ``{prefix}/{vendor}/{library}/{name}``. An optional
+    bearer *token* (from ``hdlpkg login``) authenticates a private registry.
+
+    Transport: ``oci://host/prefix`` uses HTTPS (the norm); ``oci+http://host/prefix``
+    uses plaintext HTTP (for an internal/dev registry without TLS, and the test server).
+    """
+
+    def __init__(self, location: str, token: str | None = None) -> None:
+        scheme, _, rest = location.partition("://")
+        self.transport = "http" if scheme.lower() == "oci+http" else "https"
+        split = urlsplit(f"{self.transport}://{rest}")
+        if not split.netloc:
+            raise RegistryError(f"OCI registry location has no host: {location!r}")
+        self.host = split.netloc
+        self.prefix = split.path.strip("/")
+        self.token = token
+
+    def _base(self) -> str:
+        return f"{self.transport}://{self.host}"
+
+    def _repo(self, ref: PackageRef) -> str:
+        parts = [p for p in (self.prefix, ref.vendor, ref.library, ref.name) if p]
+        return "/".join(parts).lower()
+
+    def _headers(
+        self, accept: str | None = None, content_type: str | None = None
+    ) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        if accept:
+            headers["Accept"] = accept
+        if content_type:
+            headers["Content-Type"] = content_type
+        return headers
+
+    def _send(
+        self,
+        method: str,
+        url: str,
+        data: bytes | None = None,
+        accept: str | None = None,
+        content_type: str | None = None,
+    ) -> tuple[int, object, bytes]:
+        """Send a request, returning (status, headers, body); raise only on transport errors.
+
+        An HTTP error status is returned (not raised) so callers can branch on it (a 404
+        is "absent", not a failure; a 200 on a HEAD means "blob already there").
+        """
+        request = urllib.request.Request(
+            url, data=data, headers=self._headers(accept, content_type), method=method
+        )
+        try:
+            with urllib.request.urlopen(request) as response:
+                return response.status, response.headers, response.read()
+        except urllib.error.HTTPError as exc:
+            return exc.code, exc.headers, exc.read()
+        except (urllib.error.URLError, OSError) as exc:
+            raise RegistryError(f"OCI request {method} {url} failed: {exc}") from exc
+
+    def _image_manifest(self, vlnv: Vlnv) -> dict[str, object]:
+        url = f"{self._base()}/v2/{self._repo(vlnv.ref)}/manifests/{vlnv.version}"
+        status, _, body = self._send("GET", url, accept=_OCI_MANIFEST_TYPE)
+        if status != 200:
+            raise RegistryError(f"{vlnv} is not in OCI registry {self.host} (HTTP {status}).")
+        try:
+            manifest: dict[str, object] = json.loads(body)
+            return manifest
+        except json.JSONDecodeError as exc:
+            raise RegistryError(f"Malformed OCI manifest for {vlnv}: {exc}") from exc
+
+    def _blob(self, repo: str, digest: str) -> bytes:
+        status, _, body = self._send("GET", f"{self._base()}/v2/{repo}/blobs/{digest}")
+        if status != 200:
+            raise RegistryError(f"OCI blob {digest} missing in {repo} (HTTP {status}).")
+        return body
+
+    def versions(self, ref: PackageRef) -> list[Vlnv]:
+        status, _, body = self._send("GET", f"{self._base()}/v2/{self._repo(ref)}/tags/list")
+        if status == 404:
+            return []  # repository unknown -> no versions
+        if status != 200:
+            raise RegistryError(f"OCI tags request for {self._repo(ref)} failed (HTTP {status}).")
+        try:
+            tags = json.loads(body).get("tags") or []
+        except (json.JSONDecodeError, AttributeError) as exc:
+            raise RegistryError(f"Malformed OCI tag list for {self._repo(ref)}: {exc}") from exc
+        return [ref.with_version(_version_token(str(tag))) for tag in tags]
+
+    def manifest(self, vlnv: Vlnv) -> Manifest:
+        config = self._image_manifest(vlnv).get("config")
+        if not isinstance(config, dict) or "digest" not in config:
+            raise RegistryError(f"OCI manifest for {vlnv} has no config descriptor.")
+        raw = self._blob(self._repo(vlnv.ref), str(config["digest"]))
+        try:
+            return Manifest.from_str(raw.decode("utf-8"))
+        except (UnicodeDecodeError, HdlPackagerError) as exc:
+            raise RegistryError(f"Invalid manifest for {vlnv}: {exc}") from exc
+
+    def artifact_bytes(self, vlnv: Vlnv) -> bytes:
+        layers = self._image_manifest(vlnv).get("layers")
+        if not isinstance(layers, list) or not layers:
+            raise RegistryError(f"OCI manifest for {vlnv} has no layer.")
+        return self._blob(self._repo(vlnv.ref), str(layers[0]["digest"]))
+
+    def _push_blob(self, repo: str, data: bytes) -> dict[str, object]:
+        """Upload *data* as a blob (skipping if already present); return its descriptor."""
+        digest = sha256_digest(data)
+        present, _, _ = self._send("HEAD", f"{self._base()}/v2/{repo}/blobs/{digest}")
+        if present != 200:
+            status, headers, _ = self._send("POST", f"{self._base()}/v2/{repo}/blobs/uploads/")
+            if status not in (201, 202):
+                raise RegistryError(f"OCI upload start failed for {repo} (HTTP {status}).")
+            location = headers.get("Location")  # type: ignore[attr-defined]
+            if not location:
+                raise RegistryError(f"OCI upload for {repo} returned no Location header.")
+            upload = location if "://" in location else f"{self._base()}{location}"
+            separator = "&" if "?" in upload else "?"
+            status, _, _ = self._send(
+                "PUT",
+                f"{upload}{separator}digest={digest}",
+                data=data,
+                content_type="application/octet-stream",
+            )
+            if status != 201:
+                raise RegistryError(f"OCI blob upload failed for {repo} (HTTP {status}).")
+        return {"digest": digest, "size": len(data)}
+
+    def publish_core(self, manifest: Manifest, core_dir: str | Path) -> Vlnv:
+        """Push the core as an OCI artifact (append-only): refuse to overwrite a tag."""
+        vlnv = manifest.vlnv
+        repo = self._repo(vlnv.ref)
+        url = f"{self._base()}/v2/{repo}/manifests/{vlnv.version}"
+        if self._send("GET", url, accept=_OCI_MANIFEST_TYPE)[0] == 200:
+            raise RegistryError(f"{vlnv} is already published (registries are append-only).")
+        config = self._push_blob(repo, (Path(core_dir) / MANIFEST_FILENAME).read_bytes())
+        config["mediaType"] = _OCI_CONFIG_TYPE
+        layer = self._push_blob(repo, pack_core(manifest, core_dir))
+        layer["mediaType"] = _OCI_LAYER_TYPE
+        image = {
+            "schemaVersion": 2,
+            "mediaType": _OCI_MANIFEST_TYPE,
+            "artifactType": _OCI_ARTIFACT_TYPE,
+            "config": config,
+            "layers": [layer],
+        }
+        body = json.dumps(image, sort_keys=True).encode("utf-8")
+        status, _, _ = self._send("PUT", url, data=body, content_type=_OCI_MANIFEST_TYPE)
+        if status != 201:
+            raise RegistryError(f"OCI manifest publish failed for {vlnv} (HTTP {status}).")
+        return vlnv
+
+    def source_for(self, vlnv: Vlnv) -> str:
+        """The lockfile ``source`` for *vlnv*: the OCI artifact reference."""
+        return f"oci:{self.host}/{self._repo(vlnv.ref)}:{vlnv.version}"
+
+
+def registry_from_location(
+    location: str, *, credentials: CredentialStore | None = None
+) -> Registry:
+    """Build the right registry backend for *location*, dispatched by URL scheme.
+
+    ``http(s)://`` -> :class:`HttpRegistry`, ``oci://`` / ``oci+http://`` ->
+    :class:`OciRegistry`, and a bare path / ``path:<dir>`` / ``file://<dir>`` ->
+    :class:`LocalRegistry`. For a network location the bearer token for its host is
+    read from *credentials* (if given). Raises :class:`RegistryError` on an unknown
+    scheme. This is the one place the CLI selects a backend.
+    """
+    head, separator, rest = location.partition("://")
+    scheme = head.lower() if separator else ""
+    if not separator:
+        prefix, colon, tail = location.partition(":")
+        if colon and prefix.lower() == "path":
+            return LocalRegistry(tail)
+        return LocalRegistry(location)  # bare path (incl. a Windows drive like C:\...)
+    if scheme == "file":
+        return LocalRegistry(rest)
+    token = credentials.token_for(registry_host(location)) if credentials else None
+    if scheme in ("http", "https"):
+        return HttpRegistry(location, token=token)
+    if scheme in ("oci", "oci+http"):
+        return OciRegistry(location, token=token)
+    raise RegistryError(f"Unsupported registry location scheme {scheme!r}: {location!r}")
 
 
 def available_from_registry(registry: Registry, root: Manifest) -> dict[PackageRef, list[Manifest]]:

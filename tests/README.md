@@ -25,6 +25,9 @@ tests/
 │   ├── test_treeview.py        render_dependency_tree: ordering + diamond marking
 │   ├── test_mangle.py          SV + VHDL package mangler: safe rewrite + planner refusals
 │   ├── test_ipxact.py          to_ipxact: IEEE 1685-2014 component XML
+│   ├── test_credentials.py     CredentialStore: host keying, TOML round-trip, load/save
+│   ├── test_registry_location.py  registry_from_location: scheme dispatch + credential wiring
+│   ├── test_login_cli.py       hdlpkg login/logout: token storage + error paths
 │   └── test_sbom.py            build_cyclonedx: CycloneDX SBOM + determinism
 └── integration/                multi-module / filesystem tests            - marker: integration
     ├── test_manifest_cli_flow.py
@@ -33,6 +36,8 @@ tests/
     ├── test_mangle_gen_cli.py     gen name-mangles coexisting SV packages end to end
     ├── test_mangle_vhdl_gen_cli.py gen (ghdl) name-mangles coexisting VHDL packages
     ├── test_opaque_registry_cli.py opaque (non-SemVer) publish/resolve/pull round-trip
+    ├── test_http_registry_cli.py   writable + authenticated HTTP registry, full CLI flow
+    ├── test_oci_registry_cli.py    OCI distribution v2 backend vs a mock registry, full CLI flow
     ├── test_cache.py               content-addressed cache (verify-on-read)
     ├── test_registry.py            local + HTTP registries, graph walk, install
     ├── test_packaging.py           .ipkg pack/extract determinism + safety
