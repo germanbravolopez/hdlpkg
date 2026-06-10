@@ -61,6 +61,30 @@ service, object storage, WebDAV — can host it), append-only. An optional beare
 authenticates a private registry. An unknown package is "no versions" (not an error); a
 malformed index/manifest or a failed request raises `RegistryError`.
 
+#### What "OCI" is, in plain terms
+
+**OCI = Open Container Initiative.** An *OCI registry* is the same kind of server that
+stores Docker images — products like Harbor, GitLab Container Registry, JFrog
+Artifactory, Sonatype Nexus, AWS ECR, Azure ACR, GitHub Packages, and the lightweight
+open-source Zot / CNCF distribution. An *OCI artifact* just means storing something other
+than a Docker image (here: your packed `.ipkg` core) as content-addressed blobs in one of
+those servers, using their standard push/pull HTTP API.
+
+The key thing that resolves the common worry: **"publish" does not mean "publish to the
+public internet."** It means "push to a registry server," and that server is whatever you
+point it at. Three crucial properties:
+
+- **Private by default, with authentication.** Access requires a login/token; nobody
+  outside gets in.
+- **Self-hostable.** You run Harbor / Zot / Artifactory on your own servers inside the
+  company LAN. Nothing is exposed to the internet.
+- **Built for exactly this scenario** — different teams/projects pulling shared artifacts
+  from a central internal registry, with per-team access control.
+
+So choosing OCI and keeping your IP private are the *same* goal, not opposite ones:
+`hdlpkg` speaks the OCI protocol, and you decide whether the registry it talks to is an
+internal Harbor box or a managed cloud one.
+
 ### `OciRegistry(location, token=None)` — writable, authenticated
 A network registry over the **OCI distribution v2 API**, so cores live as OCI artifacts
 in any standard registry (Harbor, Artifactory, Nexus, GitLab, Zot, ECR/ACR) — all
