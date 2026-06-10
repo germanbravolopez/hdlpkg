@@ -23,6 +23,7 @@ from .cache import ContentAddressedCache, default_cache_root
 from .credentials import (
     default_credentials_path,
     load_credentials,
+    load_docker_config,
     registry_host,
     save_credentials,
 )
@@ -214,7 +215,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_login.add_argument(
         "registry", metavar="LOCATION", help="registry URL, e.g. oci://harbor.corp/ip"
     )
-    p_login.add_argument("--token", help="the bearer token (omit to be prompted without echo)")
+    p_login.add_argument(
+        "--username",
+        "-u",
+        help="username for a registry that uses the OCI token-exchange (HTTP Basic) flow; "
+        "omit for a direct bearer token",
+    )
+    p_login.add_argument(
+        "--token",
+        "--password",
+        dest="token",
+        help="the bearer token or password (omit to be prompted without echo)",
+    )
     p_login.set_defaults(func=_cmd_login)
 
     p_logout = sub.add_parser("logout", help="remove a stored registry auth token")
@@ -406,8 +418,14 @@ def _local_registry(manifest_path: Path, search: list[str] | None) -> LocalDirec
 
 
 def _selected_registry(location: str) -> Registry:
-    """Build the registry named by a ``--registry`` location, wiring in stored credentials."""
-    return registry_from_location(location, credentials=load_credentials())
+    """Build the registry named by a ``--registry`` location, wiring in stored credentials.
+
+    ``hdlpkg login`` credentials win; a ``docker login`` (``~/.docker/config.json``)
+    entry for the same host is used as a fallback, so an already-authenticated registry
+    works without a second login.
+    """
+    credentials = load_credentials().with_fallback(load_docker_config())
+    return registry_from_location(location, credentials=credentials)
 
 
 def _reader_registry(manifest_path: Path, args: argparse.Namespace) -> Registry:
@@ -559,12 +577,15 @@ def _cmd_login(args: argparse.Namespace) -> int:
             f"{args.registry!r} is a local registry and needs no login; "
             "use an http(s):// or oci:// location."
         )
-    token = args.token if args.token is not None else getpass.getpass(f"Token for {host}: ")
-    if not token:
-        raise CredentialsError("No token provided.")
+    prompt = f"Password for {host}: " if args.username else f"Token for {host}: "
+    secret = args.token if args.token is not None else getpass.getpass(prompt)
+    if not secret:
+        raise CredentialsError("No token/password provided.")
     path = default_credentials_path()
-    save_credentials(load_credentials(path).with_token(host, token), path)
-    print(f"Stored credentials for {host} in {path}")
+    store = load_credentials(path).with_token(host, secret, args.username)
+    save_credentials(store, path)
+    kind = f"as '{args.username}'" if args.username else "(bearer token)"
+    print(f"Stored credentials for {host} {kind} in {path}")
     return 0
 
 

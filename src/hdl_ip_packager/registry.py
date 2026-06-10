@@ -35,14 +35,16 @@ token. The Git-backed channel remains an open issue.
 from __future__ import annotations
 
 import abc
+import base64
 import json
+import re
 import urllib.error
 import urllib.request
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from .cache import ContentAddressedCache
-from .credentials import CredentialStore, registry_host
+from .credentials import Credential, CredentialStore, registry_host
 from .exceptions import HdlPackagerError, RegistryError
 from .lockfile import sha256_digest
 from .manifest import MANIFEST_FILENAME, Manifest
@@ -57,6 +59,7 @@ __all__ = [
     "OciRegistry",
     "Registry",
     "available_from_registry",
+    "parse_bearer_challenge",
     "registry_from_location",
 ]
 
@@ -147,6 +150,22 @@ class LocalDirectoryRegistry(Registry):
     def core_dir(self, vlnv: Vlnv) -> Path:
         """The on-disk directory holding *vlnv*'s ``ip.toml`` (and its sources)."""
         return self._path(vlnv).parent
+
+
+_CHALLENGE_PARAM = re.compile(r'(\w+)="([^"]*)"')
+
+
+def parse_bearer_challenge(header: str) -> dict[str, str] | None:
+    """Parse a ``WWW-Authenticate: Bearer realm="...",service="...",scope="..."`` header.
+
+    Returns the parameter map (at least ``realm``) for a Bearer challenge, or ``None``
+    if the header is absent or not a Bearer challenge. This is the OCI/Docker
+    token-exchange signal: the server tells the client where to obtain an access token.
+    """
+    if not header or not header.strip().lower().startswith("bearer"):
+        return None
+    params = dict(_CHALLENGE_PARAM.findall(header))
+    return params if "realm" in params else None
 
 
 def _version_token(name: str) -> Version | OpaqueVersion:
@@ -342,7 +361,7 @@ class OciRegistry(Registry):
     uses plaintext HTTP (for an internal/dev registry without TLS, and the test server).
     """
 
-    def __init__(self, location: str, token: str | None = None) -> None:
+    def __init__(self, location: str, credential: Credential | None = None) -> None:
         scheme, _, rest = location.partition("://")
         self.transport = "http" if scheme.lower() == "oci+http" else "https"
         split = urlsplit(f"{self.transport}://{rest}")
@@ -350,7 +369,8 @@ class OciRegistry(Registry):
             raise RegistryError(f"OCI registry location has no host: {location!r}")
         self.host = split.netloc
         self.prefix = split.path.strip("/")
-        self.token = token
+        self.credential = credential
+        self._access_token: str | None = None  # cached from a token-exchange (per scope)
 
     def _base(self) -> str:
         return f"{self.transport}://{self.host}"
@@ -359,12 +379,27 @@ class OciRegistry(Registry):
         parts = [p for p in (self.prefix, ref.vendor, ref.library, ref.name) if p]
         return "/".join(parts).lower()
 
+    def _bearer(self) -> str | None:
+        """The bearer to send up front: a cached exchanged token, else a direct token.
+
+        A username-less credential is a ready-to-use bearer (the self-hosted case); a
+        username+secret credential is meant for the realm exchange, so it is *not* sent
+        directly -- the first request goes unauthenticated and the 401 challenge drives
+        the exchange.
+        """
+        if self._access_token:
+            return self._access_token
+        if self.credential and not self.credential.is_basic:
+            return self.credential.secret
+        return None
+
     def _headers(
         self, accept: str | None = None, content_type: str | None = None
     ) -> dict[str, str]:
         headers: dict[str, str] = {}
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
+        bearer = self._bearer()
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
         if accept:
             headers["Accept"] = accept
         if content_type:
@@ -378,11 +413,14 @@ class OciRegistry(Registry):
         data: bytes | None = None,
         accept: str | None = None,
         content_type: str | None = None,
+        _retried: bool = False,
     ) -> tuple[int, object, bytes]:
         """Send a request, returning (status, headers, body); raise only on transport errors.
 
         An HTTP error status is returned (not raised) so callers can branch on it (a 404
-        is "absent", not a failure; a 200 on a HEAD means "blob already there").
+        is "absent", not a failure; a 200 on a HEAD means "blob already there"). On a
+        ``401`` carrying a Bearer challenge, perform the OCI token exchange once and retry
+        (this also upgrades a pull-scoped token to a push scope when publishing).
         """
         request = urllib.request.Request(
             url, data=data, headers=self._headers(accept, content_type), method=method
@@ -391,9 +429,39 @@ class OciRegistry(Registry):
             with urllib.request.urlopen(request) as response:
                 return response.status, response.headers, response.read()
         except urllib.error.HTTPError as exc:
+            if exc.code == 401 and not _retried:
+                challenge = parse_bearer_challenge(exc.headers.get("WWW-Authenticate", ""))
+                if challenge and self._exchange_token(challenge):
+                    return self._send(method, url, data, accept, content_type, _retried=True)
             return exc.code, exc.headers, exc.read()
         except (urllib.error.URLError, OSError) as exc:
             raise RegistryError(f"OCI request {method} {url} failed: {exc}") from exc
+
+    def _exchange_token(self, challenge: dict[str, str]) -> bool:
+        """Exchange credentials at the challenge's ``realm`` for an access token (cached).
+
+        Authenticates to the token endpoint with HTTP Basic when a credential is present
+        (else anonymously, for public pull tokens), passing the server-supplied
+        ``service``/``scope`` so the issued token carries exactly the rights requested.
+        Returns True if a token was obtained.
+        """
+        realm = challenge["realm"]
+        params = {k: challenge[k] for k in ("service", "scope") if challenge.get(k)}
+        url = f"{realm}?{urlencode(params)}" if params else realm
+        headers: dict[str, str] = {}
+        if self.credential:
+            raw = f"{self.credential.username or ''}:{self.credential.secret}".encode()
+            headers["Authorization"] = "Basic " + base64.b64encode(raw).decode("ascii")
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers)) as response:
+                payload = json.loads(response.read())
+        except (urllib.error.URLError, OSError, ValueError):  # ValueError: bad realm URL / JSON
+            return False
+        token = payload.get("token") or payload.get("access_token")
+        if isinstance(token, str) and token:
+            self._access_token = token
+            return True
+        return False
 
     def _image_manifest(self, vlnv: Vlnv) -> dict[str, object]:
         url = f"{self._base()}/v2/{self._repo(vlnv.ref)}/manifests/{vlnv.version}"
@@ -499,9 +567,10 @@ def registry_from_location(
 
     ``http(s)://`` -> :class:`HttpRegistry`, ``oci://`` / ``oci+http://`` ->
     :class:`OciRegistry`, and a bare path / ``path:<dir>`` / ``file://<dir>`` ->
-    :class:`LocalRegistry`. For a network location the bearer token for its host is
-    read from *credentials* (if given). Raises :class:`RegistryError` on an unknown
-    scheme. This is the one place the CLI selects a backend.
+    :class:`LocalRegistry`. For a network location the credential for its host is read
+    from *credentials* (if given): HTTP uses the secret as a direct bearer; OCI uses the
+    full credential (so a username+secret drives the token exchange). Raises
+    :class:`RegistryError` on an unknown scheme. This is the one place the CLI selects a backend.
     """
     head, separator, rest = location.partition("://")
     scheme = head.lower() if separator else ""
@@ -512,11 +581,11 @@ def registry_from_location(
         return LocalRegistry(location)  # bare path (incl. a Windows drive like C:\...)
     if scheme == "file":
         return LocalRegistry(rest)
-    token = credentials.token_for(registry_host(location)) if credentials else None
+    credential = credentials.credential_for(registry_host(location)) if credentials else None
     if scheme in ("http", "https"):
-        return HttpRegistry(location, token=token)
+        return HttpRegistry(location, token=credential.secret if credential else None)
     if scheme in ("oci", "oci+http"):
-        return OciRegistry(location, token=token)
+        return OciRegistry(location, credential=credential)
     raise RegistryError(f"Unsupported registry location scheme {scheme!r}: {location!r}")
 
 

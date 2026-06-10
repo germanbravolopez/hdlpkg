@@ -22,9 +22,12 @@ from .backends import (
 )
 from .cache import ContentAddressedCache, default_cache_root
 from .credentials import (
+    Credential,
     CredentialStore,
     default_credentials_path,
     load_credentials,
+    load_docker_config,
+    parse_docker_config,
     registry_host,
     save_credentials,
 )
@@ -74,6 +77,7 @@ from .registry import (
     OciRegistry,
     Registry,
     available_from_registry,
+    parse_bearer_challenge,
     registry_from_location,
 )
 from .resolver import Resolution, resolve
@@ -110,6 +114,7 @@ __all__ = [
     "ConflictPolicy",
     "ContentAddressedCache",
     "CoreSource",
+    "Credential",
     "CredentialStore",
     "CredentialsError",
     "Dependency",
@@ -161,9 +166,12 @@ __all__ = [
     "extract_ipkg",
     "get_backend",
     "load_credentials",
+    "load_docker_config",
     "mangled_name",
     "manifest_from_ipkg",
     "pack_core",
+    "parse_bearer_challenge",
+    "parse_docker_config",
     "parse_version",
     "plan_package_mangling",
     "registry_from_location",

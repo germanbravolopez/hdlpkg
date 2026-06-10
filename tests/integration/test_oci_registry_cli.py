@@ -219,12 +219,13 @@ def test_oci_requires_auth(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_oci_backend_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    from hdl_ip_packager.credentials import Credential
     from hdl_ip_packager.exceptions import RegistryError
     from hdl_ip_packager.registry import OciRegistry
     from hdl_ip_packager.vlnv import Vlnv
 
     with _serve() as location:
-        registry = OciRegistry(location, token=_TOKEN)
+        registry = OciRegistry(location, credential=Credential(_TOKEN))
         absent = Vlnv.parse("acme:common:fifo:1.0.0")
         with pytest.raises(RegistryError, match="not in OCI registry"):
             registry.manifest(absent)

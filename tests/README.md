@@ -38,6 +38,7 @@ tests/
     ├── test_opaque_registry_cli.py opaque (non-SemVer) publish/resolve/pull round-trip
     ├── test_http_registry_cli.py   writable + authenticated HTTP registry, full CLI flow
     ├── test_oci_registry_cli.py    OCI distribution v2 backend vs a mock registry, full CLI flow
+    ├── test_oci_auth_cli.py        OCI token-exchange (401 -> Basic realm -> access token) via the CLI
     ├── test_cache.py               content-addressed cache (verify-on-read)
     ├── test_registry.py            local + HTTP registries, graph walk, install
     ├── test_packaging.py           .ipkg pack/extract determinism + safety

@@ -202,16 +202,21 @@ publishing publicly. A core's "artifact" is its deterministic `.ipkg` (see Packa
 below), so its SHA-256 is the same content address the cache keys on and the lockfile pins.
 
 A **Git-backed channel** remains a tracked open issue (it needs `git` + a live remote to
-build and test honestly). The token-exchange (Docker `WWW-Authenticate` realm) flow for
-OCI is a documented future refinement — today the stored token is presented directly as a
-bearer credential, which self-hosted registries can be configured to accept.
+build and test honestly). OCI authentication supports both a **direct bearer** (a
+username-less credential, for self-hosted/static-token registries) and the **OCI
+token-exchange** flow (`OciRegistry` answers a `401` + `WWW-Authenticate: Bearer
+realm=...` by exchanging HTTP Basic credentials -- or going anonymous -- at the realm
+for a scoped access token, then retrying), so managed Harbor/cloud registries work too.
 
 ### Credentials *(implemented — [credentials.py](../src/hdl_ip_packager/credentials.py))*
 A pure `CredentialStore` maps a **registry host** (`oci://harbor.corp/ip/a` and
-`.../ip/b` share one token for `harbor.corp`) to a bearer token, with TOML
-serialization; the thin `load_credentials`/`save_credentials` pair is the only I/O,
-writing `~/.hdlpkg/credentials.toml` (override with `HDLPKG_CREDENTIALS`) owner-only where
-the OS allows. `hdlpkg login`/`logout` manage it; `registry_from_location` reads it.
+`.../ip/b` share one credential for `harbor.corp`) to a `Credential` (a secret plus an
+optional username -> direct bearer vs. HTTP Basic for the token exchange), with TOML
+serialization (reading the legacy `[tokens]` form too); the thin
+`load_credentials`/`save_credentials` pair is the only I/O, writing
+`~/.hdlpkg/credentials.toml` (override with `HDLPKG_CREDENTIALS`) owner-only where the OS
+allows. `hdlpkg login [-u]`/`logout` manage it; `registry_from_location` reads it, with
+`docker login` (`~/.docker/config.json`) credentials merged in as a fallback.
 
 ### Packaging *(implemented — [packaging.py](../src/hdl_ip_packager/packaging.py))*
 `pack_core` builds a **deterministic** `.ipkg` (a gzip+tar of `ip.toml` plus every

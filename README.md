@@ -51,17 +51,17 @@ Implemented today:
   fetches dependencies into it.
 - **Private, self-hosted distribution** — publish/consume cores over an internal HTTP server
   or any **OCI registry** (Harbor, Artifactory, Nexus, GitLab, Zot, ECR/ACR) without going
-  public; `hdlpkg login` stores a per-host bearer token so a team shares IP inside its
-  network. A deterministic `.ipkg` artifact backs `pack`, append-only `publish` (with
-  `yank`), and `pull` (fetch by VLNV into the cache).
+  public; `hdlpkg login` stores per-host credentials (a direct bearer token, or a
+  username+secret that drives the OCI token-exchange used by managed registries; a
+  `docker login` is reused), so a team shares IP inside its network. A deterministic `.ipkg`
+  artifact backs `pack`, append-only `publish` (with `yank`), and `pull` (by VLNV).
 - **CLI (`hdlpkg`)** — all commands are implemented: `info`, `validate`, `init`, `add`,
   `resolve`, `install`, `pack`, `publish`, `pull`, `yank`, `login`, `logout`, `gen`, `tree`,
   `export-ipxact`.
 
 Designed and on the roadmap (see the progress tracker):
 
-- A **Git-backed** registry channel and the OCI **token-exchange** auth flow for managed
-  registries.
+- A **Git-backed** registry channel.
 - Tool-flow **generation** straight from a registry (it builds from local/extracted sources today).
 
 ---

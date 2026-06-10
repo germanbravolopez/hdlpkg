@@ -143,7 +143,6 @@ _None._
 | Full compile/elaborate/simulate of the consumer demo's SV + VHDL outputs | consumer demo (`verify.py`, `demo.py`, `.github/workflows/verify.yml`), `backends/` | **Strengthen the end-to-end proof.** Today the consumer demo (and the in-repo `gen` tests) only assert that `gen` *emits* the right tool-flow inputs (`.vc`/`run_ghdl.sh`/mangled sources); nothing actually **builds** them. Add a real toolchain pass that compiles, elaborates, and simulates the generated designs — `verilator`/`icarus` for the SystemVerilog SoCs (`soc/`, `soc_conflict/`) and `ghdl` for the VHDL one (`soc_vhdl/`) — so we prove the generated flows genuinely elaborate (and that the package name-mangling produces designs that *build*, not just text that looks right). Needs the HDL toolchains installed on the runner (e.g. `ghdl`, `verilator`/`iverilog` via apt or a setup action), so it is a separate, possibly opt-in CI lane from the pure-Python `verify` matrix. This feeds the 1.0 **third-party consume** confidence but does not itself gate the release. |
 | Encrypted IP distribution (IEEE 1735) | `packaging.py`, `registry.py`, `manifest.py`, `cli.py` | **Future feature.** Let a producer distribute a core whose HDL source is **encrypted**, so a consumer can resolve/install/`gen` against it (the tool can drive a tool flow) without the source ever being readable on disk. Two distinct layers, decide which to build: **(a) Standard HDL IP encryption (IEEE 1735 / `pragma protect`)** — the cross-vendor norm. Each source file carries an encrypted envelope (a symmetric session key wrapped under each *tool vendor's* public key + AES/RSA-encrypted payload, IEEE 1735 v1/v2 with "rights" digests). The EDA tool decrypts at compile time; the packager's job is to **carry, not break** these envelopes — pack/`extract`/SBOM must treat an encrypted file as opaque, the deterministic-pack digest still pins ciphertext, and `gen` must not assume it can read the source. The tool would *not* implement the crypto itself (vendor keys live in the EDA tools); at most it could shell out to `vivado -encrypt`/`vlog +protect` to *produce* envelopes. **(b) At-rest/transport encryption of the `.ipkg`** — encrypt the whole artifact in the registry/cache for confidential distribution (e.g. age/GPG or an OCI-layer key), decrypted on `pull` with a consumer key. This is independent of HDL-tool semantics and simpler, but does **not** give the per-tool, compile-time protection (a) does. Open questions: where keys/recipients are declared (a `[package]`/`[encryption]` manifest key vs. out-of-band), how it interacts with content-addressing (the digest must pin what is *stored*), how the SBOM marks a component encrypted, and how `validate`/`info` behave when source is unreadable. Needs a real EDA tool (or an interop fixture) to test (a) honestly — defer like the Git/OCI/Sigstore work. |
 | Git-backed registry | `registry.py` | A `Registry` backend resolving cores from a Git channel (tags/refs). Deferred from M4: needs the `git` CLI + a remote to implement and test honestly. Mirror the `LocalDirectoryRegistry`/`HttpRegistry`/`OciRegistry` shape. |
-| OCI token-exchange auth flow | `registry.py`, `credentials.py` | `OciRegistry` presents the stored `hdlpkg login` token **directly** as a bearer credential (which self-hosted Harbor/Zot/Artifactory can accept) and the HTTP backend likewise. Some managed registries instead require the Docker token-exchange dance (a `401` + `WWW-Authenticate: Bearer realm=...,service=...,scope=...`, then a `GET realm` for an access token). Add that exchange (and optional username/password / `~/.docker/config.json` reuse) so any registry works out of the box; needs a live or mock token endpoint to test honestly. |
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git backend. Checksums + SBOM already ship; this adds authenticity on top. |
 | `gen` straight from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry` now consume **local, HTTP, and OCI** registries directly (the producer->consumer loop is closed over the network). Remaining: a fetch-then-extract path so `gen` can build straight from a registry — it still needs loose sources via `--search` (point it at extracted/`pull`ed trees). |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
@@ -162,6 +161,38 @@ _None._
 ---
 
 ## Completed Milestones
+
+### OCI token-exchange auth flow (works against managed Harbor/cloud registries) — June 2026
+- [x] **`OciRegistry` now performs the Docker/OCI token-exchange dance**, so it
+  authenticates against registries that issue short-lived access tokens (managed Harbor,
+  GitLab, Docker Hub, ECR/ACR), not only ones that accept a static bearer. On a `401`
+  carrying `WWW-Authenticate: Bearer realm=...,service=...,scope=...`, the backend calls
+  the realm token endpoint (HTTP Basic with the stored credential, or anonymously for a
+  public pull token), caches the returned access token, and retries the request once.
+  Because the retry happens per request using the server-supplied scope, a pull-scoped
+  token is transparently upgraded to a push scope when publishing. A username-less
+  credential is still sent directly as a bearer (the self-hosted/no-auth path that
+  already worked is unchanged). New pure helper `parse_bearer_challenge` (unit-tested).
+- [x] **Credentials grew a username.** `Credential(secret, username=None)` replaces the
+  bare token: a username-less credential is a direct bearer; a username+secret pair is
+  used as HTTP Basic in the exchange. `hdlpkg login` gained `--username` (and `--password`
+  as an alias of `--token`), prompting for a password instead of a token when a username
+  is given. The credentials file moved to a richer `[registries."host"]` form (with an
+  optional `username`), and **still reads the legacy `[tokens]` table** so older files
+  keep working.
+- [x] **`docker login` credentials are reused.** `~/.docker/config.json`
+  (`$DOCKER_CONFIG` honored) is parsed for `auths[host].auth` (base64 `user:pass`) and
+  `identitytoken`, and merged as a **fallback** under stored `hdlpkg login` credentials,
+  so a registry the user already authenticated with Docker works without a second login.
+- [x] **Tested honestly with no live service**: a localhost mock that *requires* the
+  exchange (401 challenge -> a Basic-checking token endpoint -> bearer-gated `/v2/`)
+  drives the full publish/resolve flow via the CLI, plus wrong-password failure and an
+  anonymous pull-only token (resolve works, push is refused); the challenge parser,
+  `Credential`/docker-config parsing, and the store round-trip have unit tests. Files:
+  `credentials.py`, `registry.py`, `cli.py`, `__init__.py`, `tests/unit/test_credentials.py`,
+  `test_registry_location.py`, `test_login_cli.py`, `tests/integration/test_oci_auth_cli.py`.
+  Validated earlier against live no-auth Zot and `docker run registry:2`; this closes the
+  authenticated-registry gap noted then.
 
 ### Stable registry protocol: HTTP + OCI backends behind one abstraction, with login auth — June 2026
 - [x] **Network registries are now first-class, so teams can share IP privately on their

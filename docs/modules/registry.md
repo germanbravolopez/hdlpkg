@@ -121,11 +121,23 @@ consumes.
 
 ## Private registries: authentication
 
-The network backends are private by design. A per-host bearer token from
-[credentials.py](credentials.md) (set by `hdlpkg login`) is sent as
-`Authorization: Bearer <token>` on every request, so a team publishes to and consumes
-from an internal registry without the cores ever being public. `registry_from_location`
-reads the token automatically; missing/wrong credentials fail closed.
+The network backends are private by design, via per-host credentials from
+[credentials.py](credentials.md) (set by `hdlpkg login`), read automatically by
+`registry_from_location`. Two auth styles are supported:
+
+- **Direct bearer** — a username-less credential is sent as `Authorization: Bearer
+  <secret>` on every request. This is what a self-hosted Harbor/Zot/Artifactory
+  configured for a static token accepts, and what the writable HTTP backend uses.
+- **OCI token-exchange** — for registries that issue short-lived tokens (managed
+  Harbor, GitLab, Docker Hub, ECR/ACR), `OciRegistry` handles the `401` +
+  `WWW-Authenticate: Bearer realm=...,service=...,scope=...` challenge: it calls the
+  realm token endpoint with HTTP Basic (a `username` + secret from `hdlpkg login -u`),
+  or anonymously for a public pull token, caches the access token, and retries. The
+  retry uses the server-supplied scope, so a pull token is upgraded to push on publish.
+  `parse_bearer_challenge` parses the challenge (pure, unit-tested).
+
+Credentials a user already has from `docker login` (`~/.docker/config.json`) are reused
+as a fallback. Missing/wrong credentials fail closed.
 
 ## Testing against a live registry (Zot / Docker)
 
@@ -162,17 +174,17 @@ curl -s -H "Accept: application/vnd.oci.image.manifest.v1+json" \
         http://127.0.0.1:5000/v2/ip/acme/common/fifo/manifests/1.0.0   # artifactType: .../vnd.hdlpkg.core.v1
 ```
 
-For an **authenticated** registry (htpasswd, a managed cloud registry), see the
-token-exchange note below — `hdlpkg login` stores a bearer token that is presented
-directly today, which a no-auth or static-bearer registry accepts.
+For an **authenticated** registry (managed Harbor/cloud, htpasswd) log in with a
+username, which selects the OCI token-exchange (see *Private registries* above):
+```bash
+hdlpkg login oci://harbor.corp/ip --username robot   # prompts for the password/robot token
+hdlpkg publish examples/fifo/ip.toml --registry oci://harbor.corp/ip
+```
 
 ## Deferred backends
 
 A **Git-backed** registry channel is still designed but not implemented (it needs `git`
-+ a live remote to test honestly). The OCI **token-exchange** auth flow (the Docker
-`WWW-Authenticate` realm dance some managed registries require) is a tracked refinement —
-today the stored token is presented directly as a bearer credential, which self-hosted
-registries can accept. The interface above does not change when these land.
++ a live remote to test honestly). The interface above does not change when it lands.
 
 ## Errors
 

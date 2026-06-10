@@ -10,10 +10,33 @@ from hdl_ip_packager.registry import (
     HttpRegistry,
     LocalRegistry,
     OciRegistry,
+    parse_bearer_challenge,
     registry_from_location,
 )
 
 pytestmark = pytest.mark.unit
+
+
+def test_parse_bearer_challenge_extracts_params() -> None:
+    header = (
+        'Bearer realm="https://auth.corp/token",service="registry.corp",'
+        'scope="repository:ip/acme:pull,push"'
+    )
+    assert parse_bearer_challenge(header) == {
+        "realm": "https://auth.corp/token",
+        "service": "registry.corp",
+        "scope": "repository:ip/acme:pull,push",
+    }
+
+
+def test_parse_bearer_challenge_is_case_insensitive_scheme() -> None:
+    assert parse_bearer_challenge('bearer realm="https://a/t"') == {"realm": "https://a/t"}
+
+
+@pytest.mark.parametrize("header", ["", 'Basic realm="x"', 'Bearer service="reg"'])
+def test_parse_bearer_challenge_returns_none(header: str) -> None:
+    # empty, non-Bearer, or a Bearer challenge with no realm -> not an exchange signal
+    assert parse_bearer_challenge(header) is None
 
 
 def test_bare_path_and_path_scheme_build_local_registry() -> None:
@@ -45,7 +68,8 @@ def test_credentials_are_wired_into_network_backends() -> None:
     store = CredentialStore().with_token("harbor.corp", "tok123")
     oci = registry_from_location("oci://harbor.corp/ip", credentials=store)
     http = registry_from_location("https://reg.corp/x", credentials=store)
-    assert isinstance(oci, OciRegistry) and oci.token == "tok123"
+    assert isinstance(oci, OciRegistry) and oci.credential is not None
+    assert oci.credential.secret == "tok123"
     assert isinstance(http, HttpRegistry) and http.token is None  # different host -> no token
 
 

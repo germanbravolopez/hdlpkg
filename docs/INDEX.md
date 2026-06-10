@@ -86,8 +86,9 @@ quick-find reference.
 | `tests/integration/test_registry.py` | Local + HTTP registries, graph walker, `install` fetch-into-cache |
 | `tests/integration/test_http_registry_cli.py` | Writable + authenticated HTTP registry, full CLI publish/resolve/install/pull |
 | `tests/integration/test_oci_registry_cli.py` | OCI distribution v2 backend vs a mock registry, full CLI flow |
-| `tests/unit/test_credentials.py` | `CredentialStore` host keying, TOML round-trip, load/save |
-| `tests/unit/test_registry_location.py` | `registry_from_location` scheme dispatch + credential wiring |
+| `tests/integration/test_oci_auth_cli.py` | OCI token-exchange (401 challenge -> Basic realm -> access token) via the CLI |
+| `tests/unit/test_credentials.py` | `Credential`/`CredentialStore` keying, TOML + legacy read, docker-config parsing |
+| `tests/unit/test_registry_location.py` | `registry_from_location` dispatch + credential wiring + `parse_bearer_challenge` |
 | `tests/unit/test_login_cli.py` | `hdlpkg login`/`logout` token storage + error paths |
 | `tests/integration/test_packaging.py` | `.ipkg` pack determinism, round-trip, path-traversal guard |
 | `tests/integration/test_pack_cli.py` | `pack`/`publish`/`pull`/`yank` CLI loop against a local registry |
@@ -121,7 +122,7 @@ quick-find reference.
 | `hdlpkg publish [path] --registry LOCATION` | implemented | Publish a core to a registry (local dir / `http(s)://` / `oci://`), append-only |
 | `hdlpkg pull <vlnv> --registry LOCATION [--output]` | implemented | Fetch a core by VLNV (SemVer or opaque) into the cache; optionally extract |
 | `hdlpkg yank <vlnv> --registry LOCATION` | implemented | Hide a published version (SemVer or opaque VLNV) from new resolves (local registry) |
-| `hdlpkg login <location> [--token]` | implemented | Store a bearer token for a private http(s)/oci registry (prompts if `--token` omitted) |
+| `hdlpkg login <location> [--username U] [--token/--password S]` | implemented | Store credentials for a private http(s)/oci registry; `--username` selects the OCI token-exchange (HTTP Basic), else a direct bearer token (prompts if the secret is omitted) |
 | `hdlpkg logout <location>` | implemented | Remove a stored registry token |
 | `hdlpkg gen <target> [--search DIR] [--output DIR] [--locked] [--on-conflict]` | implemented | Generate tool-flow inputs (Verilator/Vivado/Icarus/GHDL/Yosys); `--locked` pins deps from `ip.lock`; refuses two versions of one package |
 | `hdlpkg tree [--search DIR] [--registry DIR]` | implemented | Print the resolved dependency graph as a tree |
@@ -138,7 +139,8 @@ quick-find reference.
 | **`.ipkg`** | The deterministic, distributable package of a core (gzip+tar of manifest + fileset files) |
 | **Registry location** | The `--registry` string dispatched by `registry_from_location`: a local dir / `http(s)://` / `oci://` |
 | **OCI registry** | A registry speaking the OCI distribution v2 API (Harbor/Artifactory/Zot/...); cores stored as OCI artifacts. Private + self-hostable |
-| **Credentials** | Per-host bearer tokens for private registries, set by `hdlpkg login` (`~/.hdlpkg/credentials.toml`) |
+| **Credentials** | Per-host registry secrets (bearer token, or username+password), set by `hdlpkg login` (`~/.hdlpkg/credentials.toml`); `docker login` reused as a fallback |
+| **OCI token-exchange** | The Docker/OCI auth dance: a `401` + `WWW-Authenticate: Bearer realm=...` challenge, then a Basic (or anonymous) call to the realm for a short-lived scoped access token |
 | **Yank** | Hide a published version from new resolves without deleting it (old lockfiles still verify) |
 | **Fileset** | A named group of HDL source files of one type |
 | **Target** | A build config: which filesets feed which tool flow + the top unit |
