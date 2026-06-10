@@ -24,14 +24,15 @@ for the 1.0 freeze** — Cargo-style unification, a `[resolution] on-conflict` p
 multi-version coexistence in the resolve/lock/tree (with `gen` refusing two versions),
 and the `[package].scheme` key (`semver` / `opaque`) with explicit non-SemVer
 rejection, **and the operational distribution protocol** — HTTP + OCI registry backends
-behind one `registry_from_location` abstraction, with `hdlpkg login` bearer-token auth for
-private, self-hosted registries. With the resolver contract, the `ip.toml`/`ip.lock` format
-shapes, and the registry/OCI protocol now settled, the remaining gate to `1.0.0` is narrow:
-a **third-party publish/consume** and a **`1.0.0-rc.1` soak** with no format changes — not
-the format or protocol churn that held it back. See the Release plan.
+behind one `registry_from_location` abstraction, with `hdlpkg login` auth (direct bearer
+**and** the OCI token-exchange, reusing `docker login`) for private, self-hosted registries.
+With the resolver contract, the `ip.toml`/`ip.lock` format shapes, and the registry/OCI
+protocol now settled, the remaining gate to `1.0.0` is narrow: a **third-party
+publish/consume** and a **`1.0.0-rc.1` soak** with no format changes — not the format or
+protocol churn that held it back. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
-pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
+pass; fully typed, linted, and tested (457 passing tests, ~95% coverage):
 - **Versioning** — SemVer 2.0.0 `Version` + `VersionConstraint` (caret/tilde/range
   grammar, pre-release precedence).
 - **Identity** — `PackageRef` and `Vlnv` (`vendor:library:name:version`).
@@ -47,9 +48,13 @@ pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
   with per-core source + SHA-256), written by `hdlpkg resolve`.
 - **Cache** — content-addressed local blob store (SHA-256 key, verify-on-read,
   atomic writes), populated by `hdlpkg install`.
-- **Registry** — `Registry` interface + `LocalDirectoryRegistry`, `HttpRegistry`,
-  and writable `LocalRegistry` (append-only + yank) backends + a dependency-graph
-  walker feeding the resolver (Git/OCI backends are open Non-Blocking issues).
+- **Registry** — `Registry` interface + local-dir/writable-local/HTTP/OCI backends
+  behind one `registry_from_location` scheme dispatch (path / `http(s)://` / `oci://`),
+  all writable (append-only + yank), + a dependency-graph walker feeding the resolver
+  (Git backend is an open Non-Blocking issue).
+- **Credentials** — per-host `Credential` (direct bearer or username+secret) for private
+  registries via `hdlpkg login`; OCI token-exchange (401 -> realm -> scoped access token);
+  `~/.docker/config.json` reused as a fallback.
 - **Packaging** — deterministic `.ipkg` artifact (`pack_core`/`extract_ipkg`); the
   packed-content digest is what the cache and lockfile pin.
 - **Backends** — tool-flow generation (`backends/`): a pure EDAM-like intermediate
@@ -61,8 +66,8 @@ pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
   CycloneDX SBOM (`sbom.py`: `build_cyclonedx`) emitted by `hdlpkg pack --sbom`
   (Sigstore signing deferred).
 - **CLI** — all commands implemented: `info`/`validate`/`init`/`add`/`resolve`/
-  `install`/`pack`/`publish`/`pull`/`yank`/`gen`/`tree`/`export-ipxact`. `install
-  --locked` and `gen --locked` give reproducible, lockfile-driven builds.
+  `install`/`pack`/`publish`/`pull`/`yank`/`login`/`logout`/`gen`/`tree`/`export-ipxact`.
+  `install --locked` and `gen --locked` give reproducible, lockfile-driven builds.
 - **Tooling** — pytest (markers + coverage gate + foldable summary), ruff, mypy
   strict on `src/`, CI workflow, and a cross-platform test-summary renderer.
 
@@ -70,9 +75,10 @@ pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
 gating the format freeze is settled (ordered non-SemVer schemes + SV/VHDL package
 name-mangling), and the **registry/OCI protocol is now implemented** — local, HTTP, and OCI
 backends behind one abstraction, with `hdlpkg login` auth for private self-hosted sharing.
-The remaining work toward `1.0.0` is the narrow stability gate (see the Release plan) — a
-third-party publish/consume and a `1.0.0-rc.1` soak — plus still-deferred external-service
-work (Git-backed registry, the OCI token-exchange auth flow, Sigstore signing) and the
+The OCI **token-exchange** auth flow now also ships (managed Harbor/cloud registries work,
+plus `docker login` reuse). The remaining work toward `1.0.0` is the narrow stability gate
+(see the Release plan) — a third-party publish/consume and a `1.0.0-rc.1` soak — plus
+still-deferred external-service work (Git-backed registry, Sigstore signing) and the
 residual coexistence case (two *module*/*entity* versions — needs an HDL-aware frontend;
 package coexistence is done for both SystemVerilog and VHDL).
 
