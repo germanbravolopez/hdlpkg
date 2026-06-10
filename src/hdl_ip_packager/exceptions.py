@@ -45,5 +45,9 @@ class RegistryError(HdlPackagerError):
     """A registry/cache operation (fetch, publish, lookup) failed."""
 
 
+class CredentialsError(HdlPackagerError):
+    """A stored-credentials file is malformed, or a registry location has no host."""
+
+
 class BackendError(HdlPackagerError):
     """A tool-flow backend could not generate inputs (unknown tool, unsupported file)."""

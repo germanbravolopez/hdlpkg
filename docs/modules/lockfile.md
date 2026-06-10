@@ -24,7 +24,10 @@ checksum = "sha256:1f3d…"
 
 `source` records where the core came from (e.g. `path:…` for a local registry);
 `checksum` is the [packed-content digest](packaging.md) of the core — the same digest
-the [cache](cache.md) keys on.
+the [cache](cache.md) keys on. A core on the [`opaque`](versioning.md) version scheme
+also carries a `scheme = "opaque"` line so its non-SemVer version round-trips on parse.
+A package may appear at more than one version when the resolve used
+`isolate_namespaces` (the `[[package]]` array simply lists each).
 
 ## Data model
 

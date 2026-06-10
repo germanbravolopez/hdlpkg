@@ -5,7 +5,26 @@ backends coexist behind one `Registry` interface; the resolver and CLI depend on
 the interface, never a concrete backend.
 
 - **Source**: [src/hdl_ip_packager/registry.py](../../src/hdl_ip_packager/registry.py)
-- **Import**: `from hdl_ip_packager import Registry, LocalDirectoryRegistry, HttpRegistry, LocalRegistry, available_from_registry`
+- **Import**: `from hdl_ip_packager import Registry, LocalDirectoryRegistry, HttpRegistry, LocalRegistry, OciRegistry, registry_from_location, available_from_registry`
+
+## Selecting a backend: `registry_from_location`
+
+```python
+def registry_from_location(location: str, *, credentials: CredentialStore | None = None) -> Registry
+```
+
+The single entry point the CLI uses. It dispatches a `--registry` location to a backend
+by URL scheme and wires in the stored bearer token for the location's host:
+
+| Location | Backend |
+|----------|---------|
+| a bare path, `path:<dir>`, `file://<dir>` | `LocalRegistry` (writable local dir) |
+| `http://...` / `https://...` | `HttpRegistry` |
+| `oci://...` (HTTPS) / `oci+http://...` (plaintext) | `OciRegistry` |
+
+An unknown scheme raises `RegistryError`. A Windows drive (`C:\...`) is treated as a
+path, not a scheme. Because every command routes through this one factory, the rest of
+the CLI is backend-agnostic and the registry protocol surface stays stable.
 
 ## The `Registry` interface
 
@@ -28,8 +47,8 @@ invalid/non-core TOML is skipped. Extra helpers: `source_for(vlnv)` (the lockfil
 `path:` reference) and `core_dir(vlnv)` (the on-disk directory of a core — used by
 [`gen`](backends.md)). This backs `hdlpkg resolve`/`install`/`gen`/`tree`.
 
-### `HttpRegistry(base_url)`
-A read-only registry served by a **static HTTP index**:
+### `HttpRegistry(base_url, token=None)` — writable, authenticated
+A network registry over a simple HTTP layout:
 
 ```
 {base}/{vendor}/{library}/{name}/versions.json     # JSON array of versions
@@ -37,8 +56,44 @@ A read-only registry served by a **static HTTP index**:
 {base}/{vendor}/{library}/{name}/{version}/core.ipkg
 ```
 
-Fetched with the stdlib `urllib`. An unknown package is treated as "no versions" (not
-an error); a malformed index or manifest raises `RegistryError`.
+Reads via `GET`; `publish_core` writes via `PUT` (so any `PUT`-capable store — a small
+service, object storage, WebDAV — can host it), append-only. An optional bearer `token`
+authenticates a private registry. An unknown package is "no versions" (not an error); a
+malformed index/manifest or a failed request raises `RegistryError`.
+
+#### What "OCI" is, in plain terms
+
+**OCI = Open Container Initiative.** An *OCI registry* is the same kind of server that
+stores Docker images — products like Harbor, GitLab Container Registry, JFrog
+Artifactory, Sonatype Nexus, AWS ECR, Azure ACR, GitHub Packages, and the lightweight
+open-source Zot / CNCF distribution. An *OCI artifact* just means storing something other
+than a Docker image (here: your packed `.ipkg` core) as content-addressed blobs in one of
+those servers, using their standard push/pull HTTP API.
+
+The key thing that resolves the common worry: **"publish" does not mean "publish to the
+public internet."** It means "push to a registry server," and that server is whatever you
+point it at. Three crucial properties:
+
+- **Private by default, with authentication.** Access requires a login/token; nobody
+  outside gets in.
+- **Self-hostable.** You run Harbor / Zot / Artifactory on your own servers inside the
+  company LAN. Nothing is exposed to the internet.
+- **Built for exactly this scenario** — different teams/projects pulling shared artifacts
+  from a central internal registry, with per-team access control.
+
+So choosing OCI and keeping your IP private are the *same* goal, not opposite ones:
+`hdlpkg` speaks the OCI protocol, and you decide whether the registry it talks to is an
+internal Harbor box or a managed cloud one.
+
+### `OciRegistry(location, token=None)` — writable, authenticated
+A network registry over the **OCI distribution v2 API**, so cores live as OCI artifacts
+in any standard registry (Harbor, Artifactory, Nexus, GitLab, Zot, ECR/ACR) — all
+self-hostable and private by default. A core's `ip.toml` is the artifact *config* blob
+and its `.ipkg` is the single *layer*, tagged with the version; the package maps to
+repository `{prefix}/{vendor}/{library}/{name}`. Implements blob upload (HEAD-skip +
+POST/PUT), manifest/tag PUT+GET, and `tags/list`; publishing is append-only. `oci://`
+uses HTTPS, `oci+http://` plaintext (internal/dev). Because the layer *is* the `.ipkg`,
+its OCI digest is the same content address the cache and lockfile pin.
 
 ### `LocalRegistry(root)` — writable
 A writable registry with a structured, **append-only** on-disk layout:
@@ -48,7 +103,7 @@ A writable registry with a structured, **append-only** on-disk layout:
 |--------|-------------|
 | `publish_core(manifest, core_dir) -> Vlnv` | Pack the core and publish it; **refuses to overwrite** an existing version (append-only). |
 | `yank(vlnv)` | Drop a `.yanked` marker that hides the version from new resolves without breaking existing lockfiles. Idempotent; raises if never published. |
-| `versions` / `manifest` / `artifact_bytes` | As per the interface; `versions` skips yanked entries. |
+| `versions` / `manifest` / `artifact_bytes` | As per the interface; `versions` skips yanked entries. A non-SemVer ([`opaque`](versioning.md)) version directory is recovered by reading its `ip.toml`, so opaque cores resolve from a published registry too. |
 
 This backs `hdlpkg publish`/`pull`/`yank`, and — via `resolve`/`install`/`tree
 --registry DIR` — is also a **read** source you can resolve and install directly
@@ -64,11 +119,72 @@ Walks the root's dependency graph in the registry, collecting the manifests of e
 reachable package's versions — exactly the `available` map [`resolve`](resolver.md)
 consumes.
 
+## Private registries: authentication
+
+The network backends are private by design, via per-host credentials from
+[credentials.py](credentials.md) (set by `hdlpkg login`), read automatically by
+`registry_from_location`. Two auth styles are supported:
+
+- **Direct bearer** — a username-less credential is sent as `Authorization: Bearer
+  <secret>` on every request. This is what a self-hosted Harbor/Zot/Artifactory
+  configured for a static token accepts, and what the writable HTTP backend uses.
+- **OCI token-exchange** — for registries that issue short-lived tokens (managed
+  Harbor, GitLab, Docker Hub, ECR/ACR), `OciRegistry` handles the `401` +
+  `WWW-Authenticate: Bearer realm=...,service=...,scope=...` challenge: it calls the
+  realm token endpoint with HTTP Basic (a `username` + secret from `hdlpkg login -u`),
+  or anonymously for a public pull token, caches the access token, and retries. The
+  retry uses the server-supplied scope, so a pull token is upgraded to push on publish.
+  `parse_bearer_challenge` parses the challenge (pure, unit-tested).
+
+Credentials a user already has from `docker login` (`~/.docker/config.json`) are reused
+as a fallback. Missing/wrong credentials fail closed.
+
+## Testing against a live registry (Zot / Docker)
+
+The integration tests cover both network backends against in-process mock servers, but
+you can also point `hdlpkg` at a **real** registry. Run one with no auth and use the
+plaintext `oci+http://` transport for local testing.
+
+**Zot** (a CNCF OCI registry; one binary, no Docker):
+```bash
+# download the single binary for your OS from https://github.com/project-zot/zot/releases
+zot serve zot-config.json     # minimal config: storage dir + 127.0.0.1:5000, no auth
+
+hdlpkg publish examples/fifo/ip.toml --registry oci+http://127.0.0.1:5000/ip
+hdlpkg publish examples/uart/ip.toml --registry oci+http://127.0.0.1:5000/ip
+hdlpkg resolve <consumer>/ip.toml   --registry oci+http://127.0.0.1:5000/ip
+hdlpkg pull acme:common:fifo:1.0.0  --registry oci+http://127.0.0.1:5000/ip --output ./fifo
+```
+
+**Docker** (`registry:2`, the CNCF distribution — what most production setups run):
+```bash
+docker run -d -p 5000:5000 --name reg registry:2
+hdlpkg publish examples/fifo/ip.toml --registry oci+http://127.0.0.1:5000/ip
+# ... resolve / install / pull exactly as above ...
+docker rm -f reg
+```
+
+**HTTP** (any `PUT`-capable server): a minimal bearer-auth reference server plus a
+scripted harness that runs the whole flow with assertions lives in the companion
+`hdlpkg-livetest/` project (see its README). Verify a published core really is an OCI
+artifact straight from the registry:
+```bash
+curl -s http://127.0.0.1:5000/v2/ip/acme/common/fifo/tags/list
+curl -s -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+        http://127.0.0.1:5000/v2/ip/acme/common/fifo/manifests/1.0.0   # artifactType: .../vnd.hdlpkg.core.v1
+```
+
+For an **authenticated** registry (managed Harbor/cloud, htpasswd) log in with a
+username, which selects the OCI token-exchange (see *Private registries* above):
+```bash
+hdlpkg login oci://harbor.corp/ip --username robot   # prompts for the password/robot token
+hdlpkg publish examples/fifo/ip.toml --registry oci://harbor.corp/ip
+```
+
 ## Deferred backends
 
-**Git-backed** and **OCI artifact** registries are designed but not implemented —
-both need external tooling / a live service to build and test honestly (tracked as
-open issues). The interface above does not change when they land.
+A **Git-backed** registry channel is still designed but not implemented (it needs `git`
++ a live remote to test honestly). The interface above does not change when it lands.
 
 ## Errors
 

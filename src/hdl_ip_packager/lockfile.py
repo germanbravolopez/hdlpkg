@@ -33,6 +33,14 @@ from pathlib import Path
 
 from .exceptions import HdlPackagerError, LockfileError
 from .resolver import Resolution
+from .version import (
+    SUPPORTED_VERSION_SCHEMES,
+    AnyVersion,
+    CalVer,
+    MonotonicVersion,
+    OpaqueVersion,
+    VersionScheme,
+)
 from .vlnv import Vlnv
 
 __all__ = [
@@ -56,6 +64,17 @@ def _toml_basic_string(value: str) -> str:
     """Render *value* as a TOML basic (double-quoted) string, escaping specials."""
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
+
+
+def _scheme_marker(version: AnyVersion) -> VersionScheme | None:
+    """The non-SemVer scheme to record for *version*, or None for plain SemVer."""
+    if isinstance(version, OpaqueVersion):
+        return "opaque"
+    if isinstance(version, CalVer):
+        return "calver"
+    if isinstance(version, MonotonicVersion):
+        return "monotonic"
+    return None
 
 
 @dataclass(frozen=True)
@@ -99,6 +118,10 @@ class Lockfile:
         ]
         for pkg in sorted(self.packages, key=lambda p: str(p.vlnv)):
             lines += ["", "[[package]]", f"vlnv     = {_toml_basic_string(str(pkg.vlnv))}"]
+            marker = _scheme_marker(pkg.vlnv.version)
+            if marker is not None:
+                # Record a non-SemVer scheme so the version round-trips on parse.
+                lines.append(f'scheme   = "{marker}"')
             if pkg.source:
                 lines.append(f"source   = {_toml_basic_string(pkg.source)}")
             if pkg.checksum:
@@ -143,8 +166,10 @@ class Lockfile:
         vlnv_str = entry.get("vlnv")
         if not isinstance(vlnv_str, str):
             raise LockfileError("Each [[package]] needs a 'vlnv' string.")
+        raw_scheme = entry.get("scheme")
+        scheme: VersionScheme = raw_scheme if raw_scheme in SUPPORTED_VERSION_SCHEMES else "semver"
         try:
-            vlnv = Vlnv.parse(vlnv_str)
+            vlnv = Vlnv.parse(vlnv_str, scheme)
         except HdlPackagerError as exc:
             raise LockfileError(f"Invalid vlnv {vlnv_str!r} in lockfile: {exc}") from exc
         return LockedPackage(

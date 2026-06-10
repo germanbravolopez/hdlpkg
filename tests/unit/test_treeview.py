@@ -41,8 +41,8 @@ version = "2.0.0"
 
 def _build() -> tuple[Manifest, dict, dict]:
     leaf, mid, top = (Manifest.from_str(t) for t in (LEAF, MID, TOP))
-    resolved = {leaf.ref: leaf.vlnv, mid.ref: mid.vlnv}
-    manifests = {leaf.ref: leaf, mid.ref: mid}
+    resolved = {leaf.ref: (leaf.vlnv,), mid.ref: (mid.vlnv,)}
+    manifests = {leaf.vlnv: leaf, mid.vlnv: mid}
     return top, resolved, manifests
 
 
@@ -79,3 +79,30 @@ def test_unresolved_dependency_is_labelled() -> None:
     top = Manifest.from_str(TOP)
     out = render_dependency_tree(top, {}, {})
     assert out.count("(unresolved)") == 2
+
+
+def test_multi_version_edges_pick_their_own_version() -> None:
+    # Two majors of one package coexist (isolate_namespaces): each edge resolves
+    # to the version satisfying its own constraint.
+    bus1 = Manifest.from_str(LEAF)
+    bus2 = Manifest.from_str(LEAF.replace('version = "1.0.0"', 'version = "2.0.0"'))
+    fifo = Manifest.from_str(MID.replace('name = "mid"', 'name = "fifo"'))
+    legacy = Manifest.from_str(
+        MID.replace('name = "mid"', 'name = "legacy"').replace(
+            '"acme:x:leaf" = "^1.0.0"', '"acme:x:leaf" = "^2.0.0"'
+        )
+    )
+    top = Manifest.from_str(
+        TOP.replace('"acme:x:leaf" = "^1.0.0"\n"acme:x:mid" = "^1.0.0"', "").replace(
+            "[dependencies]", '[dependencies]\n"acme:x:fifo" = "^1.0.0"\n"acme:x:legacy" = "^1.0.0"'
+        )
+    )
+    resolved = {
+        fifo.ref: (fifo.vlnv,),
+        legacy.ref: (legacy.vlnv,),
+        bus1.ref: (bus1.vlnv, bus2.vlnv),
+    }
+    manifests = {fifo.vlnv: fifo, legacy.vlnv: legacy, bus1.vlnv: bus1, bus2.vlnv: bus2}
+    out = render_dependency_tree(top, resolved, manifests)
+    assert "acme:x:leaf ^1.0.0 -> 1.0.0" in out
+    assert "acme:x:leaf ^2.0.0 -> 2.0.0" in out

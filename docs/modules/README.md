@@ -21,7 +21,7 @@ the edges (the CLI and registry/cache). The pages below follow that flow:
 
 | Module | What it covers |
 |--------|----------------|
-| [Resolver](resolver.md) | `resolve` → one concrete version per package (backtracking, newest-compatible) |
+| [Resolver](resolver.md) | `resolve` → selected version(s) per package (Cargo-style unification, `on-conflict` policy, scheme-aware) |
 | [Lockfile (`ip.lock`)](lockfile.md) | Serialize/verify a resolution with per-core source + SHA-256 |
 
 ## Distribute
@@ -29,7 +29,8 @@ the edges (the CLI and registry/cache). The pages below follow that flow:
 | Module | What it covers |
 |--------|----------------|
 | [Content-addressed cache](cache.md) | SHA-256-keyed local blob store with verify-on-read |
-| [Registry](registry.md) | The `Registry` interface + local / HTTP / writable-local backends |
+| [Registry](registry.md) | The `Registry` interface + local / HTTP / OCI backends and `registry_from_location` |
+| [Credentials](credentials.md) | Per-host bearer tokens for private registries (`hdlpkg login`) |
 | [Packaging (`.ipkg`)](packaging.md) | The deterministic `.ipkg` artifact: build, extract, read |
 
 ## Generate & interop
@@ -37,6 +38,7 @@ the edges (the CLI and registry/cache). The pages below follow that flow:
 | Module | What it covers |
 |--------|----------------|
 | [Tool-flow backends](backends.md) | EDAM intermediate → Verilator / Vivado / Icarus / GHDL / Yosys inputs |
+| [Name-mangling](mangle.md) | SystemVerilog/VHDL package renaming so two versions coexist in one `gen` build |
 | [IP-XACT export](ipxact.md) | IEEE 1685-2014 component XML |
 | [SBOM (CycloneDX)](sbom.md) | Deterministic CycloneDX 1.5 bill of materials |
 

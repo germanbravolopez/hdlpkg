@@ -23,8 +23,7 @@ pytestmark = pytest.mark.unit
 
 
 def _resolution(*vlnvs: str) -> Resolution:
-    selected = {Vlnv.parse(v).ref: Vlnv.parse(v) for v in vlnvs}
-    return Resolution(selected=selected)
+    return Resolution(packages=tuple(Vlnv.parse(v) for v in vlnvs))
 
 
 def test_sha256_digest_is_canonical() -> None:
@@ -52,6 +51,29 @@ def test_to_toml_round_trips() -> None:
     )
     parsed = Lockfile.from_toml(lock.to_toml())
     assert parsed == lock
+
+
+def test_opaque_version_round_trips_via_scheme_marker() -> None:
+    # A non-SemVer (opaque) version survives serialize/parse via a `scheme` marker.
+    lock = Lockfile(packages=(LockedPackage(Vlnv.parse("acme:x:radio:D5020100", "opaque")),))
+    toml = lock.to_toml()
+    assert 'scheme   = "opaque"' in toml
+    parsed = Lockfile.from_toml(toml)
+    assert parsed == lock
+    assert str(parsed.packages[0].vlnv) == "acme:x:radio:D5020100"
+
+
+@pytest.mark.parametrize(
+    ("vlnv", "scheme"),
+    [("acme:eda:tool:2024.1", "calver"), ("acme:hw:block:r3", "monotonic")],
+)
+def test_ordered_versions_round_trip_via_scheme_marker(vlnv: str, scheme: str) -> None:
+    lock = Lockfile(packages=(LockedPackage(Vlnv.parse(vlnv, scheme)),))  # type: ignore[arg-type]
+    toml = lock.to_toml()
+    assert f'scheme   = "{scheme}"' in toml
+    parsed = Lockfile.from_toml(toml)
+    assert parsed == lock
+    assert str(parsed.packages[0].vlnv) == vlnv
 
 
 def test_to_toml_is_deterministic_regardless_of_input_order() -> None:

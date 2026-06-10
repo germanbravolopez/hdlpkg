@@ -42,18 +42,20 @@ task-oriented intro see the [user guide](user_guide.md).
 
 | Module | File | Status | Responsibility |
 |--------|------|--------|----------------|
-| Versioning | [version.py](../src/hdl_ip_packager/version.py) | implemented | SemVer 2.0.0 `Version` + `VersionConstraint` (parse, precedence, matching) |
+| Versioning | [version.py](../src/hdl_ip_packager/version.py) | implemented | `Version` (SemVer) + `VersionConstraint`, `compatibility_group`, and the non-SemVer schemes `CalVer` / `MonotonicVersion` / `OpaqueVersion` (`parse_version`) |
 | Identity | [vlnv.py](../src/hdl_ip_packager/vlnv.py) | implemented | `PackageRef` (`vendor:library:name`) and `Vlnv` (+`:version`) |
 | Manifest | [manifest.py](../src/hdl_ip_packager/manifest.py) | implemented | Parse/validate `ip.toml` → `Manifest` (identity, deps, filesets, targets) |
 | Scaffolder | [scaffold.py](../src/hdl_ip_packager/scaffold.py) | implemented | Pure renderer for a starter `ip.toml` (behind `hdlpkg init`) |
 | Errors | [exceptions.py](../src/hdl_ip_packager/exceptions.py) | implemented | One exception hierarchy rooted at `HdlPackagerError` |
-| CLI | [cli.py](../src/hdl_ip_packager/cli.py) | implemented | `hdlpkg` entry point; all commands implemented (`info`/`validate`/`init`/`add`/`resolve`/`install`/`pack`/`publish`/`pull`/`yank`/`gen`/`tree`/`export-ipxact`) |
-| Resolver | [resolver.py](../src/hdl_ip_packager/resolver.py) | implemented | Constraints → one concrete `Vlnv` per package (backtracking, newest-compatible) |
+| CLI | [cli.py](../src/hdl_ip_packager/cli.py) | implemented | `hdlpkg` entry point; all commands implemented (`info`/`validate`/`init`/`add`/`resolve`/`install`/`pack`/`publish`/`pull`/`yank`/`login`/`logout`/`gen`/`tree`/`export-ipxact`) |
+| Resolver | [resolver.py](../src/hdl_ip_packager/resolver.py) | implemented | Constraints → selected `Vlnv`(s) (backtracking, Cargo-style unification, `[resolution] on-conflict` policy, scheme-aware) |
 | Lockfile | [lockfile.py](../src/hdl_ip_packager/lockfile.py) | implemented | Serialize/parse/verify `ip.lock` (a `Resolution` + per-core source + SHA-256) |
 | Cache | [cache.py](../src/hdl_ip_packager/cache.py) | implemented | Content-addressed local blob store (SHA-256 key, verify-on-read, atomic writes) |
-| Registry | [registry.py](../src/hdl_ip_packager/registry.py) | implemented (local + HTTP + writable) | Abstract `Registry` + local-dir/HTTP/writable-local backends + graph walker (Git/OCI tracked as issues) |
+| Registry | [registry.py](../src/hdl_ip_packager/registry.py) | implemented (local + HTTP + OCI, all writable) | Abstract `Registry` + local-dir/writable-local/HTTP/OCI backends + `registry_from_location` scheme dispatch + graph walker (Git tracked as an issue) |
+| Credentials | [credentials.py](../src/hdl_ip_packager/credentials.py) | implemented | Per-host bearer tokens for private registries (`hdlpkg login`); pure `CredentialStore` + TOML load/save |
 | Packaging | [packaging.py](../src/hdl_ip_packager/packaging.py) | implemented | Build/read the deterministic `.ipkg` artifact (`pack_core`, `extract_ipkg`) |
 | Backends | [backends/](../src/hdl_ip_packager/backends/) | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) | EDAM-like intermediate (`build_eda_design`) → tool inputs behind `hdlpkg gen` |
+| Name-mangling | [mangle.py](../src/hdl_ip_packager/mangle.py) | implemented (SystemVerilog + VHDL packages) | Rewrite coexisting package names so two versions build together under `gen` |
 | Tree view | [treeview.py](../src/hdl_ip_packager/treeview.py) | implemented | `render_dependency_tree` → ASCII dependency graph behind `hdlpkg tree` |
 | IP-XACT | [ipxact.py](../src/hdl_ip_packager/ipxact.py) | implemented | `to_ipxact` → IEEE 1685-2014 component XML behind `hdlpkg export-ipxact` |
 | SBOM | [sbom.py](../src/hdl_ip_packager/sbom.py) | implemented (CycloneDX) | `build_cyclonedx` → deterministic CycloneDX 1.5 SBOM behind `hdlpkg pack --sbom` |
@@ -102,8 +104,12 @@ The per-core, author-written manifest. Schema (full example in
 [manifest.py](../src/hdl_ip_packager/manifest.py) and the [README](../README.md)):
 
 - `[package]` — `vendor`, `library`, `name`, `version` (required); plus
-  `description`, `license`, `authors`, `top`, `keywords`.
+  `description`, `license`, `authors`, `top`, `keywords`, and an optional `scheme`
+  (`semver` default / `calver` / `monotonic` / `opaque` — how the `version` is
+  interpreted and ordered).
 - `[dependencies]` — `"vendor:library:name" = "<constraint>"`.
+- `[resolution]` — optional `on-conflict` policy (`fail_on_conflict` default /
+  `use_latest` / `isolate_namespaces`) for an incompatible version conflict.
 - `[filesets.<id>]` — `files` (list), `type` (HDL kind), optional `depend`
   (targets that pull it in).
 - `[targets.<id>]` — `toolflow`, `filesets` (must reference defined filesets),
@@ -128,18 +134,33 @@ digest** of the core (the same SHA-256 the cache keys on and the registry serves
 ### Resolver *(implemented — [resolver.py](../src/hdl_ip_packager/resolver.py))*
 Input: the root `Manifest` + `available: Mapping[PackageRef, Sequence[Manifest]]`
 (the *manifests* of each package's known versions, so a candidate's own
-`[dependencies]` drive the transitive solve). Output: a `Resolution` = one `Vlnv`
-per package satisfying every constraint.
-- **Single version per package**, fail-on-conflict — HDL elaboration cannot host
-  two versions of the same module (unlike npm's nesting).
+`[dependencies]` and declared version *scheme* drive the transitive solve). Output:
+a `Resolution` exposing `vlnvs` / `by_ref` / `warnings`, usually one `Vlnv` per
+package and possibly more under `isolate_namespaces`.
+- **Compatibility unification (Cargo-style)** — dependents in the same compatibility
+  group (`compatibility_group`: same major for SemVer; for `0.y` the minor) unify to
+  the newest version satisfying them all. A diamond on `^1.0` + `^1.1` collapses to
+  one `1.1.x`.
+- **Conflict policy** — only a genuinely *incompatible* conflict (two majors, or two
+  exact pins of an `opaque` core) is governed by the `[resolution] on-conflict`
+  policy (`--on-conflict` overrides it): `fail_on_conflict` (default, raise),
+  `use_latest` (collapse to newest + warn), `isolate_namespaces` (keep all in the
+  lock/tree; `gen` [name-mangles](#name-mangling) coexisting SystemVerilog/VHDL packages
+  so they build together — module/entity coexistence is still refused).
+- **Version scheme** — `[package].scheme` selects how a core's versions are parsed,
+  ordered, and grouped: `semver` (default; non-SemVer rejected at parse), `calver`
+  (ordered numeric `2024.1`, year-as-major), `monotonic` (an ordered revision `r3`,
+  one shared group), or `opaque` (an uninterpreted token, pinned exactly). For the
+  non-SemVer schemes a bare constraint means *exact*; `^`/`~`/ranges are explicit.
+  Non-SemVer VLNVs round-trip through the lockfile via a `scheme` marker.
 - **Newest-compatible** selection; pre-releases excluded unless a constraint's
   operand is itself a pre-release of the same core (the `VersionConstraint` rule).
-- **Backtracking search** over candidate sets (newest-first, constraints
-  accumulate as dependents are chosen; a candidate that conflicts with an
-  already-chosen version is rejected and the search falls back to older versions).
-  Pure, so it does no I/O; the registry/cache layer supplies `available`. Can be
-  lowered to a SAT/CDCL solver later without changing the contract (version
-  selection is NP-complete in general).
+- **Backtracking search** over candidate sets keyed per `(package, compatibility
+  group)` node (newest-first; a candidate conflicting with an already-chosen version
+  in its group is rejected and the search falls back); a post-search policy fold and
+  a reachability pass prune `use_latest` orphans. Pure, so it does no I/O; the
+  registry/cache layer supplies `available`. Can be lowered to a SAT/CDCL solver
+  later without changing the contract.
 
 ### Cache *(implemented — [cache.py](../src/hdl_ip_packager/cache.py))*
 `ContentAddressedCache` is a local blob store keyed by the SHA-256 of each blob's
@@ -151,25 +172,51 @@ atomic (temp file + `os.replace`) and idempotent (content-addressing dedupes).
 offline reuse. The registry backends fetch into this store; a blob is a core's
 packed `.ipkg` (see Packaging below).
 
-### Registry *(implemented: local + HTTP — [registry.py](../src/hdl_ip_packager/registry.py))*
-`Registry` is an ABC with `versions()`, `manifest()`, `artifact_bytes()`, and a
-shared `fetch()` that stores a core's artifact in the content-addressed cache
+### Registry *(implemented: local + HTTP + OCI — [registry.py](../src/hdl_ip_packager/registry.py))*
+`Registry` is an ABC with `versions()`, `manifest()`, `artifact_bytes()`, `publish_core()`,
+and a shared `fetch()` that stores a core's packed `.ipkg` in the content-addressed cache
 (verified). `available_from_registry()` walks the dependency graph to build the
-`Mapping[PackageRef, Sequence[Manifest]]` the resolver consumes. Two read backends ship:
+`Mapping[PackageRef, Sequence[Manifest]]` the resolver consumes. Four backends ship:
 - **`LocalDirectoryRegistry`** — cores discovered by scanning directory trees for
-  `ip.toml` (the `examples/` layout); backs `hdlpkg resolve`/`install`.
-- **`HttpRegistry`** — cores served by a static HTTP index
-  (`{base}/{vendor}/{library}/{name}/versions.json` + `.../{version}/ip.toml`).
+  `ip.toml` (the `examples/` layout); read-only.
+- **`LocalRegistry`** — a writable, append-only local directory store (publish / pull /
+  yank), with a `.yanked` marker that retires a version without breaking old lockfiles.
+- **`HttpRegistry`** — a network registry over a simple HTTP layout
+  (`{base}/{vendor}/{library}/{name}/versions.json` + `.../{version}/{ip.toml,core.ipkg}`):
+  reads via `GET`, publishes via `PUT` (any `PUT`-capable store — a small service, object
+  storage, WebDAV — can host it).
+- **`OciRegistry`** — a network registry over the **OCI distribution v2 API**, so cores
+  live as OCI artifacts in any standard registry (Harbor, Artifactory, Nexus, GitLab, Zot,
+  ECR/ACR). A core's `ip.toml` is the artifact config blob and its `.ipkg` is the single
+  layer, tagged with the version; the package maps to repository
+  `{prefix}/{vendor}/{library}/{name}`. `oci://` uses HTTPS, `oci+http://` plaintext.
 
-Still designed but **tracked as open issues** (they need external tooling / live
-services to build and test): a **Git-backed channel** and — the differentiator —
-an **OCI artifact** registry (reuse Docker-registry infra: content-addressable,
-immutable, ubiquitous).
+**`registry_from_location(location, credentials=…)`** is the single entry point the CLI
+uses: it dispatches a location string to the right backend by URL scheme (bare path /
+`path:` → local, `http(s)://` → HTTP, `oci://` / `oci+http://` → OCI) and wires in the
+stored token, so the rest of the CLI is backend-agnostic and the on-disk lockfile/protocol
+surface is stable. The network backends are **private by design**: a per-host bearer token
+from [credentials.py](../src/hdl_ip_packager/credentials.py) (set by `hdlpkg login`)
+authenticates a self-hosted registry, so teams share IP inside a company network without
+publishing publicly. A core's "artifact" is its deterministic `.ipkg` (see Packaging
+below), so its SHA-256 is the same content address the cache keys on and the lockfile pins.
 
-A writable **`LocalRegistry`** adds publishing (append-only, with **yank** to retire
-a version without breaking existing lockfiles); it backs `hdlpkg publish`/`pull`/
-`yank`. A core's "artifact" is its packed `.ipkg` bytes
-(see Packaging below); the interface is unchanged by that.
+A **Git-backed channel** remains a tracked open issue (it needs `git` + a live remote to
+build and test honestly). OCI authentication supports both a **direct bearer** (a
+username-less credential, for self-hosted/static-token registries) and the **OCI
+token-exchange** flow (`OciRegistry` answers a `401` + `WWW-Authenticate: Bearer
+realm=...` by exchanging HTTP Basic credentials -- or going anonymous -- at the realm
+for a scoped access token, then retrying), so managed Harbor/cloud registries work too.
+
+### Credentials *(implemented — [credentials.py](../src/hdl_ip_packager/credentials.py))*
+A pure `CredentialStore` maps a **registry host** (`oci://harbor.corp/ip/a` and
+`.../ip/b` share one credential for `harbor.corp`) to a `Credential` (a secret plus an
+optional username -> direct bearer vs. HTTP Basic for the token exchange), with TOML
+serialization (reading the legacy `[tokens]` form too); the thin
+`load_credentials`/`save_credentials` pair is the only I/O, writing
+`~/.hdlpkg/credentials.toml` (override with `HDLPKG_CREDENTIALS`) owner-only where the OS
+allows. `hdlpkg login [-u]`/`logout` manage it; `registry_from_location` reads it, with
+`docker login` (`~/.docker/config.json`) credentials merged in as a fallback.
 
 ### Packaging *(implemented — [packaging.py](../src/hdl_ip_packager/packaging.py))*
 `pack_core` builds a **deterministic** `.ipkg` (a gzip+tar of `ip.toml` plus every
@@ -195,6 +242,20 @@ can state exactly what a fileset needs. Five backends ship: `VerilatorBackend`
 `GhdlBackend` (`run_ghdl.sh`, VHDL-only), and `YosysBackend` (`.ys`); all are pure
 (`generate` returns `{filename: text}`), so the CLI does the file writing. Tool
 specifics stay out of the manifest/resolver/packaging layers.
+
+### Name-mangling *(implemented for SystemVerilog + VHDL packages — [mangle.py](../src/hdl_ip_packager/mangle.py))*
+When `isolate_namespaces` keeps two versions of one package, they collide in HDL's one
+global namespace. Under `gen` the pure `mangle.py` rewrites each version's **package**
+name to a unique one (`bus_pkg` → `bus_pkg__v1_1_0`) and rewrites every consumer's
+references to the version it resolved to. Each language has a comment/string-aware
+scanner that touches only unambiguous package positions — SystemVerilog
+(`package`/`endpackage`/`import`/`::`) and VHDL, case-insensitively
+(`package`/`use work.<name>`) — so a coincidental signal name or a name in a
+comment/string is never changed, no parser needed. The CLI materializes the rewritten
+tree into `<output>/src/` and builds over it (`build_eda_design(allow_multiversion=True)`).
+*Module*/interface (SV) and *entity* (VHDL) coexistence is refused (ambiguous
+instantiation position needs a real HDL frontend).
+
 ### IP-XACT export *(implemented — [ipxact.py](../src/hdl_ip_packager/ipxact.py))*
 `export-ipxact` renders a manifest as an IEEE **1685-2014** component XML via the
 pure `to_ipxact`: VLNV identity, a `model` of one view + componentInstantiation per

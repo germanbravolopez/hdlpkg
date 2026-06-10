@@ -73,8 +73,10 @@ nav:
       - Lockfile (ip.lock): modules/lockfile.md
       - Content-addressed cache: modules/cache.md
       - Registry: modules/registry.md
+      - Credentials: modules/credentials.md
       - Packaging (.ipkg): modules/packaging.md
       - Tool-flow backends: modules/backends.md
+      - Name-mangling: modules/mangle.md
       - IP-XACT export: modules/ipxact.md
       - SBOM (CycloneDX): modules/sbom.md
       - CLI reference: modules/cli.md

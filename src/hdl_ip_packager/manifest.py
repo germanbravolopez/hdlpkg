@@ -45,14 +45,25 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
-from .exceptions import HdlPackagerError, ManifestError
-from .version import Version, VersionConstraint
+from .exceptions import HdlPackagerError, InvalidVersionError, ManifestError
+from .version import (
+    DEFAULT_VERSION_SCHEME,
+    SUPPORTED_VERSION_SCHEMES,
+    AnyVersion,
+    VersionConstraint,
+    VersionScheme,
+    parse_version,
+)
 from .vlnv import PackageRef, Vlnv
 
 __all__ = [
+    "DEFAULT_CONFLICT_POLICY",
     "MANIFEST_FILENAME",
     "MANIFEST_SCHEMA_VERSION",
+    "SUPPORTED_CONFLICT_POLICIES",
+    "ConflictPolicy",
     "Dependency",
     "Fileset",
     "Manifest",
@@ -60,6 +71,24 @@ __all__ = [
 ]
 
 MANIFEST_FILENAME = "ip.toml"
+
+# How the resolver reacts to an *incompatible* version conflict on one package
+# (two SemVer-incompatible majors, or two distinct exact pins of an ``opaque``
+# package). SemVer-*compatible* dependents always unify regardless of policy.
+#
+# * ``"fail_on_conflict"`` (default) -- raise a ``ResolutionError``.
+# * ``"use_latest"`` -- collapse to the newest of the conflicting versions (single
+#   copy) and warn that lower requirements may be violated.
+# * ``"isolate_namespaces"`` -- keep every incompatible version in the resolve /
+#   lock / tree. (Physical coexistence at ``gen`` is not built, so ``gen`` refuses
+#   to emit two versions of one package.)
+ConflictPolicy = Literal["fail_on_conflict", "use_latest", "isolate_namespaces"]
+SUPPORTED_CONFLICT_POLICIES: tuple[ConflictPolicy, ...] = (
+    "fail_on_conflict",
+    "use_latest",
+    "isolate_namespaces",
+)
+DEFAULT_CONFLICT_POLICY: ConflictPolicy = "fail_on_conflict"
 
 # The ip.toml schema version this hdlpkg understands. An optional top-level
 # ``schema = N`` key lets the format evolve after 1.0 with a clear migration
@@ -113,6 +142,8 @@ class Manifest:
     filesets: dict[str, Fileset] = field(default_factory=dict)
     targets: dict[str, Target] = field(default_factory=dict)
     schema_version: int = MANIFEST_SCHEMA_VERSION
+    version_scheme: VersionScheme = DEFAULT_VERSION_SCHEME
+    conflict_policy: ConflictPolicy = DEFAULT_CONFLICT_POLICY
 
     # ----------------------------------------------------------------- loaders
     @classmethod
@@ -147,7 +178,9 @@ class Manifest:
         if not isinstance(pkg, dict):
             raise ManifestError("Missing required [package] table.")
 
-        vlnv = cls._parse_identity(pkg)
+        scheme = cls._parse_version_scheme(pkg.get("scheme", DEFAULT_VERSION_SCHEME))
+        vlnv = cls._parse_identity(pkg, scheme)
+        policy = cls._parse_conflict_policy(data.get("resolution", {}))
         dependencies = cls._parse_dependencies(data.get("dependencies", {}))
         filesets = cls._parse_filesets(data.get("filesets", {}))
         targets = cls._parse_targets(data.get("targets", {}), filesets)
@@ -163,6 +196,33 @@ class Manifest:
             filesets=filesets,
             targets=targets,
             schema_version=schema,
+            version_scheme=scheme,
+            conflict_policy=policy,
+        )
+
+    @staticmethod
+    def _parse_version_scheme(value: object) -> VersionScheme:
+        """Validate the optional ``[package].scheme`` version scheme (default semver)."""
+        for scheme in SUPPORTED_VERSION_SCHEMES:
+            if value == scheme:
+                return scheme
+        raise ManifestError(
+            f"Unsupported package.scheme {value!r}; supported schemes are "
+            f"{', '.join(SUPPORTED_VERSION_SCHEMES)}."
+        )
+
+    @staticmethod
+    def _parse_conflict_policy(table: object) -> ConflictPolicy:
+        """Validate the optional ``[resolution].on-conflict`` policy (default fail)."""
+        if not isinstance(table, dict):
+            raise ManifestError("[resolution] must be a table.")
+        value = table.get("on-conflict", DEFAULT_CONFLICT_POLICY)
+        for policy in SUPPORTED_CONFLICT_POLICIES:
+            if value == policy:
+                return policy
+        raise ManifestError(
+            f"Unsupported [resolution] on-conflict {value!r}; supported policies are "
+            f"{', '.join(SUPPORTED_CONFLICT_POLICIES)}."
         )
 
     @staticmethod
@@ -191,16 +251,25 @@ class Manifest:
         return tuple(value)
 
     @classmethod
-    def _parse_identity(cls, pkg: dict[str, object]) -> Vlnv:
+    def _parse_identity(cls, pkg: dict[str, object], scheme: VersionScheme) -> Vlnv:
         vendor = cls._require(pkg, "vendor", "package")
         library = cls._require(pkg, "library", "package")
         name = cls._require(pkg, "name", "package")
         version = cls._require(pkg, "version", "package")
         if not isinstance(version, str):
             raise ManifestError("package.version must be a string.")
+        parsed: AnyVersion
         try:
-            ref = PackageRef(str(vendor), str(library), str(name))
-            return ref.with_version(Version.parse(version))
+            # The version is parsed by its declared scheme: the default semver scheme
+            # rejects anything that is not valid SemVer 2.0.0 (rather than mis-ordering
+            # it); calver/monotonic/opaque parse their own token shapes.
+            parsed = parse_version(version, scheme)
+        except InvalidVersionError as exc:
+            raise ManifestError(
+                f"package.version {version!r} is not valid for scheme {scheme!r}: {exc}."
+            ) from exc
+        try:
+            return PackageRef(str(vendor), str(library), str(name)).with_version(parsed)
         except HdlPackagerError as exc:
             raise ManifestError(f"Invalid package identity: {exc}") from exc
 

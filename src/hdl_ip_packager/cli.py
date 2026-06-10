@@ -11,24 +11,46 @@ surface is stable as features land.
 from __future__ import annotations
 
 import argparse
+import getpass
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
-from .backends import CoreSource, build_eda_design, get_backend
+from .backends import CoreSource, build_eda_design, get_backend, normalize_file_type
 from .cache import ContentAddressedCache, default_cache_root
+from .credentials import (
+    default_credentials_path,
+    load_credentials,
+    load_docker_config,
+    registry_host,
+    save_credentials,
+)
 from .editing import add_dependency
-from .exceptions import BackendError, HdlPackagerError, LockfileError, ManifestError
+from .exceptions import (
+    BackendError,
+    CredentialsError,
+    HdlPackagerError,
+    InvalidVlnvError,
+    LockfileError,
+    ManifestError,
+)
 from .ipxact import to_ipxact
 from .lockfile import LOCKFILE_FILENAME, Lockfile, sha256_digest
-from .manifest import MANIFEST_FILENAME, Manifest
+from .mangle import GenCore, GenSourceFile, ManglePlan, plan_package_mangling
+from .manifest import (
+    MANIFEST_FILENAME,
+    SUPPORTED_CONFLICT_POLICIES,
+    ConflictPolicy,
+    Manifest,
+)
 from .packaging import artifact_filename, extract_ipkg, pack_core
 from .registry import (
     LocalDirectoryRegistry,
-    LocalRegistry,
     Registry,
     available_from_registry,
+    registry_from_location,
 )
 from .resolver import Resolution
 from .resolver import resolve as resolve_deps
@@ -37,6 +59,11 @@ from .scaffold import DEFAULT_VERSION, ScaffoldOptions, render_manifest
 from .treeview import render_dependency_tree
 from .version import VersionConstraint
 from .vlnv import PackageRef, Vlnv
+
+_REGISTRY_HELP = (
+    "a local directory, or a network URL (http(s)://... or oci://...); "
+    "use 'hdlpkg login' first for a private registry"
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -104,9 +131,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_resolve.add_argument(
         "--registry",
-        metavar="DIR",
-        help="resolve from a published registry directory (overrides --search)",
+        metavar="LOCATION",
+        help="resolve from a published registry (overrides --search); " + _REGISTRY_HELP,
     )
+    _add_conflict_arg(p_resolve)
     p_resolve.set_defaults(func=_cmd_resolve)
 
     p_install = sub.add_parser(
@@ -138,9 +166,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_install.add_argument(
         "--registry",
-        metavar="DIR",
-        help="fetch from a published registry directory (overrides --search)",
+        metavar="LOCATION",
+        help="fetch from a published registry (overrides --search); " + _REGISTRY_HELP,
     )
+    _add_conflict_arg(p_install)
     p_install.set_defaults(func=_cmd_install)
 
     p_pack = sub.add_parser("pack", help="package this core into a distributable .ipkg")
@@ -163,26 +192,46 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_pack.set_defaults(func=_cmd_pack)
 
-    p_publish = sub.add_parser("publish", help="publish this core to a local registry")
+    p_publish = sub.add_parser("publish", help="publish this core to a registry")
     p_publish.add_argument(
         "path", nargs="?", default=MANIFEST_FILENAME, help="path to the manifest"
     )
-    p_publish.add_argument(
-        "--registry", required=True, metavar="DIR", help="registry root directory"
-    )
+    p_publish.add_argument("--registry", required=True, metavar="LOCATION", help=_REGISTRY_HELP)
     p_publish.set_defaults(func=_cmd_publish)
 
     p_pull = sub.add_parser("pull", help="download a core from a registry by VLNV")
     p_pull.add_argument("vlnv", help="the core to pull, e.g. acme:common:fifo:1.0.0")
-    p_pull.add_argument("--registry", required=True, metavar="DIR", help="registry root directory")
+    p_pull.add_argument("--registry", required=True, metavar="LOCATION", help=_REGISTRY_HELP)
     p_pull.add_argument("--output", metavar="DIR", help="extract the core into this directory")
     p_pull.add_argument("--cache-dir", metavar="DIR", help="cache root (default: ~/.hdlpkg/cache)")
     p_pull.set_defaults(func=_cmd_pull)
 
     p_yank = sub.add_parser("yank", help="hide a published version from new resolves")
     p_yank.add_argument("vlnv", help="the core version to yank, e.g. acme:common:fifo:1.0.0")
-    p_yank.add_argument("--registry", required=True, metavar="DIR", help="registry root directory")
+    p_yank.add_argument("--registry", required=True, metavar="LOCATION", help=_REGISTRY_HELP)
     p_yank.set_defaults(func=_cmd_yank)
+
+    p_login = sub.add_parser("login", help="store an auth token for a private registry")
+    p_login.add_argument(
+        "registry", metavar="LOCATION", help="registry URL, e.g. oci://harbor.corp/ip"
+    )
+    p_login.add_argument(
+        "--username",
+        "-u",
+        help="username for a registry that uses the OCI token-exchange (HTTP Basic) flow; "
+        "omit for a direct bearer token",
+    )
+    p_login.add_argument(
+        "--token",
+        "--password",
+        dest="token",
+        help="the bearer token or password (omit to be prompted without echo)",
+    )
+    p_login.set_defaults(func=_cmd_login)
+
+    p_logout = sub.add_parser("logout", help="remove a stored registry auth token")
+    p_logout.add_argument("registry", metavar="LOCATION", help="registry URL to forget")
+    p_logout.set_defaults(func=_cmd_logout)
 
     p_gen = sub.add_parser("gen", help="generate tool-flow inputs for a target")
     p_gen.add_argument("target", help="the [targets.*] to build (e.g. sim, synth)")
@@ -203,6 +252,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"use the dependency versions pinned in {LOCKFILE_FILENAME} instead of "
         "re-resolving (reproducible generation); fail if it is missing",
     )
+    _add_conflict_arg(p_gen)
     p_gen.set_defaults(func=_cmd_gen)
 
     p_tree = sub.add_parser("tree", help="print the resolved dependency graph")
@@ -218,9 +268,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_tree.add_argument(
         "--registry",
-        metavar="DIR",
-        help="resolve from a published registry directory (overrides --search)",
+        metavar="LOCATION",
+        help="resolve from a published registry (overrides --search); " + _REGISTRY_HELP,
     )
+    _add_conflict_arg(p_tree)
     p_tree.set_defaults(func=_cmd_tree)
 
     p_ipxact = sub.add_parser(
@@ -248,6 +299,30 @@ def build_parser() -> argparse.ArgumentParser:
     p_add.set_defaults(func=_cmd_add)
 
     return parser
+
+
+def _add_conflict_arg(parser: argparse.ArgumentParser) -> None:
+    """Add the ``--on-conflict`` policy override (overrides the manifest's setting)."""
+    parser.add_argument(
+        "--on-conflict",
+        choices=SUPPORTED_CONFLICT_POLICIES,
+        default=None,
+        dest="on_conflict",
+        help="how to handle an incompatible version conflict, overriding the "
+        "manifest's [resolution] on-conflict (default: the manifest's value, or "
+        "fail_on_conflict)",
+    )
+
+
+def _policy(args: argparse.Namespace) -> ConflictPolicy | None:
+    """The CLI conflict-policy override, if any (else None -> use the manifest's)."""
+    return getattr(args, "on_conflict", None)
+
+
+def _print_warnings(resolution: Resolution) -> None:
+    """Surface any policy-driven compromises the resolve made."""
+    for warning in resolution.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
 
 
 def _load(path: str) -> Manifest:
@@ -318,12 +393,14 @@ def _cmd_init(args: argparse.Namespace) -> int:
 
 
 def _resolve_local(
-    manifest_path: Path, search: list[str] | None
+    manifest_path: Path,
+    search: list[str] | None,
+    policy: ConflictPolicy | None = None,
 ) -> tuple[Resolution, LocalDirectoryRegistry]:
     """Resolve *manifest_path* against a local-directory registry over *search*."""
     root = Manifest.from_path(manifest_path)
     registry = _local_registry(manifest_path, search)
-    resolution = resolve_deps(root, available_from_registry(registry, root))
+    resolution = resolve_deps(root, available_from_registry(registry, root), policy)
     return resolution, registry
 
 
@@ -340,11 +417,22 @@ def _local_registry(manifest_path: Path, search: list[str] | None) -> LocalDirec
     return LocalDirectoryRegistry([Path(d) for d in search_dirs])
 
 
+def _selected_registry(location: str) -> Registry:
+    """Build the registry named by a ``--registry`` location, wiring in stored credentials.
+
+    ``hdlpkg login`` credentials win; a ``docker login`` (``~/.docker/config.json``)
+    entry for the same host is used as a fallback, so an already-authenticated registry
+    works without a second login.
+    """
+    credentials = load_credentials().with_fallback(load_docker_config())
+    return registry_from_location(location, credentials=credentials)
+
+
 def _reader_registry(manifest_path: Path, args: argparse.Namespace) -> Registry:
     """The registry to resolve/fetch from: a published `--registry`, else a `--search` scan."""
     registry = getattr(args, "registry", None)
     if registry:
-        return LocalRegistry(registry)
+        return _selected_registry(registry)
     return _local_registry(manifest_path, args.search)
 
 
@@ -352,7 +440,7 @@ def _resolve(manifest_path: Path, args: argparse.Namespace) -> tuple[Resolution,
     """Resolve *manifest_path* against the selected registry (published or local-scan)."""
     root = Manifest.from_path(manifest_path)
     registry = _reader_registry(manifest_path, args)
-    resolution = resolve_deps(root, available_from_registry(registry, root))
+    resolution = resolve_deps(root, available_from_registry(registry, root), _policy(args))
     return resolution, registry
 
 
@@ -374,6 +462,7 @@ def _cmd_resolve(args: argparse.Namespace) -> int:
     output = Path(args.output) if args.output else manifest_path.parent / LOCKFILE_FILENAME
     output.write_text(lock.to_toml(), encoding="utf-8")
 
+    _print_warnings(resolution)
     print(f"Resolved {len(resolution.vlnvs)} package(s); wrote {output}")
     for vlnv in resolution.vlnvs:
         print(f"  {vlnv}")
@@ -408,6 +497,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
     output = Path(args.output) if args.output else manifest_path.parent / LOCKFILE_FILENAME
     output.write_text(lock.to_toml(), encoding="utf-8")
 
+    _print_warnings(resolution)
     print(f"Installed {len(fetched)} package(s) into {cache_root}; wrote {output}")
     for vlnv in resolution.vlnvs:
         print(f"  {vlnv}")
@@ -442,15 +532,27 @@ def _cmd_pack(args: argparse.Namespace) -> int:
 def _cmd_publish(args: argparse.Namespace) -> int:
     manifest_path = Path(args.path)
     manifest = Manifest.from_path(manifest_path)
-    registry = LocalRegistry(args.registry)
+    registry = _selected_registry(args.registry)
     vlnv = registry.publish_core(manifest, manifest_path.parent)
     print(f"Published {vlnv} to {args.registry}")
     return 0
 
 
+def _user_vlnv(text: str) -> Vlnv:
+    """Parse a user-supplied VLNV, accepting an opaque (non-SemVer) version too.
+
+    The command line carries no scheme, so try SemVer first and fall back to an
+    opaque token; if the VLNV is unknown the registry lookup fails clearly afterward.
+    """
+    try:
+        return Vlnv.parse(text)
+    except InvalidVlnvError:
+        return Vlnv.parse(text, "opaque")
+
+
 def _cmd_pull(args: argparse.Namespace) -> int:
-    vlnv = Vlnv.parse(args.vlnv)
-    registry = LocalRegistry(args.registry)
+    vlnv = _user_vlnv(args.vlnv)
+    registry = _selected_registry(args.registry)
     cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
     cache = ContentAddressedCache(cache_root)
     digest = registry.fetch(vlnv, cache)
@@ -462,9 +564,38 @@ def _cmd_pull(args: argparse.Namespace) -> int:
 
 
 def _cmd_yank(args: argparse.Namespace) -> int:
-    vlnv = Vlnv.parse(args.vlnv)
-    LocalRegistry(args.registry).yank(vlnv)
+    vlnv = _user_vlnv(args.vlnv)
+    _selected_registry(args.registry).yank(vlnv)
     print(f"Yanked {vlnv} in {args.registry}")
+    return 0
+
+
+def _cmd_login(args: argparse.Namespace) -> int:
+    host = registry_host(args.registry)
+    if host is None:
+        raise CredentialsError(
+            f"{args.registry!r} is a local registry and needs no login; "
+            "use an http(s):// or oci:// location."
+        )
+    prompt = f"Password for {host}: " if args.username else f"Token for {host}: "
+    secret = args.token if args.token is not None else getpass.getpass(prompt)
+    if not secret:
+        raise CredentialsError("No token/password provided.")
+    path = default_credentials_path()
+    store = load_credentials(path).with_token(host, secret, args.username)
+    save_credentials(store, path)
+    kind = f"as '{args.username}'" if args.username else "(bearer token)"
+    print(f"Stored credentials for {host} {kind} in {path}")
+    return 0
+
+
+def _cmd_logout(args: argparse.Namespace) -> int:
+    host = registry_host(args.registry)
+    if host is None:
+        raise CredentialsError(f"{args.registry!r} is a local registry; nothing to log out of.")
+    path = default_credentials_path()
+    save_credentials(load_credentials(path).without(host), path)
+    print(f"Removed credentials for {host}")
     return 0
 
 
@@ -481,27 +612,39 @@ def _cmd_gen(args: argparse.Namespace) -> int:
         registry = _local_registry(manifest_path, args.search)
         dep_vlnvs = [pkg.vlnv for pkg in lock.packages]
     else:
-        resolution, registry = _resolve_local(manifest_path, args.search)
+        resolution, registry = _resolve_local(manifest_path, args.search, _policy(args))
+        _print_warnings(resolution)
         dep_vlnvs = list(resolution.vlnvs)
+    root_source = CoreSource(manifest=root, root=str(manifest_path.resolve().parent))
     dependencies = [
         CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
         for vlnv in dep_vlnvs
     ]
-    design = build_eda_design(
-        CoreSource(manifest=root, root=str(manifest_path.resolve().parent)),
-        args.target,
-        dependencies,
-    )
-    outputs = get_backend(design.toolflow).generate(design)
 
     out_dir = Path(args.output) if args.output else Path("gen") / args.target
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Two versions of one package (the isolate_namespaces policy) collide in HDL's one
+    # namespace; mangle the SystemVerilog package names into the generated source tree
+    # so they can build together. Otherwise sources are referenced in place.
+    multiversion = _has_multiversion(dependencies)
+    plan: ManglePlan | None = None
+    if multiversion:
+        root_source, dependencies, plan = _mangle_sources(out_dir, root_source, dependencies)
+
+    design = build_eda_design(
+        root_source, args.target, dependencies, allow_multiversion=multiversion
+    )
+    outputs = get_backend(design.toolflow).generate(design)
+
     written = []
     for filename, content in outputs.items():
         dest = out_dir / filename
         dest.write_text(content, encoding="utf-8")
         written.append(dest)
 
+    if plan is not None:
+        _print_mangle_report(plan)
     print(
         f"Generated {design.toolflow} inputs for {root.vlnv} target {args.target!r} "
         f"({len(design.files)} source file(s)):"
@@ -511,12 +654,73 @@ def _cmd_gen(args: argparse.Namespace) -> int:
     return 0
 
 
+def _has_multiversion(dependencies: list[CoreSource]) -> bool:
+    """True if two of *dependencies* are different versions of the same package."""
+    refs = [str(dep.manifest.ref) for dep in dependencies]
+    return len(set(refs)) < len(refs)
+
+
+def _gen_core(source: CoreSource) -> GenCore:
+    """Read *source*'s fileset files into a :class:`GenCore` for mangling."""
+    files: list[GenSourceFile] = []
+    for fileset in source.manifest.filesets.values():
+        language = normalize_file_type(fileset.type).lower()
+        for rel in fileset.files:
+            text = (Path(source.root) / rel).read_text(encoding="utf-8")
+            files.append(
+                GenSourceFile(key=(str(source.manifest.vlnv), rel), text=text, language=language)
+            )
+    return GenCore(manifest=source.manifest, files=tuple(files))
+
+
+def _mangle_sources(
+    out_dir: Path, root_source: CoreSource, dependencies: list[CoreSource]
+) -> tuple[CoreSource, list[CoreSource], ManglePlan]:
+    """Mangle coexisting package versions into ``<out_dir>/src`` and re-root the cores.
+
+    Raises ``BackendError`` (via the planner) if the conflict cannot be mangled safely.
+    """
+    sources = [root_source, *dependencies]
+    cores = [_gen_core(source) for source in sources]
+    plan = plan_package_mangling(cores)
+
+    rerooted: list[CoreSource] = []
+    for source, core in zip(sources, cores, strict=True):
+        core_dir = out_dir / "src" / _safe_dirname(str(source.manifest.vlnv))
+        for gen_file in core.files:
+            rel = gen_file.key[1]
+            dest = core_dir / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(plan.rewritten[gen_file.key], encoding="utf-8")
+        rerooted.append(CoreSource(manifest=source.manifest, root=str(core_dir)))
+    return rerooted[0], rerooted[1:], plan
+
+
+def _safe_dirname(value: str) -> str:
+    """A filesystem-safe directory name for a VLNV (``:`` -> ``_``)."""
+    return re.sub(r"[^0-9A-Za-z._-]", "_", value)
+
+
+def _print_mangle_report(plan: ManglePlan) -> None:
+    """Surface the package renames the mangler applied (to stderr)."""
+    if not plan.renamed:
+        return
+    print(
+        "warning: two versions of a package coexist (isolate_namespaces); the generated "
+        "HDL sources were name-mangled so they can build together:",
+        file=sys.stderr,
+    )
+    for name, mangled in sorted(plan.renamed.items()):
+        print(f"  package {name} -> {', '.join(mangled)}", file=sys.stderr)
+
+
 def _cmd_tree(args: argparse.Namespace) -> int:
     manifest_path = Path(args.path)
     root = Manifest.from_path(manifest_path)
     resolution, registry = _resolve(manifest_path, args)
-    manifests = {vlnv.ref: registry.manifest(vlnv) for vlnv in resolution.vlnvs}
-    print(render_dependency_tree(root, resolution.selected, manifests))
+    manifests = {vlnv: registry.manifest(vlnv) for vlnv in resolution.vlnvs}
+    _print_warnings(resolution)
+    print(render_dependency_tree(root, resolution.by_ref, manifests))
     return 0
 
 

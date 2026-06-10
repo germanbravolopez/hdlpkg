@@ -12,9 +12,214 @@ import itertools
 import pytest
 
 from hdl_ip_packager.exceptions import InvalidConstraintError, InvalidVersionError
-from hdl_ip_packager.version import Version, VersionConstraint
+from hdl_ip_packager.version import (
+    CalVer,
+    MonotonicVersion,
+    OpaqueVersion,
+    Version,
+    VersionConstraint,
+    compatibility_group,
+)
 
 pytestmark = pytest.mark.unit
+
+
+class TestCalVer:
+    @pytest.mark.parametrize("text", ["2024.1", "2024.10", "2025.2.3", "2024", "2024.01"])
+    def test_parses_numeric_tokens(self, text: str) -> None:
+        assert str(CalVer.parse(text)) == text
+
+    @pytest.mark.parametrize("text", ["", "2024.", "2024.a", "r3", "v2024.1", " "])
+    def test_rejects_non_numeric(self, text: str) -> None:
+        with pytest.raises(InvalidVersionError):
+            CalVer.parse(text)
+
+    def test_ordering_is_numeric_not_lexical(self) -> None:
+        order = ["2024.1", "2024.2", "2024.10", "2025.1", "2025.1.1"]
+        versions = [CalVer.parse(t) for t in order]
+        assert versions == sorted(versions)
+
+    def test_components_and_not_prerelease(self) -> None:
+        v = CalVer.parse("2024.10")
+        assert v.components == (2024, 10)
+        assert v.is_prerelease is False
+
+
+class TestMonotonicVersion:
+    @pytest.mark.parametrize(("text", "rev"), [("r3", 3), ("rev12", 12), ("12", 12), ("R0", 0)])
+    def test_parses_revisions(self, text: str, rev: int) -> None:
+        v = MonotonicVersion.parse(text)
+        assert v.revision == rev
+        assert str(v) == text
+
+    @pytest.mark.parametrize("text", ["", "r", "3a", "r-3", "1.2"])
+    def test_rejects_non_revisions(self, text: str) -> None:
+        with pytest.raises(InvalidVersionError):
+            MonotonicVersion.parse(text)
+
+    def test_ordering_is_by_revision(self) -> None:
+        assert MonotonicVersion.parse("r12") > MonotonicVersion.parse("r3")
+        assert sorted([MonotonicVersion.parse("r12"), MonotonicVersion.parse("r2")]) == [
+            MonotonicVersion.parse("r2"),
+            MonotonicVersion.parse("r12"),
+        ]
+
+
+class TestCalVerConstraint:
+    def test_caret_is_year_as_major(self) -> None:
+        c = VersionConstraint.parse("^2024.1")
+        assert c.matches(CalVer.parse("2024.1"))
+        assert c.matches(CalVer.parse("2024.10"))
+        assert not c.matches(CalVer.parse("2025.1"))
+        assert not c.matches(CalVer.parse("2023.12"))
+
+    def test_tilde_pins_minor(self) -> None:
+        c = VersionConstraint.parse("~2024.1")
+        assert c.matches(CalVer.parse("2024.1"))
+        assert not c.matches(CalVer.parse("2024.2"))
+
+    def test_range_and_inequalities(self) -> None:
+        c = VersionConstraint.parse(">=2024.1,<2026")
+        assert c.matches(CalVer.parse("2025.5"))
+        assert not c.matches(CalVer.parse("2026.1"))
+        assert not c.matches(CalVer.parse("2023.9"))
+
+    def test_all_inequality_operators(self) -> None:
+        assert VersionConstraint.parse(">2024.1").matches(CalVer.parse("2024.2"))
+        assert not VersionConstraint.parse(">2024.1").matches(CalVer.parse("2024.1"))
+        assert VersionConstraint.parse("<=2024.2").matches(CalVer.parse("2024.2"))
+        assert not VersionConstraint.parse("<=2024.2").matches(CalVer.parse("2024.3"))
+
+    def test_bare_is_exact(self) -> None:
+        c = VersionConstraint.parse("2024.1")
+        assert c.matches(CalVer.parse("2024.1"))
+        assert not c.matches(CalVer.parse("2024.2"))
+
+    def test_does_not_match_a_semver_version(self) -> None:
+        assert not VersionConstraint.parse("^2024.1").matches(Version.parse("1.0.0"))
+
+
+class TestMonotonicConstraint:
+    def test_caret_means_at_least(self) -> None:
+        c = VersionConstraint.parse("^r3")
+        assert c.matches(MonotonicVersion.parse("r3"))
+        assert c.matches(MonotonicVersion.parse("r99"))
+        assert not c.matches(MonotonicVersion.parse("r2"))
+
+    def test_bare_and_tilde_are_exact(self) -> None:
+        assert VersionConstraint.parse("r3").matches(MonotonicVersion.parse("r3"))
+        assert not VersionConstraint.parse("r3").matches(MonotonicVersion.parse("r4"))
+        assert VersionConstraint.parse("~r3").matches(MonotonicVersion.parse("r3"))
+        assert not VersionConstraint.parse("~r3").matches(MonotonicVersion.parse("r4"))
+
+    def test_inequalities(self) -> None:
+        assert VersionConstraint.parse(">=r3").matches(MonotonicVersion.parse("r12"))
+        assert not VersionConstraint.parse("<r3").matches(MonotonicVersion.parse("r3"))
+        assert VersionConstraint.parse(">r3").matches(MonotonicVersion.parse("r4"))
+        assert VersionConstraint.parse("<=r3").matches(MonotonicVersion.parse("r3"))
+        assert not VersionConstraint.parse("<=r3").matches(MonotonicVersion.parse("r4"))
+
+
+class TestOpaqueVersion:
+    @pytest.mark.parametrize("text", ["D5020100", "D4010100", "DB010000", "2024.1", "r3", "1.2"])
+    def test_parses_non_semver_tokens(self, text: str) -> None:
+        assert str(OpaqueVersion.parse(text)) == text
+
+    @pytest.mark.parametrize("text", ["", "  ", "has space", ":colon", "@bad"])
+    def test_rejects_non_tokens(self, text: str) -> None:
+        with pytest.raises(InvalidVersionError):
+            OpaqueVersion.parse(text)
+
+    def test_lexical_ordering_is_deterministic(self) -> None:
+        assert OpaqueVersion.parse("D5020100") < OpaqueVersion.parse("D5020200")
+        assert sorted([OpaqueVersion.parse("DB010001"), OpaqueVersion.parse("DB010000")]) == [
+            OpaqueVersion.parse("DB010000"),
+            OpaqueVersion.parse("DB010001"),
+        ]
+
+    def test_not_a_prerelease(self) -> None:
+        assert OpaqueVersion.parse("D5020100").is_prerelease is False
+
+
+class TestCompatibilityGroup:
+    def test_major_drives_group_above_one(self) -> None:
+        assert compatibility_group(Version.parse("1.4.2")) == ("semver", 1)
+        assert compatibility_group(Version.parse("2.0.0")) == ("semver", 2)
+        assert compatibility_group(Version.parse("1.0.0")) == compatibility_group(
+            Version.parse("1.9.9")
+        )
+
+    def test_zero_major_groups_by_minor(self) -> None:
+        assert compatibility_group(Version.parse("0.1.0")) == ("semver", 0, 1)
+        assert compatibility_group(Version.parse("0.1.5")) == ("semver", 0, 1)
+        assert compatibility_group(Version.parse("0.2.0")) != compatibility_group(
+            Version.parse("0.1.0")
+        )
+
+    def test_zero_zero_groups_by_patch(self) -> None:
+        assert compatibility_group(Version.parse("0.0.3")) == ("semver", 0, 0, 3)
+        assert compatibility_group(Version.parse("0.0.3")) != compatibility_group(
+            Version.parse("0.0.4")
+        )
+
+    def test_opaque_scheme_groups_per_version(self) -> None:
+        assert compatibility_group(Version.parse("1.0.0"), "opaque") == ("opaque", "1.0.0")
+        assert compatibility_group(Version.parse("1.0.0"), "opaque") != compatibility_group(
+            Version.parse("1.1.0"), "opaque"
+        )
+
+    def test_calver_groups_by_year(self) -> None:
+        assert compatibility_group(CalVer.parse("2024.10")) == ("calver", 2024)
+        assert compatibility_group(CalVer.parse("2024.1")) == compatibility_group(
+            CalVer.parse("2024.12")
+        )
+        assert compatibility_group(CalVer.parse("2024.1")) != compatibility_group(
+            CalVer.parse("2025.1")
+        )
+
+    def test_monotonic_is_one_shared_group(self) -> None:
+        assert compatibility_group(MonotonicVersion.parse("r3")) == ("monotonic",)
+        assert compatibility_group(MonotonicVersion.parse("r3")) == compatibility_group(
+            MonotonicVersion.parse("r99")
+        )
+
+
+class TestExactConstraint:
+    def test_equals_is_exact(self) -> None:
+        c = VersionConstraint.parse("=1.2.3")
+        assert c.is_exact
+        assert c.exact_version == Version.parse("1.2.3")
+
+    def test_caret_and_range_are_not_exact(self) -> None:
+        assert not VersionConstraint.parse("^1.2.3").is_exact
+        assert not VersionConstraint.parse(">=1.0.0,<2.0.0").is_exact
+        assert VersionConstraint.parse("^1.2.3").exact_version is None
+
+    def test_pinned_token_for_semver(self) -> None:
+        assert VersionConstraint.parse("=1.2.3").pinned_token == "1.2.3"
+        assert VersionConstraint.parse("^1.2.3").pinned_token is None
+
+
+class TestOpaqueConstraint:
+    @pytest.mark.parametrize("text", ["=D5020100", "D5020100", "==2024.1", "2024.1"])
+    def test_opaque_exact_pins_parse(self, text: str) -> None:
+        c = VersionConstraint.parse(text)
+        assert c.opaque is not None
+        assert c.is_exact
+        assert c.exact_version is None  # not a SemVer Version
+
+    def test_opaque_matches_only_its_exact_token(self) -> None:
+        c = VersionConstraint.parse("=D5020100")
+        assert c.pinned_token == "D5020100"
+        assert c.matches(OpaqueVersion.parse("D5020100"))
+        assert not c.matches(OpaqueVersion.parse("D5020200"))
+
+    def test_semver_constraint_never_matches_opaque_version(self) -> None:
+        assert not VersionConstraint.parse("^1.0.0").matches(OpaqueVersion.parse("D5020100"))
+
+    def test_semver_pin_is_not_opaque(self) -> None:
+        # A SemVer-shaped =pin stays a normal SemVer constraint, not an opaque one.
+        assert VersionConstraint.parse("=1.2.3").opaque is None
 
 
 class TestVersionParsing:

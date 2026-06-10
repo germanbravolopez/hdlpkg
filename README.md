@@ -36,23 +36,33 @@ Implemented today:
   constraint grammar (`^`, `~`, `>=`, `<`, ranges, `*`) for dependency specs.
 - **Manifest (`ip.toml`)** — a TOML manifest per core declaring identity,
   metadata, filesets, dependencies, and build targets.
-- **Dependency resolver** — backtracking, newest-compatible resolution to one
-  `Vlnv` per package (fail-on-conflict, pre-release-aware).
+- **Dependency resolver** — backtracking, newest-compatible resolution that unifies
+  SemVer-compatible dependents (Cargo-style) and applies a configurable
+  `[resolution] on-conflict` policy to incompatible conflicts
+  (`fail_on_conflict`/`use_latest`/`isolate_namespaces`); scheme-aware
+  (`semver`/`calver`/`monotonic`/`opaque`), pre-release-aware. Under
+  `isolate_namespaces`, `gen` name-mangles coexisting SystemVerilog/VHDL packages so
+  two versions build together.
 - **Lockfile (`ip.lock`)** — a deterministic, verifiable record of a resolve
   (exact VLNVs + source + SHA-256), written by `hdlpkg resolve`.
 - **Content-addressed cache + registries** — a SHA-256-keyed local cache with
-  verify-on-read, fed by local-directory and HTTP registry backends; `hdlpkg
-  install` resolves and fetches dependencies into it.
-- **Packaging + distribution** — a deterministic `.ipkg` artifact with `pack`,
-  append-only `publish` (with `yank`), and `pull` (fetch by VLNV into the cache).
-- **CLI (`hdlpkg`)** — `info`, `validate`, `init`, `resolve`, `install`, `pack`,
-  `publish`, `pull`, and `yank` work today; the rest is wired and reports planned
-  status.
+  verify-on-read, fed by **local-directory, HTTP, and OCI** registry backends behind one
+  `--registry` location (a path, `http(s)://`, or `oci://`); `hdlpkg install` resolves and
+  fetches dependencies into it.
+- **Private, self-hosted distribution** — publish/consume cores over an internal HTTP server
+  or any **OCI registry** (Harbor, Artifactory, Nexus, GitLab, Zot, ECR/ACR) without going
+  public; `hdlpkg login` stores per-host credentials (a direct bearer token, or a
+  username+secret that drives the OCI token-exchange used by managed registries; a
+  `docker login` is reused), so a team shares IP inside its network. A deterministic `.ipkg`
+  artifact backs `pack`, append-only `publish` (with `yank`), and `pull` (by VLNV).
+- **CLI (`hdlpkg`)** — all commands are implemented: `info`, `validate`, `init`, `add`,
+  `resolve`, `install`, `pack`, `publish`, `pull`, `yank`, `login`, `logout`, `gen`, `tree`,
+  `export-ipxact`.
 
 Designed and on the roadmap (see the progress tracker):
 
-- Additional **registries** (Git-backed channel, OCI artifact registry).
-- Tool-flow **generation** (EDAM) and **IP-XACT export** for Vivado/other-tool interop.
+- A **Git-backed** registry channel.
+- Tool-flow **generation** straight from a registry (it builds from local/extracted sources today).
 
 ---
 
@@ -95,6 +105,11 @@ hdlpkg gen sim ip.toml --search ../cores     # generate Verilator/Vivado inputs 
 hdlpkg tree ip.toml --search ../cores        # print the resolved dependency graph
 hdlpkg export-ipxact ip.toml                 # export an IP-XACT (IEEE 1685) component XML
 python -m hdl_ip_packager info   # same CLI, invoked as a module
+
+# Private, self-hosted registry (HTTP or OCI) -- log in once, then publish/consume:
+hdlpkg login oci://harbor.corp.local/ip            # stores a per-host bearer token
+hdlpkg publish ip.toml --registry oci://harbor.corp.local/ip
+hdlpkg resolve ip.toml --registry oci://harbor.corp.local/ip   # nothing leaves your network
 ```
 
 A minimal `ip.toml`:
@@ -118,6 +133,14 @@ toolflow = "verilator"
 filesets = ["rtl"]
 top      = "uart_top"
 ```
+
+Optional keys extend this: `[package].scheme` selects the version scheme — `semver`
+(default), `calver` (`2024.1`, year-as-major), `monotonic` (`r3`), or `opaque`
+(non-SemVer tokens pinned exactly) — and `[resolution] on-conflict = "..."`
+(`fail_on_conflict` default / `use_latest` / `isolate_namespaces`, also a
+`--on-conflict` flag) for how an incompatible version conflict is handled. See
+[docs/modules/manifest.md](docs/modules/manifest.md) and
+[resolver.md](docs/modules/resolver.md).
 
 Two complete, working cores live under [`examples/`](examples/) — a FIFO
 (`acme:common:fifo`) and a UART (`acme:comm:uart`) that depends on it:

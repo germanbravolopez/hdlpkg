@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 
 from hdl_ip_packager.backends import CoreSource, build_eda_design
+from hdl_ip_packager.exceptions import BackendError
 from hdl_ip_packager.manifest import Manifest
 
 pytestmark = pytest.mark.unit
@@ -269,3 +270,34 @@ filesets = ["rtl"]
     # Same root string for both so the joined paths collide.
     design = build_eda_design(_core(root, "same"), "synth", [_core(a, "same")])
     assert [f.path for f in design.files] == ["same/shared.sv"]
+
+
+def test_two_versions_of_one_package_are_refused() -> None:
+    # gen cannot host two versions of one package (no name-mangling) -> refuse.
+    bus1 = """\
+[package]
+vendor = "acme"
+library = "common"
+name = "bus"
+version = "1.0.0"
+[filesets.rtl]
+files = ["bus.sv"]
+type = "systemVerilogSource"
+"""
+    bus2 = bus1.replace('version = "1.0.0"', 'version = "2.0.0"')
+    root = """\
+[package]
+vendor = "acme"
+library = "x"
+name = "root"
+version = "1.0.0"
+top = "root"
+[filesets.rtl]
+files = ["root.sv"]
+type = "systemVerilogSource"
+[targets.synth]
+toolflow = "vivado"
+filesets = ["rtl"]
+"""
+    with pytest.raises(BackendError, match="two versions of acme:common:bus"):
+        build_eda_design(_core(root, "r"), "synth", [_core(bus1, "b1"), _core(bus2, "b2")])

@@ -160,17 +160,30 @@ variant if a particular release ever warrants it. Runs locally.
 
 Do not proceed to the merge until **every** finding is either fixed or filed.
 
-**Then merge the PR.** First wait for CI on the branch tip to pass — never merge a
-red or still-running run:
+**Then merge the PR — but only once EVERY check is green. This is a hard gate.**
+Wait for **all** PR checks (the full CI matrix — every OS/Python job, Docs, anything
+else — not a single workflow run) to pass. Use `gh pr checks`, which exits non-zero
+if any check fails or is still pending:
 
 ```bash
-gh run watch "$(gh run list --branch release/X.Y.Z --workflow CI --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
+gh pr checks release/X.Y.Z --watch    # do NOT pipe to tail / a pager — that hides the exit code
+echo "checks exit: $?"                 # must be 0 before you merge
 ```
 
-Then merge with a **merge commit** (ruleset "main": `allowed_merge_methods:
-["merge"]`, squash/rebase disabled). GitHub forbids approving your own PR, so the
-agent uses `--admin` to satisfy the ruleset's required-review / last-push checks
-(this logs a "bypassed rule violations" entry — expected for an agent-driven release):
+**If any check is red or pending, STOP — do not merge:**
+- **A real failure** (test/lint/type error): fix it on the branch, push, and re-watch.
+- **A transient infra flake** (e.g. an `actions/setup-python` network error that
+  leaves the `Install`/`Test` steps *skipped*, not failed): re-run only the failed
+  run and re-watch until it is genuinely green —
+  `gh run rerun <run-id> --failed` then `gh pr checks release/X.Y.Z --watch`.
+- **Never** use `--admin` to merge past a failing or pending check. `--admin` exists
+  only to satisfy the **self-approval** the ruleset requires (you cannot approve your
+  own PR); it must never be the reason a red check reaches `main`.
+
+Only when `gh pr checks` has exited `0` (all green), merge with a **merge commit**
+(ruleset "main": `allowed_merge_methods: ["merge"]`, squash/rebase disabled). The
+`--admin` flag covers only the required-review / last-push approval (it logs a
+"bypassed rule violations" entry — expected for an agent-driven release):
 
 ```bash
 gh pr merge release/X.Y.Z --merge --admin --delete-branch
@@ -267,8 +280,15 @@ Confirm the wheel + sdist are both listed. Surface the release URL
 - **Resolve review findings before merge.** Every `/code-review` finding is either
   fixed on the release branch or filed in Open Non-Blocking Issues before the merge —
   never merge with an open, unaddressed finding.
+- **Green CI is a hard gate before merge.** Verify **all** PR checks pass with
+  `gh pr checks <branch> --watch` (exit 0) before merging — the whole matrix, not one
+  workflow. Never pipe the watch to `tail`/a pager (it hides the exit code), and never
+  use `--admin` to merge past a red or pending check (`--admin` is only for the
+  self-approval requirement). A flaky infra failure is re-run to green
+  (`gh run rerun <id> --failed`), not bypassed.
 - **Stop on the first failure** — dirty tree, red gate, guard mismatch, tag
-  conflict, a merge that won't go cleanly, failed workflow. Surface it and wait.
+  conflict, a merge that won't go cleanly, a red or pending PR check, failed workflow.
+  Surface it and wait.
 - **No `Co-Authored-By`, no emojis** (project rules).
 
 ---

@@ -42,11 +42,14 @@ and commits. Push `develop`; CI runs on the push.
 `main` is the protected **release line** (ruleset "main": no direct commits/pushes,
 no force-push, no deletion, merge-commit-only). It is updated **only at release
 time** — a release is the one flow that uses a PR: cut `release/X.Y.Z` off `develop`,
-bump the version, open a PR into `main`, and once CI is green the agent **reviews it
-with `/code-review`**, resolves or files every finding, and **merges it** with a merge
-commit (`gh pr merge --merge --admin`; GitHub forbids self-approval, so `--admin`
-satisfies the ruleset and logs the bypass). Then tag the merged commit on `main` to
-publish, and fast-forward `develop` to `main`.
+bump the version, open a PR into `main`, and the agent **reviews it with
+`/code-review`** and resolves or files every finding. **Then — hard gate — confirm
+every PR check is green** with `gh pr checks <branch> --watch` (exit 0; the whole
+matrix, never one workflow, and never piped to `tail` which hides the exit code)
+before **merging** with a merge commit (`gh pr merge --merge --admin`; GitHub forbids
+self-approval, so `--admin` covers only that — never use it to merge past a red or
+pending check). Then tag the merged commit on `main` to publish, and fast-forward
+`develop` to `main`.
 
 A **human gate applies only when the agent cannot safely decide on its own** — the
 `1.0.0` stability sign-off, a security-sensitive or hard-to-reverse change, or

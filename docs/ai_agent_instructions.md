@@ -61,10 +61,15 @@ no deletion, merge-commit-only), updated **only through the release flow**:
    fix it, or, if it's out of this release's scope, file it in
    `docs/progress_tracker.md` Open Non-Blocking Issues. Never merge with an open,
    unaddressed finding.
-4. **Merge with a merge commit** — `gh pr merge --merge --admin` (squash and rebase
+4. **Confirm every PR check is green (hard gate)** with `gh pr checks <branch> --watch`
+   (must exit 0 — the whole CI matrix, not one workflow; never pipe to `tail`, which
+   hides the exit code). A flaky infra failure is re-run to green
+   (`gh run rerun <id> --failed`), never bypassed.
+5. **Merge with a merge commit** — `gh pr merge --merge --admin` (squash and rebase
    are disabled, `allowed_merge_methods: ["merge"]`; GitHub forbids approving your own
-   PR, so `--admin` satisfies the required-review / last-push check and logs the
-   bypass) — then **tag the merged `main`** and fast-forward `develop` to it.
+   PR, so `--admin` covers **only** the required-review / last-push approval — never
+   use it to merge past a red or pending check) — then **tag the merged `main`** and
+   fast-forward `develop` to it.
 
 **Defer to a human gate only when the agent cannot safely decide on its own** — the
 `1.0.0` stability sign-off, a security-sensitive or hard-to-reverse change, or

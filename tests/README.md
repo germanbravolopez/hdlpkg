@@ -15,23 +15,35 @@ tests/
 │   ├── test_vlnv.py
 │   ├── test_manifest.py
 │   ├── test_scaffold.py
-│   ├── test_resolver.py            backtracking dependency resolution
-│   ├── test_lockfile.py            ip.lock model: round-trip + verification
+│   ├── test_resolver.py            resolution: backtracking, conflict policies, opaque scheme
+│   ├── test_lockfile.py            ip.lock model: round-trip + verification (+ opaque scheme marker)
 │   ├── test_cli.py
 │   ├── test_precommit_config.py    .pre-commit-config.yaml parses + keeps CI hooks
 │   ├── test_docs_site.py       mkdocs.yml parses + every nav page exists
 │   ├── test_edam.py            build_eda_design: selection, topo order, dedup
 │   ├── test_backends.py        Verilator .vc / Vivado .tcl rendering
 │   ├── test_treeview.py        render_dependency_tree: ordering + diamond marking
+│   ├── test_mangle.py          SV + VHDL package mangler: safe rewrite + planner refusals
 │   ├── test_ipxact.py          to_ipxact: IEEE 1685-2014 component XML
+│   ├── test_credentials.py     CredentialStore: host keying, TOML round-trip, load/save
+│   ├── test_registry_location.py  registry_from_location: scheme dispatch + credential wiring
+│   ├── test_login_cli.py       hdlpkg login/logout: token storage + error paths
 │   └── test_sbom.py            build_cyclonedx: CycloneDX SBOM + determinism
 └── integration/                multi-module / filesystem tests            - marker: integration
     ├── test_manifest_cli_flow.py
     ├── test_resolve_cli.py         hdlpkg resolve end to end on examples/
+    ├── test_conflict_policy_cli.py on-conflict policies + gen refusing module coexistence
+    ├── test_mangle_gen_cli.py     gen name-mangles coexisting SV packages end to end
+    ├── test_mangle_vhdl_gen_cli.py gen (ghdl) name-mangles coexisting VHDL packages
+    ├── test_opaque_registry_cli.py opaque (non-SemVer) publish/resolve/pull round-trip
+    ├── test_http_registry_cli.py   writable + authenticated HTTP registry, full CLI flow
+    ├── test_oci_registry_cli.py    OCI distribution v2 backend vs a mock registry, full CLI flow
+    ├── test_oci_auth_cli.py        OCI token-exchange (401 -> Basic realm -> access token) via the CLI
     ├── test_cache.py               content-addressed cache (verify-on-read)
     ├── test_registry.py            local + HTTP registries, graph walk, install
     ├── test_packaging.py           .ipkg pack/extract determinism + safety
     ├── test_pack_cli.py            pack/publish/pull/yank loop
+    ├── test_e2e_lifecycle.py    full producer->consumer round trip: publish->resolve->gen->install->pull
     ├── test_examples.py         validates the bundled examples/ cores
     ├── test_gen_cli.py          hdlpkg gen over examples (resolve → render → write)
     ├── test_tree_cli.py         hdlpkg tree over examples

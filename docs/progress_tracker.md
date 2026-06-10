@@ -18,31 +18,47 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: `0.8.0` — the pre-1.0 completeness pass + backlog batch on top of the
-M8 SBOM work: reproducible lockfile-driven builds (`install --locked`/`gen
---locked`), `hdlpkg add`, the `ip.toml` `schema` key, pack/top hardening, the `tree`
-Windows fix, `resolve`/`install`/`tree --registry`, `Fileset.depend`, three more
-backends (Icarus/GHDL/Yosys), and Dependabot. Shipped as `0.8.0`, not `1.0.0`: the
-formats are still moving (multi-version lockfile shape and a possible `scheme` key are
-recorded as open issues) and the 1.0.0 stability gate (rc soak, OCI protocol,
-third-party consume) is not yet met. See the Release plan.
+**Version**: **`1.0.0-rc.1`** cut — the first 1.0 release candidate, published to PyPI as a
+**pre-release** to start the **soak** (no `ip.toml`/`ip.lock`/CLI/registry-protocol change
+until promotion). It carries everything that landed since `0.8.0`: the **versioning contract
+for the 1.0 freeze** — Cargo-style unification, a `[resolution] on-conflict` policy
+(`fail_on_conflict` default / `use_latest` / `isolate_namespaces`) that allows
+multi-version coexistence in the resolve/lock/tree (with `gen` refusing two versions),
+and the `[package].scheme` key (`semver` / `opaque`) with explicit non-SemVer
+rejection, **and the operational distribution protocol** — HTTP + OCI registry backends
+behind one `registry_from_location` abstraction, with `hdlpkg login` auth (direct bearer
+**and** the OCI token-exchange, reusing `docker login`) for private, self-hosted registries.
+With the resolver contract, the `ip.toml`/`ip.lock` format shapes, and the registry/OCI
+protocol now settled, the path to the final `1.0.0` is just the soak: the **`1.0.0-rc.1`
+soak is now underway** (this candidate must hold with no format/CLI/protocol change), and a
+**third-party publish/consume** should validate this rc during the soak. A clean soak is
+promoted to `1.0.0`; any required format change resets it (and would ship as `0.9.0`). See
+the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
-pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
+pass; fully typed, linted, and tested (457 passing tests, ~95% coverage):
 - **Versioning** — SemVer 2.0.0 `Version` + `VersionConstraint` (caret/tilde/range
   grammar, pre-release precedence).
 - **Identity** — `PackageRef` and `Vlnv` (`vendor:library:name:version`).
 - **Manifest** — `ip.toml` parsing/validation (`[package]`, `[dependencies]`,
   `[filesets]`, `[targets]`), with an optional `schema` version for a migration path.
-- **Resolver** — backtracking, newest-compatible dependency resolution (one `Vlnv`
-  per package, fail-on-conflict); pure, fed by an in-memory version index.
+- **Resolver** — backtracking, newest-compatible dependency resolution that unifies
+  SemVer-compatible dependents (Cargo-style) and applies a configurable
+  `[resolution] on-conflict` policy to an incompatible conflict
+  (`fail_on_conflict`/`use_latest`/`isolate_namespaces`, the last keeping multiple
+  versions per package); scheme-aware (`semver`/`opaque`); pure, fed by an in-memory
+  version index.
 - **Lockfile** — deterministic `ip.lock` (serialize/parse/verify a `Resolution`
   with per-core source + SHA-256), written by `hdlpkg resolve`.
 - **Cache** — content-addressed local blob store (SHA-256 key, verify-on-read,
   atomic writes), populated by `hdlpkg install`.
-- **Registry** — `Registry` interface + `LocalDirectoryRegistry`, `HttpRegistry`,
-  and writable `LocalRegistry` (append-only + yank) backends + a dependency-graph
-  walker feeding the resolver (Git/OCI backends are open Non-Blocking issues).
+- **Registry** — `Registry` interface + local-dir/writable-local/HTTP/OCI backends
+  behind one `registry_from_location` scheme dispatch (path / `http(s)://` / `oci://`),
+  all writable (append-only + yank), + a dependency-graph walker feeding the resolver
+  (Git backend is an open Non-Blocking issue).
+- **Credentials** — per-host `Credential` (direct bearer or username+secret) for private
+  registries via `hdlpkg login`; OCI token-exchange (401 -> realm -> scoped access token);
+  `~/.docker/config.json` reused as a fallback.
 - **Packaging** — deterministic `.ipkg` artifact (`pack_core`/`extract_ipkg`); the
   packed-content digest is what the cache and lockfile pin.
 - **Backends** — tool-flow generation (`backends/`): a pure EDAM-like intermediate
@@ -54,16 +70,21 @@ pass; fully typed, linted, and unit-tested (268 passing tests, ~96% coverage):
   CycloneDX SBOM (`sbom.py`: `build_cyclonedx`) emitted by `hdlpkg pack --sbom`
   (Sigstore signing deferred).
 - **CLI** — all commands implemented: `info`/`validate`/`init`/`add`/`resolve`/
-  `install`/`pack`/`publish`/`pull`/`yank`/`gen`/`tree`/`export-ipxact`. `install
-  --locked` and `gen --locked` give reproducible, lockfile-driven builds.
+  `install`/`pack`/`publish`/`pull`/`yank`/`login`/`logout`/`gen`/`tree`/`export-ipxact`.
+  `install --locked` and `gen --locked` give reproducible, lockfile-driven builds.
 - **Tooling** — pytest (markers + coverage gate + foldable summary), ruff, mypy
   strict on `src/`, CI workflow, and a cross-platform test-summary renderer.
 
-**Next**: all roadmap milestones (M1–M8) are delivered; the remaining work toward
-`1.0.0` is the stability gate (see the Release plan) — frozen formats, an `rc` soak,
-the OCI protocol, and a third-party publish/consume — plus the open
-backends/signing and the newly recorded versioning issues (multi-version
-coexistence, unification semantics, non-SemVer schemes).
+**Next**: all roadmap milestones (M1–M8) are delivered, the versioning contract that was
+gating the format freeze is settled (ordered non-SemVer schemes + SV/VHDL package
+name-mangling), and the **registry/OCI protocol is now implemented** — local, HTTP, and OCI
+backends behind one abstraction, with `hdlpkg login` auth for private self-hosted sharing.
+The OCI **token-exchange** auth flow now also ships (managed Harbor/cloud registries work,
+plus `docker login` reuse). The remaining work toward `1.0.0` is the narrow stability gate
+(see the Release plan) — a third-party publish/consume and a `1.0.0-rc.1` soak — plus
+still-deferred external-service work (Git-backed registry, Sigstore signing) and the
+residual coexistence case (two *module*/*entity* versions — needs an HDL-aware frontend;
+package coexistence is done for both SystemVerilog and VHDL).
 
 ---
 
@@ -129,14 +150,13 @@ _None._
 
 | Issue | File | Notes |
 |-------|------|-------|
-| Git-backed registry | `registry.py` | A `Registry` backend resolving cores from a Git channel (tags/refs). Deferred from M4: needs the `git` CLI + a remote to implement and test honestly. Mirror the `LocalDirectoryRegistry`/`HttpRegistry` shape. |
-| OCI artifact registry | `registry.py` | The differentiator backend: store/fetch cores as OCI artifacts (Docker-registry infra). Deferred from M4: needs a live OCI registry (or a mock) and the manifest/blob API; significant standalone work. |
-| Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git/OCI backends. Checksums + SBOM already ship; this adds authenticity on top. |
-| Resolve/install over HTTP/OCI + `gen` from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry DIR` now consume a **local published** `LocalRegistry` directly (the producer->consumer loop closes for local registries). Remaining: wire `HttpRegistry` into `--registry` (resolve/install over HTTP), the OCI backend, and a fetch-then-extract so `gen` can build straight from a registry (it still needs loose sources via `--search`/`pull`). |
+| Full compile/elaborate/simulate of the consumer demo's SV + VHDL outputs | consumer demo (`verify.py`, `demo.py`, `.github/workflows/verify.yml`), `backends/` | **Strengthen the end-to-end proof.** Today the consumer demo (and the in-repo `gen` tests) only assert that `gen` *emits* the right tool-flow inputs (`.vc`/`run_ghdl.sh`/mangled sources); nothing actually **builds** them. Add a real toolchain pass that compiles, elaborates, and simulates the generated designs — `verilator`/`icarus` for the SystemVerilog SoCs (`soc/`, `soc_conflict/`) and `ghdl` for the VHDL one (`soc_vhdl/`) — so we prove the generated flows genuinely elaborate (and that the package name-mangling produces designs that *build*, not just text that looks right). Needs the HDL toolchains installed on the runner (e.g. `ghdl`, `verilator`/`iverilog` via apt or a setup action), so it is a separate, possibly opt-in CI lane from the pure-Python `verify` matrix. This feeds the 1.0 **third-party consume** confidence but does not itself gate the release. |
+| Encrypted IP distribution (IEEE 1735) | `packaging.py`, `registry.py`, `manifest.py`, `cli.py` | **Future feature.** Let a producer distribute a core whose HDL source is **encrypted**, so a consumer can resolve/install/`gen` against it (the tool can drive a tool flow) without the source ever being readable on disk. Two distinct layers, decide which to build: **(a) Standard HDL IP encryption (IEEE 1735 / `pragma protect`)** — the cross-vendor norm. Each source file carries an encrypted envelope (a symmetric session key wrapped under each *tool vendor's* public key + AES/RSA-encrypted payload, IEEE 1735 v1/v2 with "rights" digests). The EDA tool decrypts at compile time; the packager's job is to **carry, not break** these envelopes — pack/`extract`/SBOM must treat an encrypted file as opaque, the deterministic-pack digest still pins ciphertext, and `gen` must not assume it can read the source. The tool would *not* implement the crypto itself (vendor keys live in the EDA tools); at most it could shell out to `vivado -encrypt`/`vlog +protect` to *produce* envelopes. **(b) At-rest/transport encryption of the `.ipkg`** — encrypt the whole artifact in the registry/cache for confidential distribution (e.g. age/GPG or an OCI-layer key), decrypted on `pull` with a consumer key. This is independent of HDL-tool semantics and simpler, but does **not** give the per-tool, compile-time protection (a) does. Open questions: where keys/recipients are declared (a `[package]`/`[encryption]` manifest key vs. out-of-band), how it interacts with content-addressing (the digest must pin what is *stored*), how the SBOM marks a component encrypted, and how `validate`/`info` behave when source is unreadable. Needs a real EDA tool (or an interop fixture) to test (a) honestly — defer like the Git/OCI/Sigstore work. |
+| Git-backed registry | `registry.py` | A `Registry` backend resolving cores from a Git channel (tags/refs). Deferred from M4: needs the `git` CLI + a remote to implement and test honestly. Mirror the `LocalDirectoryRegistry`/`HttpRegistry`/`OciRegistry` shape. |
+| Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git backend. Checksums + SBOM already ship; this adds authenticity on top. |
+| `gen` straight from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry` now consume **local, HTTP, and OCI** registries directly (the producer->consumer loop is closed over the network). Remaining: a fetch-then-extract path so `gen` can build straight from a registry — it still needs loose sources via `--search` (point it at extracted/`pull`ed trees). |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
-| Multi-version coexistence (two versions of one package in one design) | `resolver.py`, `lockfile.py`, `backends/edam.py`, `cli.py` | **Required future feature.** Today the resolver is **single-version-per-package**, fail-on-conflict. Some designs genuinely need *incompatible majors* of one IP to coexist — e.g. the external consumer demo's `soc_conflict/`: `fifo -> bus_pkg ^1` and `legacy -> bus_pkg ^2`, where v2 is a breaking change (it renamed `DATA_WIDTH` -> `BUS_DATA_BITS`), so no single version satisfies both. The work splits into two halves with very different risk: **(a) Bookkeeping (pure, safe):** the resolver/lockfile/`tree` keep *multiple* selected versions when ranges fall in SemVer-incompatible groups; `ip.lock` records more than one version of the same package. **(b) Physical coexistence at `gen` (the hard part):** SystemVerilog/Verilog put every `module`/`package` name in **one global namespace**, so two `package bus_pkg;` declarations collide at elaboration and the tool cannot know which one a consumer's `import bus_pkg::*` means. Making them build together requires **automatic name-mangling** — rename each version's declared symbols with a version-unique suffix (`bus_pkg` -> `bus_pkg__v1` / `bus_pkg__v2`) and rewrite *every reference* in each consumer to the version *that consumer resolved to*. That means editing HDL **source**, which the tool currently treats as opaque blobs; naive regex is unsafe (comments, macros, partial-name matches, hierarchical refs), so it likely needs an HDL-aware frontend (cf. the parked "source-unit tokenizing" backlog item). VHDL is slightly better placed (logical libraries give a namespace) but still needs `library`/`use`-clause rewriting. **Until (b) is built, `gen` must refuse to emit two versions of one package** with a clear message pointing at this limitation. Cargo/npm get multi-version "for free" only because their *compiler* namespaces each package automatically; HDL gives no such thing, so we must synthesize it. |
-| Unification semantics for resolution (sub-issue of multi-version) | `resolver.py` | A prerequisite decision for multi-version coexistence: **when does the resolver collapse to one version vs. keep several?** Two models: **Cargo-style (recommended)** — unify all dependents whose ranges are SemVer-compatible (same major) to the newest that satisfies them, and only allow *distinct* versions across *incompatible* majors (so the demo's `soc/` still resolves to a single `bus_pkg 1.1.0`; only `soc_conflict/` would get two). **Honor-exact-pins** — keep a distinct version per dependent whenever their selected versions differ at all, even within one major (more copies, more mangling, diverges from npm/Cargo norms). This choice changes the resolver contract and the lockfile shape, so it must be settled before (a) above lands. |
-| Non-SemVer / custom version schemes | `version.py`, `manifest.py`, `resolver.py` | The tool assumes **SemVer 2.0.0** everywhere (`Version` + `VersionConstraint` parse, precedence, caret/tilde ranges). Real HDL IP is frequently versioned otherwise: date/calendar-based (`2024.1` Vivado-style, `YY.MM` CalVer), monotonic revisions (`r3`, `rev12`), `git describe` (`1.2-14-gabcdef`), or opaque vendor tags. The tool must define what happens when a manifest's `version` is **not** SemVer. Behaviors to specify: **(1)** the strict default — reject a non-SemVer `version` at manifest-parse time with a clear `ManifestError` naming the offending string (better than mis-ordering it); **(2)** an opt-in `scheme` field in `[package]` (e.g. `scheme = "semver" \| "calver" \| "opaque"`) selecting the precedence/constraint engine, giving a forward-compatible migration path; **(3)** an **opaque/pinned** mode that supports only **exact-match** constraints (no ranges, no newest-compatible selection) so such cores can still be resolved and locked **deterministically** even without a total order. Implement at least (1) explicitly before the 1.0 format freeze; (2)/(3) can follow behind the `schema`/`scheme` keys. |
+| Multi-version coexistence for *modules*/*entities* (beyond packages) | `mangle.py`, `cli.py` | **Package** coexistence is done for both SystemVerilog and VHDL (`gen` name-mangles under `isolate_namespaces`). What remains: two versions of a SystemVerilog *module*/interface or a VHDL *entity*. Unlike a package reference (`::` / `use work.`), an *instantiation* position (`foo bar (...)` in SV, `label : entity work.foo` / component instantiation in VHDL) cannot be disambiguated from other constructs without a real parser, so it is refused today. Needs an HDL-aware frontend (cf. the parked "source-unit tokenizing" backlog item). |
 
 ---
 
@@ -151,6 +171,237 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Release 1.0.0-rc.1 — June 2026
+- [x] **Cut `1.0.0-rc.1`, the first 1.0 release candidate**, to **start the soak** toward the
+  final `1.0.0`. It bundles everything since `0.8.0`: the versioning contract for the 1.0
+  freeze (Cargo-style unification, the `[resolution] on-conflict` policy, SV+VHDL package
+  name-mangling, ordered non-SemVer schemes), and the operational distribution protocol
+  (local/HTTP/OCI registries behind `registry_from_location`, `hdlpkg login` with direct
+  bearer **and** OCI token-exchange + `docker login` reuse). Published to PyPI as a
+  **pre-release** (PEP 440 `1.0.0rc1`), so `pip install hdl-ip-packager` does not pick it up
+  unless `--pre`/an explicit pin is used; `release.yml` marks the GitHub release pre-release.
+  Bumped `pyproject.toml` + `__init__.py` to `1.0.0-rc.1`. **The soak rule**: this candidate
+  must hold with **no `ip.toml`/`ip.lock`/CLI/registry-protocol change**; a clean soak (ideally
+  including a genuine third-party publish/consume against this rc) is promoted to `1.0.0`, while
+  any required format change resets the soak and ships as `0.9.0` instead. Promotion to `1.0.0`
+  remains a deliberate, human-gated sign-off (not autonomous).
+
+### OCI token-exchange auth flow (works against managed Harbor/cloud registries) — June 2026
+- [x] **`OciRegistry` now performs the Docker/OCI token-exchange dance**, so it
+  authenticates against registries that issue short-lived access tokens (managed Harbor,
+  GitLab, Docker Hub, ECR/ACR), not only ones that accept a static bearer. On a `401`
+  carrying `WWW-Authenticate: Bearer realm=...,service=...,scope=...`, the backend calls
+  the realm token endpoint (HTTP Basic with the stored credential, or anonymously for a
+  public pull token), caches the returned access token, and retries the request once.
+  Because the retry happens per request using the server-supplied scope, a pull-scoped
+  token is transparently upgraded to a push scope when publishing. A username-less
+  credential is still sent directly as a bearer (the self-hosted/no-auth path that
+  already worked is unchanged). New pure helper `parse_bearer_challenge` (unit-tested).
+- [x] **Credentials grew a username.** `Credential(secret, username=None)` replaces the
+  bare token: a username-less credential is a direct bearer; a username+secret pair is
+  used as HTTP Basic in the exchange. `hdlpkg login` gained `--username` (and `--password`
+  as an alias of `--token`), prompting for a password instead of a token when a username
+  is given. The credentials file moved to a richer `[registries."host"]` form (with an
+  optional `username`), and **still reads the legacy `[tokens]` table** so older files
+  keep working.
+- [x] **`docker login` credentials are reused.** `~/.docker/config.json`
+  (`$DOCKER_CONFIG` honored) is parsed for `auths[host].auth` (base64 `user:pass`) and
+  `identitytoken`, and merged as a **fallback** under stored `hdlpkg login` credentials,
+  so a registry the user already authenticated with Docker works without a second login.
+- [x] **Tested honestly with no live service**: a localhost mock that *requires* the
+  exchange (401 challenge -> a Basic-checking token endpoint -> bearer-gated `/v2/`)
+  drives the full publish/resolve flow via the CLI, plus wrong-password failure and an
+  anonymous pull-only token (resolve works, push is refused); the challenge parser,
+  `Credential`/docker-config parsing, and the store round-trip have unit tests. Files:
+  `credentials.py`, `registry.py`, `cli.py`, `__init__.py`, `tests/unit/test_credentials.py`,
+  `test_registry_location.py`, `test_login_cli.py`, `tests/integration/test_oci_auth_cli.py`.
+  Validated earlier against live no-auth Zot and `docker run registry:2`; this closes the
+  authenticated-registry gap noted then.
+
+### Stable registry protocol: HTTP + OCI backends behind one abstraction, with login auth — June 2026
+- [x] **Network registries are now first-class, so teams can share IP privately on their
+  own servers** — the operational half of the 1.0 "stable registry/OCI protocol" gate.
+  `resolve`/`install`/`tree`/`publish`/`pull` accept a `--registry` **location** dispatched
+  by URL scheme through a single `registry_from_location()` factory: a bare path / `path:` /
+  `file://` -> the writable local `LocalRegistry`, `http(s)://` -> `HttpRegistry`, and
+  `oci://` / `oci+http://` -> the new `OciRegistry`. The CLI is now backend-agnostic (the
+  one place a backend is chosen is the factory), which is what makes the on-disk and wire
+  protocol surface stable for 1.0.
+- [x] **`OciRegistry`: cores as OCI artifacts over the OCI distribution v2 API**, so a core
+  lives in any standard registry (Harbor, Artifactory, Nexus, GitLab, Zot, ECR/ACR) — all of
+  which are **self-hostable and private by default**. A core's `ip.toml` is the artifact
+  *config* blob and its deterministic `.ipkg` is the single *layer*, tagged with the version;
+  the package maps to repository `{prefix}/{vendor}/{library}/{name}`. Implements blob upload
+  (HEAD-skip + POST/PUT monolithic), manifest/tag PUT+GET, and `tags/list`, append-only
+  (refuses to overwrite a tag). `oci://` uses HTTPS, `oci+http://` plaintext (internal/dev).
+  Because the layer is the `.ipkg`, its OCI digest **is** the content address the cache keys
+  on and the lockfile pins.
+- [x] **`HttpRegistry` promoted to a writable, authenticated network registry** (was a
+  read-only static index): reads via `GET`, publishes via `PUT` (so any `PUT`-capable store —
+  a small service, object storage, WebDAV — can host it), append-only, opaque-version tolerant.
+- [x] **`hdlpkg login` / `logout` + a credentials subsystem (`credentials.py`)** make the
+  network backends private. A pure `CredentialStore` maps a **registry host** to a bearer
+  token (hosts share one token across repos) with TOML serialization; the thin
+  `load_credentials`/`save_credentials` pair is the only I/O, writing
+  `~/.hdlpkg/credentials.toml` (override with `HDLPKG_CREDENTIALS`) owner-only where the OS
+  allows. Every network request carries `Authorization: Bearer <token>`, so resolve/install/
+  publish against a private registry "just work" after one login; missing/wrong credentials
+  fail closed. (The Docker token-exchange flow for managed registries is a tracked refinement;
+  the stored token is presented directly today.)
+- [x] **Tested honestly with no live service**: a localhost auth+`PUT` HTTP server and a
+  minimal in-memory **OCI distribution v2** mock exercise the full publish -> resolve ->
+  install -> pull flow through the real CLI for both backends, plus append-only, auth-required,
+  and error paths; the `CredentialStore`, `registry_from_location` dispatch, and `login`/
+  `logout` have unit tests. Files: `src/hdl_ip_packager/credentials.py`, `registry.py`,
+  `cli.py`, `exceptions.py` (`CredentialsError`), `__init__.py`,
+  `tests/unit/test_credentials.py`, `test_registry_location.py`, `test_login_cli.py`,
+  `tests/integration/test_http_registry_cli.py`, `test_oci_registry_cli.py`. Remaining toward
+  1.0: a third-party publish/consume and a `1.0.0-rc.1` soak (see the Release plan); Git
+  backend, the OCI token-exchange flow, and `gen`-from-registry stay Open Non-Blocking.
+
+### VHDL package name-mangling for multi-version coexistence — June 2026
+- [x] **`gen` now name-mangles coexisting VHDL packages too**, the direct analogue of
+  the SystemVerilog-package work, so two versions of a shared VHDL package build
+  together under `[resolution] on-conflict = "isolate_namespaces"` (e.g. via the `ghdl`
+  toolflow). A new VHDL-aware lexer (`mangle.py`) — case-insensitive, `--`/`/* */`
+  comment- and string-aware — rewrites a package name only in the unambiguous VHDL
+  positions: `package <name>` / `package body <name>` declarations, `end [package
+  [body]] <name>` labels, and `use work.<name>...` references. Each consumer's `use`
+  clause is routed to the version it resolved to (`vfifo` -> `vbus__v1_1_0`,
+  `vlegacy` -> `vbus__v2_0_0`). VHDL's reference contexts are structured (`use`/`work.`),
+  so this is as safe as the SV-package case — no full parser.
+- [x] **The mangler became language-aware.** `GenSourceFile` now carries a `language`
+  (from the fileset type) instead of an SV-only flag; `plan_package_mangling` dispatches
+  declared-name scanning and rewriting per language, and **refuses** what it cannot do
+  safely: a colliding *module*/interface (SV) or *entity* (VHDL) — instantiation
+  position is ambiguous without a real parser — or an unknown source language. Named-
+  library `use` clauses (anything other than `work.`) are left untouched (a documented
+  limitation; everything is analyzed into `work`). New: `declared_vhdl_packages`,
+  `declared_vhdl_entities`, `rewrite_vhdl_packages`. Verified end to end against the
+  consumer demo's new VHDL `soc_vhdl` (a `vbus` package at two majors, `ghdl` flow).
+  Files: `mangle.py`, `cli.py`, `backends/edam.py`, `resolver.py` (warning text),
+  `__init__.py`, `tests/unit/test_mangle.py`,
+  `tests/integration/test_mangle_vhdl_gen_cli.py`.
+
+### Physical multi-version coexistence at `gen`: SystemVerilog package name-mangling — June 2026
+- [x] **`gen` now builds two versions of one SystemVerilog *package* together** instead
+  of refusing — the physical half of multi-version coexistence. Under `[resolution]
+  on-conflict = "isolate_namespaces"` (the policy that keeps incompatible versions),
+  `gen` automatically **name-mangles** each package version to a unique name
+  (`bus_pkg` -> `bus_pkg__v1_1_0` / `bus_pkg__v2_0_0`) and rewrites every consumer's
+  references to the version *it resolved to* (`fifo` -> `__v1_1_0`, `legacy` ->
+  `__v2_0_0`), so both elaborate in HDL's one global namespace. The rewritten sources
+  are materialized into `<output>/src/<vlnv>/…` and the generated tool file points at
+  those copies; the originals on disk are untouched. Verified end to end against the
+  external consumer demo's `soc_conflict/`.
+- [x] **Safe by construction, no full parser.** A new pure `mangle.py` carries a
+  comment/string-aware SystemVerilog scanner that rewrites a package name only in the
+  syntactically **unambiguous** positions — `package <name>` / `endpackage : <name>`
+  declarations, `import <name>::`, and `<name>::` scoped references — so a coincidental
+  signal named `bus_pkg`, or the name inside a comment or string, is never touched. The
+  pure `plan_package_mangling` computes per-file rename maps (a package's own
+  declaration vs a consumer's resolved version) and **refuses** what it cannot do
+  safely: two versions of a *module*/interface (instantiation position is ambiguous
+  without parsing) or any non-SystemVerilog (VHDL) source — those still get a clear
+  `BackendError`. Documented limitation: a macro that *constructs* a package name by
+  token pasting is left untouched. Files: `mangle.py`, `backends/edam.py`
+  (`build_eda_design(allow_multiversion=…)` + multi-version-safe topo sort), `cli.py`
+  (`gen` materializes the mangled tree, warns, reports), `__init__.py`,
+  `tests/unit/test_mangle.py`, `tests/integration/test_mangle_gen_cli.py`. (Remaining:
+  module/interface coexistence and VHDL — both deferred as needing a real HDL frontend.)
+
+### Ordered non-SemVer schemes: CalVer + monotonic — June 2026
+- [x] **Added two ordered non-SemVer version schemes behind `[package].scheme`** so
+  such cores can be *ranged* and newest-selected, not just exact-pinned. `scheme =
+  "calver"` carries ordered numeric date/calendar versions (`2024.1`, `2024.10`,
+  `2025.2.3`) with the **first component (year) as the compatibility boundary**:
+  `^2024.1` == `>=2024.1, <2025`, `~2024.1` == `>=2024.1, <2024.2`, and same-year
+  dependents unify (year-as-major, Cargo-style). `scheme = "monotonic"` carries a
+  single ordered revision (`r3`, `rev12`, `12`); all revisions are **one
+  compatibility group** (newer supersedes), so `^r3` == `>=r3` selects the newest
+  while `~r3`/`=r3` pin exactly. Two distinct exact monotonic pins are a hard
+  unsatisfiable failure (one shared group), not a coexistence.
+- [x] **Implementation**: new ordered `CalVer` and `MonotonicVersion` value types and
+  a `parse_version(text, scheme)` dispatcher in `version.py`; `VersionConstraint`
+  gained a *deferred* ordered-clause path (`ordered`) that interprets `^`/`~`/ranges
+  against the candidate's scheme at match time (the dependency's scheme is unknown at
+  parse) — for non-SemVer schemes a **bare** constraint means *exact* (those schemes
+  lack SemVer's caret default; use `^`/`~`/ranges explicitly). `compatibility_group`,
+  the resolver's `_edge_node` grouping, manifest/`Vlnv` parsing, and the lockfile
+  `scheme` marker all extend to the new schemes; `LocalRegistry.versions` already
+  recovers a non-SemVer version directory from its manifest. Files: `version.py`,
+  `manifest.py`, `vlnv.py`, `resolver.py`, `lockfile.py`, `__init__.py`,
+  `tests/unit/test_version.py`, `test_resolver.py`, `test_manifest.py`,
+  `test_vlnv.py`, `test_lockfile.py`. (Remaining versioning work is now only the
+  *physical* multi-version coexistence at `gen` — name-mangling.)
+
+### Versioning contract for the 1.0 freeze: conflict policies, multi-version, opaque scheme — June 2026
+- [x] **Settled the resolver contract that was gating the 1.0 format freeze** —
+  multi-version coexistence (bookkeeping), unification semantics, and the non-SemVer
+  scheme floor, the three Open Non-Blocking versioning issues. The resolver now
+  **always unifies SemVer-compatible dependents** (same major -> newest satisfying,
+  Cargo-style; a diamond on `^1.0` + `^1.1` still collapses to one `1.1.x`) and gives
+  the user a **conflict policy** for a genuinely *incompatible* conflict (two majors,
+  or two distinct exact pins of an `opaque` core), set by a root `ip.toml`
+  `[resolution] on-conflict` key with a `--on-conflict` CLI override:
+  - `fail_on_conflict` (default) — raise `ResolutionError` (preserves prior behaviour;
+    the demo's `soc_conflict/` still fails by default).
+  - `use_latest` — collapse to the newest of the conflicting versions, prune orphans,
+    and warn that lower requirements may be violated.
+  - `isolate_namespaces` — keep every incompatible version in the resolve/lock/tree
+    (multi-version **bookkeeping**, part (a) of the coexistence issue). Physical
+    coexistence (name-mangling, part (b)) is not built, so `gen` **refuses** to emit
+    two versions of one package with a clear message (`backends/edam.py`).
+- [x] **Opt-in `[package].scheme` version scheme** (`semver` default, or `opaque`) and
+  **explicit non-SemVer rejection**. A non-SemVer `package.version` is rejected under
+  the default semver scheme at parse time with a clear `ManifestError` naming the
+  string (the gating minimum (1) of the non-SemVer issue). `scheme = "opaque"` treats
+  versions as opaque tokens: dependents must pin an exact `=` version and every distinct
+  pin is its own compatibility group (honor-exact-pins), so the resolver never assumes
+  compatibility it cannot verify.
+- [x] **Genuinely non-SemVer version strings under `opaque`** — a new `OpaqueVersion`
+  token (e.g. a vendor part number `D5020100`, calver `2024.1`, `r3`) is threaded
+  through `Vlnv` (a scheme-aware `Vlnv.parse`), the manifest, `VersionConstraint`
+  (exact-pin opaque constraints like `=D5020100`, with `^`/ranges refused), the
+  lockfile (round-trips via a `scheme = "opaque"` marker per package), the tree, and
+  the registry (`LocalRegistry.versions` reads the manifest for a non-SemVer version
+  directory) -- and `pull`/`yank`, which take a VLNV string with no scheme, parse it
+  as SemVer first and fall back to an opaque token (`cli._user_vlnv`), so pulling an
+  opaque core by VLNV works. Verified against the consumer demo's new `soc_opaque/`
+  (vendor IP at `D502../D401../DB..` part numbers, resolved by exact pin, `gen`-built,
+  published + pulled). (The ordered non-SemVer schemes — calver/monotonic — landed
+  next; see the milestone above.)
+- [x] **Implementation**: a pure `compatibility_group(version, scheme)` and
+  `VersionConstraint.is_exact`/`exact_version` in `version.py`; a grouped,
+  scheme-aware backtracking solver keyed per `(package, compatibility-group)` node
+  with a post-search policy fold and a reachability pass that prunes `use_latest`
+  orphans (`resolver.py`); `Resolution` now exposes `vlnvs`/`by_ref`/`warnings` and
+  may carry more than one version per package; `treeview.py` picks the per-edge
+  version and expands per VLNV; the CLI threads the policy through
+  resolve/install/tree/gen and prints warnings to stderr. Verified end to end against
+  the external consumer demo's `soc_conflict/` (default fails; `isolate` resolves two
+  `bus_pkg`; `gen` refuses; `use_latest` collapses to `2.0.0`), `soc/` (diamond still
+  unifies to one `bus_pkg 1.1.0`), and `soc_opaque/` (opaque vendor part numbers).
+  Files: `version.py`, `manifest.py`, `resolver.py`, `treeview.py`, `vlnv.py`,
+  `lockfile.py`, `registry.py`, `backends/edam.py`, `cli.py`, `__init__.py`,
+  `tests/unit/test_version.py`, `test_resolver.py`, `test_treeview.py`,
+  `test_manifest.py`, `test_vlnv.py`, `test_lockfile.py`, `test_edam.py`,
+  `tests/integration/test_conflict_policy_cli.py`.
+
+### Hard gate: all PR checks must be green before merge — June 2026
+- [x] **Green CI is now an explicit, hard gate before any merge.** A real incident
+  drove this: PR #8 was merged while the `Test (py3.12, windows-latest)` check was
+  red — a transient `actions/setup-python` flake (the `Install`/`Test` steps were
+  *skipped*, not failed; `main`'s own push CI was green, so the code was fine). Two
+  process bugs allowed it: the merge step watched a **single** workflow run instead of
+  **all** PR checks, and piped `gh run watch` to `tail`, which **hid the non-zero exit
+  code** so `gh pr merge --admin` ran anyway (and `--admin` bypasses required checks).
+  Fix: the merge gate is now `gh pr checks <branch> --watch` (exit 0 over the whole
+  matrix, never piped to a pager), `--admin` is documented as covering **only** the
+  self-approval requirement (never a red/pending check), and a flaky run is re-run to
+  green (`gh run rerun <id> --failed`) rather than bypassed. Updated
+  `.claude/commands/release.md`, `CLAUDE.md`, `docs/ai_agent_instructions.md`.
 
 ### Branch model + agent-driven release flow + GitHub Release on tag — June 2026
 - [x] **Adopted a `develop` (working) + `main` (release line) branch model; PRs are

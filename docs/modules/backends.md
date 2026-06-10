@@ -42,7 +42,13 @@ of source files with a top unit and a tool flow.
 - Cores are emitted **dependencies-first** via a topological sort (ties by VLNV);
   duplicate file paths are de-duplicated.
 
-An unknown target name raises `ValueError`.
+An unknown target name raises `ValueError`. If the dependencies contain **two versions
+of one package** (possible under the resolver's `isolate_namespaces`
+[conflict policy](resolver.md)), `build_eda_design` raises `BackendError` unless
+`allow_multiversion=True`. The CLI's `gen` sets that flag only **after**
+[name-mangling](mangle.md) the coexisting SystemVerilog/VHDL packages, so the colliding
+names no longer clash; a conflict the mangler cannot handle (two *module*/interface or
+*entity* versions, or an unknown language) still gets a clear `BackendError`.
 
 ## Backends and the registry
 
