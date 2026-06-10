@@ -29,8 +29,10 @@ a committed lockfile, content-addressed integrity — to hardware.
   `--on-conflict`). Versions may be SemVer or, for vendor IP, an `opaque` token.
 - **Fetch & cache** dependencies into a content-addressed store that is offline,
   deduplicated, and tamper-evident (`install`).
-- **Package & share** a core as a deterministic `.ipkg` and publish it to a registry,
-  with append-only versions and `yank` (`pack`, `publish`, `pull`, `yank`).
+- **Package & share** a core as a deterministic `.ipkg` and publish it — to a local
+  directory, or a **private, self-hosted HTTP or OCI registry** (Harbor, Artifactory,
+  Nexus, GitLab, Zot, ECR/ACR) your team runs on its own network — with append-only
+  versions, `yank`, and `hdlpkg login` auth (`pack`, `publish`, `pull`, `yank`, `login`).
 - **Generate tool inputs** for Verilator, Vivado, Icarus Verilog, GHDL, or Yosys from
   a single target definition (`gen`).
 - **Interoperate**: export an IP-XACT (IEEE 1685) description for other tools, and
@@ -38,15 +40,25 @@ a committed lockfile, content-addressed integrity — to hardware.
 
 ## Install
 
-Requires **Python 3.11+**. From the repo root:
+Requires **Python 3.11+**. Install the published package from PyPI:
 
 ```bash
-python -m pip install -e .
-hdlpkg --help            # or: python -m hdl_ip_packager --help
+pip install hdl-ip-packager
+hdlpkg --help            # if 'hdlpkg' is not on PATH: python -m hdl_ip_packager --help
 ```
 
-(For development — tests, lint, types — install the extras: `pip install -e ".[dev]"`.
-For the docs site: `pip install -e ".[docs]"`.)
+> **Trying a pre-release (e.g. a `1.0.0-rc.N` candidate)?** `pip` skips pre-releases by
+> default, so ask for it explicitly:
+> ```bash
+> pip install --pre hdl-ip-packager        # newest, including pre-releases
+> pip install hdl-ip-packager==1.0.0rc1    # or pin the exact candidate
+> ```
+
+From a source checkout instead (for development — tests, lint, types):
+
+```bash
+pip install -e ".[dev]"          # docs site extras: pip install -e ".[docs]"
+```
 
 ## Concepts in 60 seconds
 
@@ -60,7 +72,8 @@ For the docs site: `pip install -e ".[docs]"`.)
 | **Version scheme** | `[package].scheme`: `semver` (default), `calver` (`2024.1`, year-as-major), `monotonic` (`r3`), or `opaque` (uninterpreted tokens, pinned exactly). |
 | **Conflict policy** | `[resolution] on-conflict`: how an incompatible conflict is handled — `fail_on_conflict` (default), `use_latest`, or `isolate_namespaces`. |
 | **`ip.lock`** | The generated, committed record pinning each dependency to one exact version + checksum. |
-| **Registry** | Where cores live to be fetched/published (a local dir, an HTTP index, …). |
+| **Registry** | Where cores live to be fetched/published: a local directory, or a network registry by URL — `http(s)://…` or an **OCI** registry `oci://…` (Harbor/Artifactory/Zot/GitLab/ECR), which can be private and self-hosted. |
+| **Credentials** | A per-host token (or username+secret) for a private registry, stored by `hdlpkg login` and used automatically; a `docker login` is reused as a fallback. |
 | **`.ipkg`** | The deterministic, content-addressed package file for one core. |
 
 ## A first walkthrough (using the bundled examples)
@@ -104,7 +117,9 @@ hdlpkg gen synth examples/uart/ip.toml --search examples --output build/synth
 
 `gen sim` produces a Verilator `.vc` (the UART's `sim` target uses `verilator`);
 `gen synth` produces a Vivado `.tcl`. The FIFO dependency's RTL is pulled in
-automatically; its testbench is not.
+automatically; its testbench is not. `gen` *generates the tool inputs* — to actually
+compile/simulate/synthesize you run them with the EDA tool itself (Verilator, GHDL,
+Vivado, …), which you install separately.
 
 **5. Package, publish, and pull**
 
@@ -146,6 +161,55 @@ passes `validate` immediately. Then:
 4. `hdlpkg validate`, then `resolve`, `gen`, and `pack` as above.
 
 See the [manifest reference](modules/manifest.md) for every field.
+
+## Sharing over a registry (local, HTTP, or OCI)
+
+The `--registry` flag takes a **location**, not just a directory. The same
+publish/consume commands work against three backends, chosen by the location string:
+
+| Location | Backend |
+|----------|---------|
+| a path, e.g. `./registry` | a local directory registry |
+| `https://ip.corp.local/acme` | an HTTP registry (any `GET`/`PUT`-capable server) |
+| `oci://harbor.corp.local/ip` | an **OCI** registry (Harbor, Artifactory, Nexus, GitLab, Zot, ECR/ACR) — `oci+http://` for a plaintext/dev one |
+
+Network registries are **private by default**: you authenticate once with `hdlpkg
+login`, and `resolve` / `install` / `publish` then use the stored credential
+automatically. Nothing is exposed publicly — the registry is whatever server you point
+at (typically one your company self-hosts).
+
+**Producer — publish a core** (from the machine that has the source):
+
+```bash
+hdlpkg login   oci://harbor.corp.local/ip            # stores a per-host token
+hdlpkg publish ip.toml --registry oci://harbor.corp.local/ip
+```
+
+For a registry that uses the OCI **token-exchange** (managed Harbor, a cloud registry),
+log in with a username so the exchange (HTTP Basic -> short-lived token) is used:
+
+```bash
+hdlpkg login oci://harbor.corp.local/ip --username robot   # prompts for the password/robot token
+```
+
+A `docker login` you already did (`~/.docker/config.json`) is reused as a fallback, so
+an already-authenticated registry may need no separate `hdlpkg login`.
+
+**Consumer — resolve and build from the registry** (a different person, another machine):
+
+```bash
+hdlpkg login   oci://harbor.corp.local/ip            # once, if the registry is private
+hdlpkg resolve my_soc/ip.toml --registry oci://harbor.corp.local/ip   # writes ip.lock
+hdlpkg install my_soc/ip.toml --registry oci://harbor.corp.local/ip --locked
+hdlpkg pull    acme:common:fifo:1.0.0 --registry oci://harbor.corp.local/ip --output ./fifo
+```
+
+`hdlpkg logout <location>` removes a stored credential. Publishing is **append-only**: a
+version can never be overwritten (use a new version, or `yank` to retire a bad one).
+
+To try this end to end without standing up a server, a no-auth [Zot](https://zotregistry.dev)
+binary or `docker run -d -p 5000:5000 registry:2` gives you a real OCI registry on
+`oci+http://127.0.0.1:5000/ip` in one command.
 
 ## Typical workflows
 
