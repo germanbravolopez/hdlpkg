@@ -18,27 +18,23 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`1.0.0-rc.1`** cut — the first 1.0 release candidate, published to PyPI as a
-**pre-release** to start the **soak** (no `ip.toml`/`ip.lock`/CLI/registry-protocol change
-until promotion). It carries everything that landed since `0.8.0`: the **versioning contract
-for the 1.0 freeze** — Cargo-style unification, a `[resolution] on-conflict` policy
-(`fail_on_conflict` default / `use_latest` / `isolate_namespaces`) that allows
-multi-version coexistence in the resolve/lock/tree (with `gen` refusing two versions),
-and the `[package].scheme` key (`semver` / `opaque`) with explicit non-SemVer
-rejection, **and the operational distribution protocol** — HTTP + OCI registry backends
-behind one `registry_from_location` abstraction, with `hdlpkg login` auth (direct bearer
-**and** the OCI token-exchange, reusing `docker login`) for private, self-hosted registries.
-With the resolver contract, the `ip.toml`/`ip.lock` format shapes, and the registry/OCI
-protocol now settled, the path to the final `1.0.0` was the soak: the **`1.0.0-rc.1`
-soak** required this candidate to hold with no format/CLI/protocol change, validated by a
-third-party publish/consume. **That soak is now being reset.** The `1.0.0-rc.1` third-party
-trial surfaced a real `ip.toml` gap — `[filesets]` could only list explicit files, which is
-unworkable for a large generated/vendored tree — so `files` entries now also accept **globs
-and directories** (see the milestone below). That is a deliberate format change folded into
-the pre-1.0 contract, so per the soak rule the next candidate ships as **`0.9.0`** (carrying
-globs **and** the additive `init --scheme` finding) and **re-soaks** toward `1.0.0`. Better
-to complete the fileset format before freezing it than to bolt globs on after. Promotion to
-`1.0.0` remains the human-gated sign-off. See the Release plan.
+**Version**: **`0.9.0`** cut — the stable pre-1.0 release that **resets the `1.0.0-rc.1`
+soak**. The `1.0.0-rc.1` candidate (a PyPI pre-release) was meant to freeze the formats, but
+the third-party trial surfaced a real `ip.toml` gap — `[filesets]` could only list explicit
+files, unworkable for a large generated/vendored tree — so `files` entries now also accept
+**globs and directories**, and `hdlpkg init` grew `--scheme` for non-SemVer version codes.
+Both fold into the pre-1.0 contract, so per the soak rule the candidate is re-cut as `0.9.0`
+(formats explicitly **not** frozen yet) rather than promoted to `1.0.0`; `1.0.0-rc.1` is left
+behind as a superseded prerelease. `0.9.0` carries everything that landed since `0.8.0`: the
+**versioning contract** — Cargo-style unification, a `[resolution] on-conflict` policy
+(`fail_on_conflict` default / `use_latest` / `isolate_namespaces`) with multi-version
+coexistence (and `gen` refusing two versions), the `[package].scheme` key
+(`semver`/`calver`/`monotonic`/`opaque`, set by `init --scheme`); **the distribution
+protocol** — local + HTTP + OCI registry backends behind one `registry_from_location`
+abstraction, with `hdlpkg login` auth (direct bearer **and** the OCI token-exchange, reusing
+`docker login`); and **glob/directory filesets**. **Next**: re-soak toward `1.0.0` — a clean
+third-party publish/consume against `0.9.0` with no further format change is the signal to
+freeze; promotion to `1.0.0` remains the human-gated stability sign-off. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
 pass; fully typed, linted, and tested (470 passing tests, ~95% coverage):
@@ -176,6 +172,20 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Release 0.9.0 — June 2026
+- [x] **Cut `0.9.0`, the stable pre-1.0 release that resets the `1.0.0-rc.1` soak.** The rc.1
+  candidate aimed to freeze the on-disk formats, but the third-party trial proved the
+  `[filesets]` format incomplete (explicit-file-only lists are unworkable for a large
+  generated/vendored IP), so rather than freeze a format we already know must change, the
+  candidate is re-cut as `0.9.0` — formats explicitly **still open** — folding in the two
+  trial findings: **glob/directory filesets** and **`hdlpkg init --scheme`** for non-SemVer
+  version codes (both detailed in the entries below). `0.9.0` is published to PyPI as a normal
+  (non-pre) release, so it becomes the latest **stable** version (plain `pip install
+  hdl-ip-packager` resolves to it); the earlier `1.0.0-rc.1` pre-release is left behind as
+  superseded. Bumped `pyproject.toml` + `__init__.py` to `0.9.0`. **Next**: re-soak toward
+  `1.0.0` — a clean third-party publish/consume against `0.9.0` with no further format change
+  is the freeze signal; promotion to `1.0.0` stays a human-gated stability sign-off.
 
 ### Soak finding: glob + directory filesets (resets the rc.1 soak; next cut is `0.9.0`) — June 2026
 - [x] **`[filesets]` `files` entries now accept globs and directories**, closing a format
