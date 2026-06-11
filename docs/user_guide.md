@@ -303,6 +303,55 @@ To try this end to end without standing up a server, a no-auth [Zot](https://zot
 binary or `docker run -d -p 5000:5000 registry:2` gives you a real OCI registry on
 `oci+http://127.0.0.1:5000/ip` in one command.
 
+### Pointing at a managed registry (JFrog Artifactory, Nexus, cloud)
+
+`hdlpkg`'s OCI backend speaks the standard OCI distribution API, so any registry that
+hosts **Docker/OCI** repositories works as a shared registry — JFrog Artifactory, Sonatype
+Nexus, GitLab, ECR/ACR, and so on. The rule of thumb: **whatever base you use for
+`docker login` / `docker push` to that repository, put `oci://` in front of it and append a
+namespace segment for your cores.**
+
+For **JFrog Artifactory**, the location is:
+
+```
+oci://<artifactory-host>/<docker-repo-key>/ip
+```
+
+- `<artifactory-host>` — the Docker registry domain. On JFrog SaaS that is
+  `your-org.jfrog.io`; on a self-hosted instance it is whatever your reverse proxy serves
+  to `docker` (the subdomain `repo.artifactory.corp` or the path
+  `artifactory.corp/artifactory/api/docker/<repo>` form) — use exactly what `docker push`
+  already uses.
+- `<docker-repo-key>` — an Artifactory repository whose **package type is Docker/OCI**:
+  a *local* repo to publish into (with deploy permission), or a *virtual* repo to consume
+  from.
+- `ip` — a sub-namespace `hdlpkg` stores cores under; pick one and keep it consistent.
+
+Artifactory issues short-lived tokens after Basic auth (the OCI **token-exchange**), so log
+in with `--username`, using an Artifactory **identity token / API key** as the password
+(not your UI password):
+
+```bash
+# Producer -- deploy into a local Docker repo
+hdlpkg login   oci://your-org.jfrog.io/ip-docker-local/ip --username robot-ci
+hdlpkg publish ip.toml --registry oci://your-org.jfrog.io/ip-docker-local/ip
+
+# Consumer -- read from a virtual Docker repo
+hdlpkg login   oci://your-org.jfrog.io/ip-docker/ip --username robot-dev
+hdlpkg resolve my_soc/ip.toml --registry oci://your-org.jfrog.io/ip-docker/ip
+hdlpkg install my_soc/ip.toml --registry oci://your-org.jfrog.io/ip-docker/ip --locked
+```
+
+Use the **same full location** for `login` and `--registry` (the stored credential is keyed
+by host, so they must match). A `docker login` you already did is reused from
+`~/.docker/config.json`, so an already-authenticated host may need no separate `hdlpkg
+login`.
+
+Two gotchas: the repository must be **Docker/OCI** package type (a generic Artifactory repo
+has no `/v2/` endpoint and will 404), and a `publish` `401` is almost always a
+permissions / identity-token problem rather than a `hdlpkg` one — confirm `docker push` to
+the same base works first; if Docker works, `hdlpkg` will.
+
 ## Typical workflows
 
 - **Consume a dependency**: declare it (`hdlpkg add`) → `resolve` (writes `ip.lock`)
