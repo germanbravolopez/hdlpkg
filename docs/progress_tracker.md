@@ -18,25 +18,26 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`1.0.0-rc.1`** cut — the first 1.0 release candidate, published to PyPI as a
-**pre-release** to start the **soak** (no `ip.toml`/`ip.lock`/CLI/registry-protocol change
-until promotion). It carries everything that landed since `0.8.0`: the **versioning contract
-for the 1.0 freeze** — Cargo-style unification, a `[resolution] on-conflict` policy
-(`fail_on_conflict` default / `use_latest` / `isolate_namespaces`) that allows
-multi-version coexistence in the resolve/lock/tree (with `gen` refusing two versions),
-and the `[package].scheme` key (`semver` / `opaque`) with explicit non-SemVer
-rejection, **and the operational distribution protocol** — HTTP + OCI registry backends
-behind one `registry_from_location` abstraction, with `hdlpkg login` auth (direct bearer
-**and** the OCI token-exchange, reusing `docker login`) for private, self-hosted registries.
-With the resolver contract, the `ip.toml`/`ip.lock` format shapes, and the registry/OCI
-protocol now settled, the path to the final `1.0.0` is just the soak: the **`1.0.0-rc.1`
-soak is now underway** (this candidate must hold with no format/CLI/protocol change), and a
-**third-party publish/consume** should validate this rc during the soak. A clean soak is
-promoted to `1.0.0`; any required format change resets it (and would ship as `0.9.0`). See
-the Release plan.
+**Version**: **`0.9.0`** cut — the stable pre-1.0 release that **resets the `1.0.0-rc.1`
+soak**. The `1.0.0-rc.1` candidate (a PyPI pre-release) was meant to freeze the formats, but
+the third-party trial surfaced a real `ip.toml` gap — `[filesets]` could only list explicit
+files, unworkable for a large generated/vendored tree — so `files` entries now also accept
+**globs and directories**, and `hdlpkg init` grew `--scheme` for non-SemVer version codes.
+Both fold into the pre-1.0 contract, so per the soak rule the candidate is re-cut as `0.9.0`
+(formats explicitly **not** frozen yet) rather than promoted to `1.0.0`; `1.0.0-rc.1` is left
+behind as a superseded prerelease. `0.9.0` carries everything that landed since `0.8.0`: the
+**versioning contract** — Cargo-style unification, a `[resolution] on-conflict` policy
+(`fail_on_conflict` default / `use_latest` / `isolate_namespaces`) with multi-version
+coexistence (and `gen` refusing two versions), the `[package].scheme` key
+(`semver`/`calver`/`monotonic`/`opaque`, set by `init --scheme`); **the distribution
+protocol** — local + HTTP + OCI registry backends behind one `registry_from_location`
+abstraction, with `hdlpkg login` auth (direct bearer **and** the OCI token-exchange, reusing
+`docker login`); and **glob/directory filesets**. **Next**: re-soak toward `1.0.0` — a clean
+third-party publish/consume against `0.9.0` with no further format change is the signal to
+freeze; promotion to `1.0.0` remains the human-gated stability sign-off. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
-pass; fully typed, linted, and tested (457 passing tests, ~95% coverage):
+pass; fully typed, linted, and tested (470 passing tests, ~95% coverage):
 - **Versioning** — SemVer 2.0.0 `Version` + `VersionConstraint` (caret/tilde/range
   grammar, pre-release precedence).
 - **Identity** — `PackageRef` and `Vlnv` (`vendor:library:name:version`).
@@ -152,7 +153,7 @@ _None._
 |-------|------|-------|
 | Full compile/elaborate/simulate of the consumer demo's SV + VHDL outputs | consumer demo (`verify.py`, `demo.py`, `.github/workflows/verify.yml`), `backends/` | **Strengthen the end-to-end proof.** Today the consumer demo (and the in-repo `gen` tests) only assert that `gen` *emits* the right tool-flow inputs (`.vc`/`run_ghdl.sh`/mangled sources); nothing actually **builds** them. Add a real toolchain pass that compiles, elaborates, and simulates the generated designs — `verilator`/`icarus` for the SystemVerilog SoCs (`soc/`, `soc_conflict/`) and `ghdl` for the VHDL one (`soc_vhdl/`) — so we prove the generated flows genuinely elaborate (and that the package name-mangling produces designs that *build*, not just text that looks right). Needs the HDL toolchains installed on the runner (e.g. `ghdl`, `verilator`/`iverilog` via apt or a setup action), so it is a separate, possibly opt-in CI lane from the pure-Python `verify` matrix. This feeds the 1.0 **third-party consume** confidence but does not itself gate the release. |
 | Encrypted IP distribution (IEEE 1735) | `packaging.py`, `registry.py`, `manifest.py`, `cli.py` | **Future feature.** Let a producer distribute a core whose HDL source is **encrypted**, so a consumer can resolve/install/`gen` against it (the tool can drive a tool flow) without the source ever being readable on disk. Two distinct layers, decide which to build: **(a) Standard HDL IP encryption (IEEE 1735 / `pragma protect`)** — the cross-vendor norm. Each source file carries an encrypted envelope (a symmetric session key wrapped under each *tool vendor's* public key + AES/RSA-encrypted payload, IEEE 1735 v1/v2 with "rights" digests). The EDA tool decrypts at compile time; the packager's job is to **carry, not break** these envelopes — pack/`extract`/SBOM must treat an encrypted file as opaque, the deterministic-pack digest still pins ciphertext, and `gen` must not assume it can read the source. The tool would *not* implement the crypto itself (vendor keys live in the EDA tools); at most it could shell out to `vivado -encrypt`/`vlog +protect` to *produce* envelopes. **(b) At-rest/transport encryption of the `.ipkg`** — encrypt the whole artifact in the registry/cache for confidential distribution (e.g. age/GPG or an OCI-layer key), decrypted on `pull` with a consumer key. This is independent of HDL-tool semantics and simpler, but does **not** give the per-tool, compile-time protection (a) does. Open questions: where keys/recipients are declared (a `[package]`/`[encryption]` manifest key vs. out-of-band), how it interacts with content-addressing (the digest must pin what is *stored*), how the SBOM marks a component encrypted, and how `validate`/`info` behave when source is unreadable. Needs a real EDA tool (or an interop fixture) to test (a) honestly — defer like the Git/OCI/Sigstore work. |
-| Git-backed registry | `registry.py` | A `Registry` backend resolving cores from a Git channel (tags/refs). Deferred from M4: needs the `git` CLI + a remote to implement and test honestly. Mirror the `LocalDirectoryRegistry`/`HttpRegistry`/`OciRegistry` shape. |
+| Git-backed registry (+ source provenance) | `registry.py`, `lockfile.py`, `cli.py` | **Surfaced by the 1.0.0-rc.1 third-party trial** (a customer storing IP source in Bitbucket asked to install IPs from git, and how to trace a VLNV/version back to exact source). **Decided shape: a Git-backed *registry channel*** — point `--registry` at a git URL (e.g. `git+ssh://bitbucket.org/org/ip-registry.git`), discover cores from tags/refs, mirror the `LocalDirectoryRegistry`/`HttpRegistry`/`OciRegistry` shape behind `registry_from_location` (a new `git+...` scheme). **Dependencies stay VLNV-based, so this is purely additive — no `ip.toml` format change.** It also closes the traceability gap the trial raised: the lockfile `source` records `git+<url>@<commit-sha>`, binding the VLNV/version to an immutable commit (today `ip.lock` already pins each dep to a SHA-256 **content** digest with verify-on-read, and `pack --sbom` lists component digests — this adds the *git provenance* on top). Needs the `git` CLI + a remote to build and test honestly. **Ships post-`1.0.0` as a backward-compatible `1.1.0`; does not touch the rc or reset the soak.** A *per-dependency* git source (`"org:lib:ip" = { git = ..., rev = ... }`) is a possible later backward-compatible extension if a customer needs it, but is intentionally **not** the first cut (it would change the manifest format). |
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git backend. Checksums + SBOM already ship; this adds authenticity on top. |
 | `gen` straight from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry` now consume **local, HTTP, and OCI** registries directly (the producer->consumer loop is closed over the network). Remaining: a fetch-then-extract path so `gen` can build straight from a registry — it still needs loose sources via `--search` (point it at extracted/`pull`ed trees). |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
@@ -171,6 +172,61 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Release 0.9.0 — June 2026
+- [x] **Cut `0.9.0`, the stable pre-1.0 release that resets the `1.0.0-rc.1` soak.** The rc.1
+  candidate aimed to freeze the on-disk formats, but the third-party trial proved the
+  `[filesets]` format incomplete (explicit-file-only lists are unworkable for a large
+  generated/vendored IP), so rather than freeze a format we already know must change, the
+  candidate is re-cut as `0.9.0` — formats explicitly **still open** — folding in the two
+  trial findings: **glob/directory filesets** and **`hdlpkg init --scheme`** for non-SemVer
+  version codes (both detailed in the entries below). `0.9.0` is published to PyPI as a normal
+  (non-pre) release, so it becomes the latest **stable** version (plain `pip install
+  hdl-ip-packager` resolves to it); the earlier `1.0.0-rc.1` pre-release is left behind as
+  superseded. Bumped `pyproject.toml` + `__init__.py` to `0.9.0`. **Next**: re-soak toward
+  `1.0.0` — a clean third-party publish/consume against `0.9.0` with no further format change
+  is the freeze signal; promotion to `1.0.0` stays a human-gated stability sign-off.
+
+### Soak finding: glob + directory filesets (resets the rc.1 soak; next cut is `0.9.0`) — June 2026
+- [x] **`[filesets]` `files` entries now accept globs and directories**, closing a format
+  gap the `1.0.0-rc.1` third-party trial surfaced: a customer packaging a large,
+  script-generated / vendored IP (a Vivado generator script + an IP-XACT submodule tree +
+  HDL) found that an explicit per-file list was unworkable ("just too big"). A `files` entry
+  may now be a literal path (as before), a **glob** (any entry with `*`/`?`/`[`; `**`
+  recurses, e.g. `rtl/**/*.vhd`), or a **directory** (packs every file under it,
+  recursively). Expansion happens at the I/O boundary at `pack`/`publish`/`gen` time, with
+  matches **sorted** so the `.ipkg` stays byte-identical (deterministic content address
+  preserved); an entry matching no file is an error, and `..`/absolute patterns are
+  rejected. The manifest keeps the patterns as authored, so `ip.lock` and the SBOM are
+  unchanged. Existing literal-list manifests are unaffected (backward-compatible).
+- [x] **Implementation**: a new pure-at-the-boundary `expand_fileset_files(core_dir,
+  fileset_name, patterns)` in `packaging.py` drives both `pack` (`_collect`) and `gen` (the
+  CLI materializes each `CoreSource`'s filesets via `dataclasses.replace` before assembly,
+  so the pure `edam` backend keeps seeing a concrete file list and never emits a raw glob).
+  Files: `packaging.py`, `cli.py`, `tests/integration/test_packaging.py`, `test_gen_cli.py`;
+  `docs/user_guide.md`, `docs/modules/manifest.md`. **Release impact**: this is an `ip.toml`
+  semantic change, so under the soak rule it **resets the `1.0.0-rc.1` soak** — the next
+  candidate is **`0.9.0`** (folding in globs **and** the additive `init --scheme` finding),
+  re-soaking toward `1.0.0`. The format-vs-soak call was made deliberately (fix the fileset
+  format before the freeze); the `0.9.0` cut itself is the human-gated release step.
+
+### Soak finding: `hdlpkg init --scheme` for non-SemVer version codes — June 2026
+- [x] **`hdlpkg init` now exposes the version scheme**, closing a trial-feedback gap: a
+  third-party tester ran `hdlpkg init` with a vendor version code (`D5020204`) and hit
+  `error: Not a valid semantic version: 'D5020204'`, with nothing pointing at the
+  already-supported non-SemVer schemes. `init` hard-coded `Version.parse` and rendered a
+  scheme-less manifest, so the one front door could not author the `opaque`/`monotonic`/
+  `calver` cores the rest of the tool handles. Added an `init --scheme {semver,calver,
+  monotonic,opaque}` flag (threaded through `ScaffoldOptions.create` ->
+  `parse_version(version, scheme)`), which emits `[package].scheme` in the scaffold when
+  non-default, and made the SemVer parse error point at `[package].scheme` /
+  `init --scheme`. Files: `scaffold.py`, `cli.py`, `version.py`,
+  `tests/unit/test_scaffold.py`, `test_cli.py`; `docs/user_guide.md`. **Purely additive**
+  (a new optional flag + a friendlier message + emitting an already-frozen manifest key):
+  no change to `ip.toml`/`ip.lock` shape, lockfile, or registry protocol, and existing
+  `init` invocations are unchanged. This change is additive and would not by itself reset
+  the soak; it now simply rides into the **`0.9.0`** re-cut alongside the glob/directory
+  fileset change (which does reset it — see the entry above).
 
 ### Release 1.0.0-rc.1 — June 2026
 - [x] **Cut `1.0.0-rc.1`, the first 1.0 release candidate**, to **start the soak** toward the

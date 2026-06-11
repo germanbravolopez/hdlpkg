@@ -15,6 +15,7 @@ import getpass
 import re
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from . import __version__
@@ -45,7 +46,7 @@ from .manifest import (
     ConflictPolicy,
     Manifest,
 )
-from .packaging import artifact_filename, extract_ipkg, pack_core
+from .packaging import artifact_filename, expand_fileset_files, extract_ipkg, pack_core
 from .registry import (
     LocalDirectoryRegistry,
     Registry,
@@ -57,7 +58,11 @@ from .resolver import resolve as resolve_deps
 from .sbom import build_cyclonedx
 from .scaffold import DEFAULT_VERSION, ScaffoldOptions, render_manifest
 from .treeview import render_dependency_tree
-from .version import VersionConstraint
+from .version import (
+    DEFAULT_VERSION_SCHEME,
+    SUPPORTED_VERSION_SCHEMES,
+    VersionConstraint,
+)
 from .vlnv import PackageRef, Vlnv
 
 _REGISTRY_HELP = (
@@ -99,7 +104,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--library", help="VLNV library segment")
     p_init.add_argument("--name", help="VLNV name segment")
     p_init.add_argument(
-        "--version", default=DEFAULT_VERSION, help=f"SemVer (default: {DEFAULT_VERSION})"
+        "--version", default=DEFAULT_VERSION, help=f"version string (default: {DEFAULT_VERSION})"
+    )
+    p_init.add_argument(
+        "--scheme",
+        choices=SUPPORTED_VERSION_SCHEMES,
+        default=DEFAULT_VERSION_SCHEME,
+        help="how --version is interpreted: 'semver' (default), 'calver', 'monotonic', "
+        "or 'opaque' for vendor/date codes that are not SemVer (e.g. D5020204)",
     )
     p_init.add_argument("--description", default="", help="short core description")
     p_init.add_argument("--license", default="", help="SPDX license identifier")
@@ -380,6 +392,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
         library=_require_field(args.library, "library", interactive),
         name=_require_field(args.name, "name", interactive),
         version=args.version,
+        scheme=args.scheme,
         description=args.description,
         license=args.license,
         top=args.top,
@@ -615,9 +628,13 @@ def _cmd_gen(args: argparse.Namespace) -> int:
         resolution, registry = _resolve_local(manifest_path, args.search, _policy(args))
         _print_warnings(resolution)
         dep_vlnvs = list(resolution.vlnvs)
-    root_source = CoreSource(manifest=root, root=str(manifest_path.resolve().parent))
+    root_source = _materialize_filesets(
+        CoreSource(manifest=root, root=str(manifest_path.resolve().parent))
+    )
     dependencies = [
-        CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
+        _materialize_filesets(
+            CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
+        )
         for vlnv in dep_vlnvs
     ]
 
@@ -652,6 +669,22 @@ def _cmd_gen(args: argparse.Namespace) -> int:
     for dest in written:
         print(f"  {dest}")
     return 0
+
+
+def _materialize_filesets(source: CoreSource) -> CoreSource:
+    """Expand *source*'s fileset globs/directories against its on-disk root.
+
+    ``gen`` (and its name-mangling pass) joins fileset paths into tool inputs without
+    reading the directory, so glob/directory expansion happens here at the I/O boundary:
+    each fileset's ``files`` is resolved to concrete relative paths before assembly, and
+    everything downstream sees a plain file list.
+    """
+    core_dir = Path(source.root)
+    filesets = {
+        name: replace(fs, files=tuple(expand_fileset_files(core_dir, name, fs.files)))
+        for name, fs in source.manifest.filesets.items()
+    }
+    return CoreSource(manifest=replace(source.manifest, filesets=filesets), root=source.root)
 
 
 def _has_multiversion(dependencies: list[CoreSource]) -> bool:

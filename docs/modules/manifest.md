@@ -89,7 +89,11 @@ Supporting value types:
   renders `"vendor:library:name = <constraint>"`.
 - **`Fileset`** — `name`, `files: tuple[str, ...]`, `type: str`
   (default `"systemVerilogSource"`), `depend: tuple[str, ...]` (other filesets it
-  pulls in — honored by tool-flow generation, see [backends](backends.md)).
+  pulls in — honored by tool-flow generation, see [backends](backends.md)). A `files`
+  entry may be a literal path, a glob (`rtl/**/*.vhd`, `**` recurses), or a directory
+  (packs every file under it); expansion happens at `pack`/`gen` time against the core
+  directory, with matches sorted for deterministic output (the manifest keeps the
+  patterns as written).
 - **`Target`** — `name`, `toolflow: str`, `filesets: tuple[str, ...]`,
   `top: str | None`.
 
@@ -108,7 +112,8 @@ Validation is strict and the error message always names the offending field:
   segments valid VLNV parts.
 - Each dependency key must parse as a `PackageRef` and its value as a
   `VersionConstraint`.
-- Each fileset must have a `files` list of strings.
+- Each fileset must have a `files` list of strings (each a literal path, a glob, or a
+  directory; expanded at `pack`/`gen` time — an entry matching no file is then an error).
 - Each target must have a `toolflow`, and **every fileset it references must be
   defined** — a dangling reference is rejected with the list of known filesets.
 

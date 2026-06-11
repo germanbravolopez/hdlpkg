@@ -74,6 +74,51 @@ def test_init_creates_valid_manifest(tmp_path, capsys: pytest.CaptureFixture[str
     assert cli.main(["validate", str(manifest_path)]) == 0
 
 
+def test_init_with_scheme_accepts_a_vendor_version(
+    tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = cli.main(
+        [
+            "init",
+            str(tmp_path),
+            "--vendor",
+            "acme",
+            "--library",
+            "common",
+            "--name",
+            "fifo",
+            "--version",
+            "D5020204",
+            "--scheme",
+            "opaque",
+        ]
+    )
+    assert rc == 0
+    manifest_path = tmp_path / "ip.toml"
+    assert 'scheme      = "opaque"' in manifest_path.read_text(encoding="utf-8")
+    # The scaffolded non-SemVer manifest must itself validate.
+    assert cli.main(["validate", str(manifest_path)]) == 0
+
+
+def test_init_rejects_unknown_scheme(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        cli.main(
+            [
+                "init",
+                str(tmp_path),
+                "--vendor",
+                "a",
+                "--library",
+                "b",
+                "--name",
+                "c",
+                "--scheme",
+                "bogus",
+            ]
+        )
+    assert not (tmp_path / "ip.toml").exists()
+
+
 def test_init_refuses_overwrite_without_force(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
     (tmp_path / "ip.toml").write_text("existing", encoding="utf-8")
     rc = cli.main(["init", str(tmp_path), "--vendor", "a", "--library", "b", "--name", "c"])

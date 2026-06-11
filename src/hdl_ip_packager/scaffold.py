@@ -15,7 +15,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .version import Version
+from .version import (
+    DEFAULT_VERSION_SCHEME,
+    AnyVersion,
+    CalVer,
+    MonotonicVersion,
+    OpaqueVersion,
+    Version,
+    VersionScheme,
+    parse_version,
+)
 from .vlnv import PackageRef, Vlnv
 
 __all__ = ["ScaffoldOptions", "render_manifest"]
@@ -35,13 +44,16 @@ class ScaffoldOptions:
     """The fields needed to scaffold a starter manifest, validated on construction.
 
     ``vendor``/``library``/``name`` are validated as VLNV segments and ``version``
-    as SemVer; ``top`` defaults to ``name`` so the rendered target is consistent.
+    is parsed under ``scheme`` (SemVer by default, or one of the non-SemVer schemes
+    for vendor/date version codes); ``top`` defaults to ``name`` so the rendered
+    target is consistent.
     """
 
     vendor: str
     library: str
     name: str
-    version: Version
+    version: AnyVersion
+    scheme: VersionScheme = DEFAULT_VERSION_SCHEME
     description: str = ""
     license: str = ""
     top: str | None = None
@@ -49,8 +61,8 @@ class ScaffoldOptions:
     def __post_init__(self) -> None:
         # Reuse the canonical segment validation; raises InvalidVlnvError on a bad part.
         PackageRef(self.vendor, self.library, self.name)
-        if not isinstance(self.version, Version):
-            raise TypeError(f"version must be a Version, got {type(self.version).__name__}")
+        if not isinstance(self.version, (Version, OpaqueVersion, CalVer, MonotonicVersion)):
+            raise TypeError(f"version must be a parsed version, got {type(self.version).__name__}")
 
     @classmethod
     def create(
@@ -59,16 +71,18 @@ class ScaffoldOptions:
         library: str,
         name: str,
         version: str = DEFAULT_VERSION,
+        scheme: VersionScheme = DEFAULT_VERSION_SCHEME,
         description: str = "",
         license: str = "",
         top: str | None = None,
     ) -> ScaffoldOptions:
-        """Build options from strings, parsing *version*; raise on invalid input."""
+        """Build options from strings, parsing *version* under *scheme*; raise on bad input."""
         return cls(
             vendor=vendor,
             library=library,
             name=name,
-            version=Version.parse(version),
+            version=parse_version(version, scheme),
+            scheme=scheme,
             description=description,
             license=license,
             top=top,
@@ -95,6 +109,12 @@ def render_manifest(options: ScaffoldOptions) -> str:
         f"library     = {_toml_basic_string(options.library)}",
         f"name        = {_toml_basic_string(name)}",
         f"version     = {_toml_basic_string(str(options.version))}",
+        # Only emit a non-default scheme; a plain SemVer core stays scheme-less.
+        *(
+            [f"scheme      = {_toml_basic_string(options.scheme)}"]
+            if options.scheme != DEFAULT_VERSION_SCHEME
+            else []
+        ),
         f"description = {_toml_basic_string(options.description)}",
         f"license     = {_toml_basic_string(options.license)}",
         "authors     = []",

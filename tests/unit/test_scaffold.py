@@ -58,3 +58,31 @@ def test_invalid_segment_raises() -> None:
 def test_invalid_version_raises() -> None:
     with pytest.raises(InvalidVersionError):
         ScaffoldOptions.create("acme", "common", "fifo", version="not-a-version")
+
+
+def test_invalid_semver_message_points_at_schemes() -> None:
+    with pytest.raises(InvalidVersionError, match="scheme"):
+        ScaffoldOptions.create("acme", "common", "fifo", version="D5020204")
+
+
+def test_default_scheme_omits_the_scheme_key() -> None:
+    rendered = render_manifest(ScaffoldOptions.create("acme", "common", "fifo"))
+    assert "scheme" not in rendered
+
+
+def test_opaque_scheme_accepts_a_vendor_version_and_round_trips() -> None:
+    options = ScaffoldOptions.create("acme", "common", "fifo", version="D5020204", scheme="opaque")
+    rendered = render_manifest(options)
+    assert 'scheme      = "opaque"' in rendered
+    manifest = Manifest.from_str(rendered)
+    assert str(manifest.vlnv) == "acme:common:fifo:D5020204"
+    assert manifest.version_scheme == "opaque"
+
+
+def test_monotonic_scheme_round_trips() -> None:
+    options = ScaffoldOptions.create(
+        "acme", "common", "fifo", version="D5020204", scheme="monotonic"
+    )
+    manifest = Manifest.from_str(render_manifest(options))
+    assert manifest.version_scheme == "monotonic"
+    assert str(manifest.vlnv) == "acme:common:fifo:D5020204"

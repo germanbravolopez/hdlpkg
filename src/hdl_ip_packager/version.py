@@ -177,7 +177,11 @@ class Version:
             raise InvalidVersionError(f"Version must be a string, got {type(text).__name__}")
         m = _SEMVER_RE.match(text.strip())
         if not m:
-            raise InvalidVersionError(f"Not a valid semantic version: {text!r}")
+            raise InvalidVersionError(
+                f"Not a valid semantic version: {text!r}. If this is a vendor or date "
+                "version code, set [package].scheme (or 'hdlpkg init --scheme') to "
+                "'opaque', 'monotonic', or 'calver'."
+            )
         pre = tuple(m.group("prerelease").split(".")) if m.group("prerelease") else ()
         build = tuple(m.group("build").split(".")) if m.group("build") else ()
         return cls(
