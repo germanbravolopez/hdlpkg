@@ -66,7 +66,7 @@ pip install -e ".[dev]"          # docs site extras: pip install -e ".[docs]"
 |------|---------|
 | **VLNV** | A core's name: `vendor:library:name:version`, e.g. `acme:comm:uart:1.2.0`. |
 | **`ip.toml`** | The manifest at a core's root: identity, dependencies, filesets, targets. |
-| **Fileset** | A named group of source files of one HDL type (e.g. `rtl`, `tb`). |
+| **Fileset** | A named group of source files of one HDL type (e.g. `rtl`, `tb`); entries may be literal paths, globs (`rtl/**/*.vhd`), or a directory. |
 | **Target** | A build: which filesets feed which tool flow, and the top unit. |
 | **Constraint** | A version range a dependency accepts: `^1.2.0`, `~1.2.0`, `>=1,<2` (or `=D5020100` for an opaque core). |
 | **Version scheme** | `[package].scheme`: `semver` (default), `calver` (`2024.1`, year-as-major), `monotonic` (`r3`), or `opaque` (uninterpreted tokens, pinned exactly). |
@@ -171,6 +171,88 @@ hdlpkg init --vendor mycorp --library comm --name uart \
 4. `hdlpkg validate`, then `resolve`, `gen`, and `pack` as above.
 
 See the [manifest reference](modules/manifest.md) for every field.
+
+## Packaging a generated / script-driven IP
+
+Some cores are not a fixed list of RTL: the deliverable is a **generator** — a
+Vivado/Tcl script (`build.tcl`), an IP-XACT description, and a few hand-written
+HDL files — and the *real* sources are produced by running that script inside the
+consumer's own simulation/synthesis flow (often a Makefile that calls the script,
+then points the build at the generated directory). You can package this kind of IP
+without changing any of that: `hdlpkg` versions and distributes the **inputs**, and
+your existing flow still does the generation, untouched.
+
+The trick is to read `[filesets]` for what it is — a **manifest of files to ship**,
+each tagged with a `type` — not as "the RTL `hdlpkg` will compile". Two facts make
+this work:
+
+- **`type` is free-form.** Only `hdlpkg`'s own `gen` backends interpret it; `validate`,
+  `pack`, `publish`, `resolve`, `install`, and `pull` carry every file **verbatim**,
+  preserving its path. So a `.tcl`, an IP-XACT `.xml`, a constraints file, or anything
+  else rides along untouched — tag them with a descriptive type like `tclSource` or
+  `user`.
+- **`[targets]` is optional.** If your internal customers build with their own
+  Makefile/Tcl flow, you do not need a `[targets]` block at all. `hdlpkg`'s role is to
+  replace "a git submodule pinned at some ref" with a **versioned, checksummed,
+  resolvable package** of the IP sources; the generation step stays exactly where it is.
+
+A generator-style `ip.toml` then looks like:
+
+```toml
+[package]
+vendor  = "mycorp"
+library = "video"
+name    = "scaler"
+version = "1.2.0"
+top     = "scaler_top"           # informational: the generated/BD top
+
+[filesets.vhdl]                  # hand-written HDL that lives in the repo
+files = ["src/scaler_pkg.vhd", "src/scaler_top.vhd"]
+type  = "vhdlSource"
+
+[filesets.ipxact]                # IP-XACT submodule description, carried as-is
+files = ["ip/scaler.xml", "ip/sub/axi.xml"]
+type  = "user"
+
+[filesets.generator]             # the Vivado generator script(s)
+files = ["build.tcl"]
+type  = "tclSource"
+```
+
+Package the **inputs, not the generated outputs**: the Vivado block-design files do
+not exist until `build.tcl` runs (and their exact list is dynamic), so they are not
+something to enumerate here. The consumer runs `hdlpkg install`/`pull` to land this
+source tree where the submodule used to sit, and their Makefile runs `build.tcl` →
+moves the generated files → adds the path to the build, exactly as before. `hdlpkg`
+gives them the *versioned, locked, integrity-checked* source; it does not run the
+generator or interfere with their tool flow.
+
+### Globs and directories in a fileset
+
+For a large IP you do not have to list every file. A `files` entry may be:
+
+- a **literal** path — `src/scaler_top.vhd`;
+- a **glob** — any entry containing `*`, `?`, or `[`; `**` recurses, e.g.
+  `rtl/**/*.vhd` or `ip/*.xml`. A glob matches files only;
+- a **directory** — `ip` packs every file under `ip/`, recursively.
+
+So the IP above can collapse to whole trees:
+
+```toml
+[filesets.vhdl]
+files = ["src/**/*.vhd"]
+type  = "vhdlSource"
+
+[filesets.ipxact]
+files = ["ip"]                   # the entire IP-XACT submodule tree
+type  = "user"
+```
+
+Expansion happens at `pack`/`publish`/`gen` time, resolved against the core directory;
+matches are sorted so the `.ipkg` stays byte-for-byte deterministic. A glob or directory
+that matches **no** file is an error (a likely typo), and patterns may not escape the core
+(`..` or absolute paths are rejected). The manifest still records the patterns you wrote,
+so `ip.lock` and the SBOM are unaffected.
 
 ## Sharing over a registry (local, HTTP, or OCI)
 

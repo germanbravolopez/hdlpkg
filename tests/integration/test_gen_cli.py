@@ -45,6 +45,28 @@ def test_gen_vivado_synth_target(tmp_path: Path) -> None:
     assert "uart_tb.sv" not in tcl  # synth target excludes the testbench
 
 
+def test_gen_expands_glob_fileset(tmp_path: Path) -> None:
+    # A core whose fileset is a glob: gen must emit the expanded files, not the pattern.
+    manifest = (
+        '[package]\nvendor="acme"\nlibrary="common"\nname="blk"\nversion="1.0.0"\n'
+        'top = "blk_top"\n'
+        '[filesets.rtl]\nfiles = ["rtl/**/*.sv"]\ntype = "systemVerilogSource"\n'
+        '[targets.sim]\ntoolflow = "verilator"\nfilesets = ["rtl"]\ntop = "blk_top"\n'
+    )
+    (tmp_path / "rtl" / "sub").mkdir(parents=True)
+    (tmp_path / "ip.toml").write_text(manifest, encoding="utf-8")
+    (tmp_path / "rtl" / "blk_top.sv").write_text("module blk_top; endmodule\n", encoding="utf-8")
+    (tmp_path / "rtl" / "sub" / "helper.sv").write_text(
+        "module helper; endmodule\n", encoding="utf-8"
+    )
+    out = tmp_path / "out"
+    rc = cli.main(["gen", "sim", str(tmp_path / "ip.toml"), "--output", str(out)])
+    assert rc == 0
+    vc = (out / "blk.vc").read_text(encoding="utf-8")
+    assert "blk_top.sv" in vc and "helper.sv" in vc
+    assert "**" not in vc  # the literal glob pattern never leaks into the tool input
+
+
 def test_gen_unknown_target_fails(tmp_path: Path, capsys) -> None:
     rc = cli.main(
         ["gen", "nope", str(UART_MANIFEST), "--search", str(EXAMPLES), "--output", str(tmp_path)]

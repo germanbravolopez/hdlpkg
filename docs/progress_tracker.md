@@ -29,14 +29,19 @@ rejection, **and the operational distribution protocol** — HTTP + OCI registry
 behind one `registry_from_location` abstraction, with `hdlpkg login` auth (direct bearer
 **and** the OCI token-exchange, reusing `docker login`) for private, self-hosted registries.
 With the resolver contract, the `ip.toml`/`ip.lock` format shapes, and the registry/OCI
-protocol now settled, the path to the final `1.0.0` is just the soak: the **`1.0.0-rc.1`
-soak is now underway** (this candidate must hold with no format/CLI/protocol change), and a
-**third-party publish/consume** should validate this rc during the soak. A clean soak is
-promoted to `1.0.0`; any required format change resets it (and would ship as `0.9.0`). See
-the Release plan.
+protocol now settled, the path to the final `1.0.0` was the soak: the **`1.0.0-rc.1`
+soak** required this candidate to hold with no format/CLI/protocol change, validated by a
+third-party publish/consume. **That soak is now being reset.** The `1.0.0-rc.1` third-party
+trial surfaced a real `ip.toml` gap — `[filesets]` could only list explicit files, which is
+unworkable for a large generated/vendored tree — so `files` entries now also accept **globs
+and directories** (see the milestone below). That is a deliberate format change folded into
+the pre-1.0 contract, so per the soak rule the next candidate ships as **`0.9.0`** (carrying
+globs **and** the additive `init --scheme` finding) and **re-soaks** toward `1.0.0`. Better
+to complete the fileset format before freezing it than to bolt globs on after. Promotion to
+`1.0.0` remains the human-gated sign-off. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
-pass; fully typed, linted, and tested (463 passing tests, ~95% coverage):
+pass; fully typed, linted, and tested (470 passing tests, ~95% coverage):
 - **Versioning** — SemVer 2.0.0 `Version` + `VersionConstraint` (caret/tilde/range
   grammar, pre-release precedence).
 - **Identity** — `PackageRef` and `Vlnv` (`vendor:library:name:version`).
@@ -172,6 +177,29 @@ _None._
 
 ## Completed Milestones
 
+### Soak finding: glob + directory filesets (resets the rc.1 soak; next cut is `0.9.0`) — June 2026
+- [x] **`[filesets]` `files` entries now accept globs and directories**, closing a format
+  gap the `1.0.0-rc.1` third-party trial surfaced: a customer packaging a large,
+  script-generated / vendored IP (a Vivado generator script + an IP-XACT submodule tree +
+  HDL) found that an explicit per-file list was unworkable ("just too big"). A `files` entry
+  may now be a literal path (as before), a **glob** (any entry with `*`/`?`/`[`; `**`
+  recurses, e.g. `rtl/**/*.vhd`), or a **directory** (packs every file under it,
+  recursively). Expansion happens at the I/O boundary at `pack`/`publish`/`gen` time, with
+  matches **sorted** so the `.ipkg` stays byte-identical (deterministic content address
+  preserved); an entry matching no file is an error, and `..`/absolute patterns are
+  rejected. The manifest keeps the patterns as authored, so `ip.lock` and the SBOM are
+  unchanged. Existing literal-list manifests are unaffected (backward-compatible).
+- [x] **Implementation**: a new pure-at-the-boundary `expand_fileset_files(core_dir,
+  fileset_name, patterns)` in `packaging.py` drives both `pack` (`_collect`) and `gen` (the
+  CLI materializes each `CoreSource`'s filesets via `dataclasses.replace` before assembly,
+  so the pure `edam` backend keeps seeing a concrete file list and never emits a raw glob).
+  Files: `packaging.py`, `cli.py`, `tests/integration/test_packaging.py`, `test_gen_cli.py`;
+  `docs/user_guide.md`, `docs/modules/manifest.md`. **Release impact**: this is an `ip.toml`
+  semantic change, so under the soak rule it **resets the `1.0.0-rc.1` soak** — the next
+  candidate is **`0.9.0`** (folding in globs **and** the additive `init --scheme` finding),
+  re-soaking toward `1.0.0`. The format-vs-soak call was made deliberately (fix the fileset
+  format before the freeze); the `0.9.0` cut itself is the human-gated release step.
+
 ### Soak finding: `hdlpkg init --scheme` for non-SemVer version codes — June 2026
 - [x] **`hdlpkg init` now exposes the version scheme**, closing a trial-feedback gap: a
   third-party tester ran `hdlpkg init` with a vendor version code (`D5020204`) and hit
@@ -186,9 +214,9 @@ _None._
   `tests/unit/test_scaffold.py`, `test_cli.py`; `docs/user_guide.md`. **Purely additive**
   (a new optional flag + a friendlier message + emitting an already-frozen manifest key):
   no change to `ip.toml`/`ip.lock` shape, lockfile, or registry protocol, and existing
-  `init` invocations are unchanged. Whether this rides into the final `1.0.0` or waits for
-  `1.0.1` — i.e. whether an additive CLI flag counts against the rc.1 soak — is a release
-  call to confirm at promotion; it does **not** reset the format soak.
+  `init` invocations are unchanged. This change is additive and would not by itself reset
+  the soak; it now simply rides into the **`0.9.0`** re-cut alongside the glob/directory
+  fileset change (which does reset it — see the entry above).
 
 ### Release 1.0.0-rc.1 — June 2026
 - [x] **Cut `1.0.0-rc.1`, the first 1.0 release candidate**, to **start the soak** toward the

@@ -15,6 +15,7 @@ import getpass
 import re
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from . import __version__
@@ -45,7 +46,7 @@ from .manifest import (
     ConflictPolicy,
     Manifest,
 )
-from .packaging import artifact_filename, extract_ipkg, pack_core
+from .packaging import artifact_filename, expand_fileset_files, extract_ipkg, pack_core
 from .registry import (
     LocalDirectoryRegistry,
     Registry,
@@ -627,9 +628,13 @@ def _cmd_gen(args: argparse.Namespace) -> int:
         resolution, registry = _resolve_local(manifest_path, args.search, _policy(args))
         _print_warnings(resolution)
         dep_vlnvs = list(resolution.vlnvs)
-    root_source = CoreSource(manifest=root, root=str(manifest_path.resolve().parent))
+    root_source = _materialize_filesets(
+        CoreSource(manifest=root, root=str(manifest_path.resolve().parent))
+    )
     dependencies = [
-        CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
+        _materialize_filesets(
+            CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
+        )
         for vlnv in dep_vlnvs
     ]
 
@@ -664,6 +669,22 @@ def _cmd_gen(args: argparse.Namespace) -> int:
     for dest in written:
         print(f"  {dest}")
     return 0
+
+
+def _materialize_filesets(source: CoreSource) -> CoreSource:
+    """Expand *source*'s fileset globs/directories against its on-disk root.
+
+    ``gen`` (and its name-mangling pass) joins fileset paths into tool inputs without
+    reading the directory, so glob/directory expansion happens here at the I/O boundary:
+    each fileset's ``files`` is resolved to concrete relative paths before assembly, and
+    everything downstream sees a plain file list.
+    """
+    core_dir = Path(source.root)
+    filesets = {
+        name: replace(fs, files=tuple(expand_fileset_files(core_dir, name, fs.files)))
+        for name, fs in source.manifest.filesets.items()
+    }
+    return CoreSource(manifest=replace(source.manifest, filesets=filesets), root=source.root)
 
 
 def _has_multiversion(dependencies: list[CoreSource]) -> bool:

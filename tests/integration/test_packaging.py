@@ -20,6 +20,7 @@ from hdl_ip_packager.lockfile import sha256_digest
 from hdl_ip_packager.manifest import Manifest
 from hdl_ip_packager.packaging import (
     artifact_filename,
+    expand_fileset_files,
     extract_ipkg,
     manifest_from_ipkg,
     pack_core,
@@ -86,6 +87,61 @@ def test_pack_rejects_fileset_path_escaping_core(tmp_path: Path) -> None:
     (tmp_path / "ip.toml").write_text(escaping, encoding="utf-8")
     with pytest.raises(PackagingError, match="escapes the core directory"):
         pack_core(Manifest.from_str(escaping), tmp_path)
+
+
+def test_expand_glob_matches_files_recursively_and_sorted(tmp_path: Path) -> None:
+    (tmp_path / "rtl" / "sub").mkdir(parents=True)
+    (tmp_path / "rtl" / "b.vhd").write_text("b", encoding="utf-8")
+    (tmp_path / "rtl" / "a.vhd").write_text("a", encoding="utf-8")
+    (tmp_path / "rtl" / "sub" / "c.vhd").write_text("c", encoding="utf-8")
+    (tmp_path / "rtl" / "notes.txt").write_text("skip", encoding="utf-8")
+    files = expand_fileset_files(tmp_path, "vhdl", ["rtl/**/*.vhd"])
+    assert files == ["rtl/a.vhd", "rtl/b.vhd", "rtl/sub/c.vhd"]  # sorted, .txt excluded
+
+
+def test_expand_directory_includes_every_file(tmp_path: Path) -> None:
+    (tmp_path / "ip" / "sub").mkdir(parents=True)
+    (tmp_path / "ip" / "x.xml").write_text("x", encoding="utf-8")
+    (tmp_path / "ip" / "sub" / "y.xml").write_text("y", encoding="utf-8")
+    assert expand_fileset_files(tmp_path, "ipxact", ["ip"]) == ["ip/sub/y.xml", "ip/x.xml"]
+
+
+def test_expand_literal_is_preserved_and_deduplicated(tmp_path: Path) -> None:
+    (tmp_path / "rtl").mkdir()
+    (tmp_path / "rtl" / "top.sv").write_text("t", encoding="utf-8")
+    # A literal path is kept verbatim (a missing one still surfaces later, on read);
+    # a literal repeated by a glob is de-duplicated, author order preserved.
+    files = expand_fileset_files(tmp_path, "rtl", ["rtl/top.sv", "rtl/*.sv"])
+    assert files == ["rtl/top.sv"]
+
+
+def test_expand_empty_glob_raises(tmp_path: Path) -> None:
+    with pytest.raises(PackagingError, match="matched no files"):
+        expand_fileset_files(tmp_path, "rtl", ["rtl/**/*.sv"])
+
+
+def test_expand_rejects_escaping_pattern(tmp_path: Path) -> None:
+    with pytest.raises(PackagingError, match="escapes the core directory"):
+        expand_fileset_files(tmp_path, "rtl", ["../*.sv"])
+
+
+def test_pack_expands_glob_and_directory_filesets(tmp_path: Path) -> None:
+    manifest_text = (
+        '[package]\nvendor="acme"\nlibrary="common"\nname="gen"\nversion="1.0.0"\n'
+        '[filesets.vhdl]\nfiles = ["rtl/**/*.vhd"]\ntype = "vhdlSource"\n'
+        '[filesets.ipxact]\nfiles = ["ip"]\ntype = "user"\n'
+    )
+    (tmp_path / "rtl" / "sub").mkdir(parents=True)
+    (tmp_path / "ip").mkdir()
+    (tmp_path / "ip.toml").write_text(manifest_text, encoding="utf-8")
+    (tmp_path / "rtl" / "a.vhd").write_text("a", encoding="utf-8")
+    (tmp_path / "rtl" / "sub" / "b.vhd").write_text("b", encoding="utf-8")
+    (tmp_path / "rtl" / "skip.txt").write_text("skip", encoding="utf-8")
+    (tmp_path / "ip" / "scaler.xml").write_text("<c/>", encoding="utf-8")
+    data = pack_core(Manifest.from_str(manifest_text), tmp_path)
+    dest = extract_ipkg(data, tmp_path / "out")
+    packed = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
+    assert packed == ["ip.toml", "ip/scaler.xml", "rtl/a.vhd", "rtl/sub/b.vhd"]
 
 
 def test_extract_rejects_path_traversal(tmp_path: Path) -> None:

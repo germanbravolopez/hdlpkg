@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import gzip
 import io
+import re
 import tarfile
+from collections.abc import Iterable
 from pathlib import Path
 
 from .exceptions import PackagingError
@@ -27,12 +29,68 @@ from .vlnv import Vlnv
 __all__ = [
     "IPKG_SUFFIX",
     "artifact_filename",
+    "expand_fileset_files",
     "extract_ipkg",
     "manifest_from_ipkg",
     "pack_core",
 ]
 
 IPKG_SUFFIX = ".ipkg"
+
+# A path that uses any of these is treated as a glob pattern rather than a literal file.
+_GLOB_MAGIC = re.compile(r"[*?\[]")
+
+
+def _reject_escape(fileset_name: str, pattern: str) -> None:
+    """Reject a fileset path that would reach outside the core directory."""
+    if pattern.startswith("/") or ".." in pattern.split("/") or Path(pattern).is_absolute():
+        raise PackagingError(
+            f"Fileset '{fileset_name}' path escapes the core directory: {pattern!r}"
+        )
+
+
+def expand_fileset_files(core_dir: Path, fileset_name: str, patterns: Iterable[str]) -> list[str]:
+    """Expand a fileset's path patterns against *core_dir* into concrete relative paths.
+
+    Each entry of a ``[filesets]`` ``files`` list may be:
+
+    * a **literal** file path (kept as-is, so a missing file is still reported on read);
+    * a **glob** -- any entry containing ``*``, ``?`` or ``[`` (``**`` recurses), expanded
+      relative to *core_dir* and matching files only; or
+    * an existing **directory**, expanded to every file under it, recursively.
+
+    Author order is preserved across entries; matches *within* a glob or directory are
+    sorted, and the whole list is de-duplicated (first occurrence wins) so packaging is
+    deterministic. Paths that escape the core (absolute or containing ``..``) are rejected,
+    and a glob or directory that matches no file is an error (a likely authoring mistake).
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(rel: str) -> None:
+        if rel not in seen:
+            seen.add(rel)
+            out.append(rel)
+
+    for raw in patterns:
+        pattern = raw.replace("\\", "/")
+        _reject_escape(fileset_name, pattern)
+        if _GLOB_MAGIC.search(pattern):
+            matches = sorted(p for p in core_dir.glob(pattern) if p.is_file())
+            if not matches:
+                raise PackagingError(f"Fileset '{fileset_name}' glob matched no files: {raw!r}")
+            for match in matches:
+                add(match.relative_to(core_dir).as_posix())
+        elif (core_dir / pattern).is_dir():
+            matches = sorted(p for p in (core_dir / pattern).rglob("*") if p.is_file())
+            if not matches:
+                raise PackagingError(f"Fileset '{fileset_name}' directory has no files: {raw!r}")
+            for match in matches:
+                add(match.relative_to(core_dir).as_posix())
+        else:
+            # A literal path: keep it so a typo still surfaces as a missing-file error.
+            add(pattern)
+    return out
 
 
 def artifact_filename(vlnv: Vlnv) -> str:
@@ -49,24 +107,14 @@ def _collect(manifest: Manifest, core_dir: Path) -> dict[str, bytes]:
     except OSError as exc:
         raise PackagingError(f"Cannot read {manifest_path}: {exc}") from exc
     for fileset in manifest.filesets.values():
-        for relative in fileset.files:
-            arcname = relative.replace("\\", "/")
-            # A fileset must stay inside the core: reject absolute paths and any
-            # ``..`` that would pack a file from outside the core directory (which
-            # would also produce an .ipkg extract_ipkg later refuses to unpack).
-            if (
-                arcname.startswith("/")
-                or ".." in arcname.split("/")
-                or Path(relative).is_absolute()
-            ):
-                raise PackagingError(
-                    f"Fileset '{fileset.name}' path escapes the core directory: {relative!r}"
-                )
+        # Expand globs/directories to concrete files (and reject paths escaping the
+        # core, which would also produce an .ipkg extract_ipkg later refuses to unpack).
+        for arcname in expand_fileset_files(core_dir, fileset.name, fileset.files):
             try:
-                files[arcname] = (core_dir / relative).read_bytes()
+                files[arcname] = (core_dir / arcname).read_bytes()
             except OSError as exc:
                 raise PackagingError(
-                    f"Fileset '{fileset.name}' references missing file '{relative}': {exc}"
+                    f"Fileset '{fileset.name}' references missing file '{arcname}': {exc}"
                 ) from exc
     return files
 
