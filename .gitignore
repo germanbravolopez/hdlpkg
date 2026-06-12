@@ -3,25 +3,17 @@
 # --------------------------------------------------------------------------- #
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
 
-# Distribution / packaging / build artifacts
-.Python
+# Packaging / build artifacts
 build/
 dist/
-downloads/
 *.egg-info/
 .eggs/
-wheels/
 *.egg
-share/python-wheels/
 
 # Virtual environments
 .venv/
 venv/
-env/
-ENV/
 .python-version
 
 # Test / coverage / type-check caches
@@ -33,11 +25,9 @@ ENV/
 coverage.xml
 htmlcov/
 test-results*.xml
-.tox/
-.nox/
 
 # --------------------------------------------------------------------------- #
-# HDL IP Packager runtime state (do not commit caches or resolved artifacts)  #
+# HDL IP Packager runtime state (do not commit caches or resolved artifacts)   #
 # --------------------------------------------------------------------------- #
 # Local on-disk cache / catalog the packager populates when resolving cores.
 .hdlpkg/
@@ -46,16 +36,14 @@ test-results*.xml
 gen/
 work/
 *.ipkg
-
-# MkDocs build output (the docs site is published by CI, never committed).
-site/
-
+# Generated CycloneDX SBOMs (hdlpkg pack --sbom default output).
+*.cdx.json
 # Generated XML at the repo root: IP-XACT exports (export-ipxact) and CI reports
 # (coverage.xml / test-results.xml). No source XML lives at the root.
 /*.xml
 
-# Generated CycloneDX SBOMs (hdlpkg pack --sbom default output).
-*.cdx.json
+# MkDocs build output (the docs site is published by CI, never committed).
+site/
 
 # --------------------------------------------------------------------------- #
 # Editor / OS                                                                  #
@@ -75,5 +63,12 @@ Thumbs.db
 *.tmp
 *.log
 
-# Local agent settings (keep the shared ones, ignore the per-user override)
+# --------------------------------------------------------------------------- #
+# Local-only work (kept out of the repo on purpose)                            #
+# --------------------------------------------------------------------------- #
+# Customer/marketing material (deck builder, .pptx, slide previews).
+marketing/
+# Scratch directories for ad-hoc experiments.
+.scratch*/
+# Per-user agent settings (the shared .claude/ files stay tracked).
 .claude/settings.local.json
