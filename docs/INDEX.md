@@ -53,6 +53,8 @@ quick-find reference.
 | `scripts/render_test_summary.py` | Renders a foldable Markdown test report from JUnit XML into the GitHub step summary (and stdout locally) |
 | `scripts/check_release_version.py` | Release guard: fails if a git tag does not match `[project].version` in `pyproject.toml` |
 | `scripts/extract_release_notes.py` | Builds the GitHub Release body from the tag's `docs/progress_tracker.md` entry + a PyPI link |
+| `scripts/gen_manpage.py` | Generates `man/hdlpkg.1` from the live CLI parser (command reference) + curated prose; `--check` gates that the committed page is current |
+| `man/hdlpkg.1` | The generated `hdlpkg(1)` man page; `man/README.md` covers viewing and installing it |
 | `.github/workflows/ci.yml` | CI: pytest + coverage + ruff + mypy across Python 3.11/3.12, renders the test summary |
 | `.github/workflows/release.yml` | Tag-driven release: build wheel + sdist, publish to PyPI (OIDC), and create the GitHub Release |
 | `.pre-commit-config.yaml` | Local git hooks mirroring CI (ruff lint + format, mypy on `src/`) + hygiene hooks |

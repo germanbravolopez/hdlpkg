@@ -18,7 +18,11 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`0.9.0`** cut — the stable pre-1.0 release that **resets the `1.0.0-rc.1`
+**Version**: **`0.10.0`** cut — an **additive, docs-only** release over `0.9.0`: a generated
+`hdlpkg(1)` man page, now shipped in the wheel (`share/man/man1`) and sdist. It changes no
+on-disk format, CLI surface, or registry protocol, so it **continues** the `0.9.0` re-soak
+toward `1.0.0` rather than resetting it. Background on the soak (unchanged by this release):
+`0.9.0` was the stable pre-1.0 release that **reset the `1.0.0-rc.1`
 soak**. The `1.0.0-rc.1` candidate (a PyPI pre-release) was meant to freeze the formats, but
 the third-party trial surfaced a real `ip.toml` gap — `[filesets]` could only list explicit
 files, unworkable for a large generated/vendored tree — so `files` entries now also accept
@@ -172,6 +176,29 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Release 0.10.0 — June 2026
+- [x] **Cut `0.10.0`**, an additive docs release: ships the generated `hdlpkg(1)` man page
+  (see the milestone below) in the wheel as packaged data (`share/man/man1/hdlpkg.1`) and in
+  the sdist, so `man hdlpkg` is available after a system/pipx install. No `ip.toml`/`ip.lock`/
+  CLI/registry-protocol change — it **continues** the `0.9.0` re-soak toward `1.0.0` rather
+  than resetting it. Bumped `pyproject.toml` + `__init__.py` to `0.10.0` (and regenerated
+  `man/hdlpkg.1`, whose `.TH` carries the version).
+
+### `hdlpkg(1)` man page, generated from the CLI — June 2026
+- [x] **Added a full `man hdlpkg` manual**, generated so it cannot drift from the CLI. A
+  new `scripts/gen_manpage.py` **introspects `cli.build_parser()`** for the command +
+  option reference and merges it with curated prose (description, the typical
+  producer/consumer workflow, versioning/conflicts, registries, files, examples), emitting
+  groff `man(7)` source to `man/hdlpkg.1` (LF-only; deterministic — no embedded date — so
+  `--check` is a reliable gate). The man page is shipped in the wheel as packaged data
+  (`[tool.hatch.build.targets.wheel.shared-data]` → `share/man/man1/hdlpkg.1`, so a
+  system/pipx install puts it on the `MANPATH`) and in the sdist; `man/README.md` documents
+  viewing (`man ./man/hdlpkg.1`) and manual install. Verified to render warning-free through
+  `groff`/`man`. Files: `scripts/gen_manpage.py`, `man/hdlpkg.1`, `man/README.md`,
+  `pyproject.toml`, `tests/unit/test_manpage.py` (covers every subcommand + a committed-page
+  up-to-date gate); `README.md`, `docs/INDEX.md`, `docs/user_guide.md`. Docs-only / additive
+  — no `ip.toml`/`ip.lock`/CLI/protocol change, so it does not affect the `0.9.0` soak.
 
 ### Release 0.9.0 — June 2026
 - [x] **Cut `0.9.0`, the stable pre-1.0 release that resets the `1.0.0-rc.1` soak.** The rc.1

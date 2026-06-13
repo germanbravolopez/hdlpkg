@@ -112,6 +112,10 @@ hdlpkg publish ip.toml --registry oci://harbor.corp.local/ip
 hdlpkg resolve ip.toml --registry oci://harbor.corp.local/ip   # nothing leaves your network
 ```
 
+There is also a full `hdlpkg(1)` man page (commands, the typical producer/consumer
+workflow, files, registries, examples). View it from a checkout with `man ./man/hdlpkg.1`;
+see [`man/README.md`](./man/README.md) to install it so `man hdlpkg` works system-wide.
+
 A minimal `ip.toml`:
 
 ```toml

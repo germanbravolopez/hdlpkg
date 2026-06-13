@@ -1,0 +1,431 @@
+.TH HDLPKG 1 "" "hdlpkg 0.10.0" "HDL IP Packager Manual"
+.nh
+.ad l
+.SH NAME
+hdlpkg \- package, version, resolve, and distribute HDL IP cores
+.SH SYNOPSIS
+.B hdlpkg
+[\fB\-\-version\fR] [\fB\-h\fR]
+.I command
+[\fIargs\fR ...]
+.SH DESCRIPTION
+\fBhdlpkg\fR packages, versions, resolves, and distributes HDL IP cores
+(Verilog, VHDL, SystemVerilog) \[em] a dependency manager for reusable hardware design
+blocks, in the spirit of Cargo or npm but built for hardware realities.
+.PP
+A core is described once in a small, declarative \fBip.toml\fR manifest: its identity
+(a \fBVLNV\fR \[em] vendor:library:name:version), its dependencies as version
+\fIconstraints\fR, its source \fIfilesets\fR, and its build \fItargets\fR. From that,
+\fBhdlpkg\fR resolves the full dependency graph to exact versions recorded in a
+committed \fBip.lock\fR, fetches and integrity-verifies cores into a content-addressed
+cache, packages a core into a deterministic \fB.ipkg\fR artifact for distribution over a
+registry, and generates ready-to-run inputs for a simulator or synthesis tool.
+.PP
+\fBhdlpkg\fR does not replace your build flow: \fB[targets]\fR and \fBgen\fR are
+optional, so a team with its own Makefile/Tcl flow can adopt \fBhdlpkg\fR purely to
+version, verify, and distribute IP while keeping its existing tooling.
+.SH COMMANDS
+.SS info
+.ad l
+Show metadata parsed from a manifest.
+.PP
+.RS 4
+hdlpkg info [\-h] [path]
+.RE
+.PP
+.TP
+.B [path]
+path to the manifest (default: ./ip.toml)
+.SS validate
+.ad l
+Parse and validate a manifest.
+.PP
+.RS 4
+hdlpkg validate [\-h] [path]
+.RE
+.PP
+.TP
+.B [path]
+\ 
+.SS init
+.ad l
+Scaffold a starter ip.toml.
+.PP
+.RS 4
+hdlpkg init [\-h] [\-\-vendor VENDOR] [\-\-library LIBRARY] [\-\-name NAME] [\-\-version VERSION] [\-\-scheme {semver,calver,monotonic,opaque}] [\-\-description DESCRIPTION] [\-\-license LICENSE] [\-\-top TOP] [\-\-force] [directory]
+.RE
+.PP
+.TP
+.B [directory]
+directory to create the manifest in (default: current directory)
+.TP
+.B \-\-vendor VENDOR
+VLNV vendor segment
+.TP
+.B \-\-library LIBRARY
+VLNV library segment
+.TP
+.B \-\-name NAME
+VLNV name segment
+.TP
+.B \-\-version VERSION
+version string (default: 0.1.0)
+.TP
+.B \-\-scheme SCHEME
+how --version is interpreted: 'semver' (default), 'calver', 'monotonic', or 'opaque' for vendor/date codes that are not SemVer (e.g. D5020204)
+.TP
+.B \-\-description DESCRIPTION
+short core description
+.TP
+.B \-\-license LICENSE
+SPDX license identifier
+.TP
+.B \-\-top TOP
+top-level unit (default: the core name)
+.TP
+.B \-\-force
+overwrite an existing ip.toml
+.SS resolve
+.ad l
+Resolve dependencies and write ip.lock.
+.PP
+.RS 4
+hdlpkg resolve [\-h] [\-\-search DIR] [\-\-output OUTPUT] [\-\-registry LOCATION] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] [path]
+.RE
+.PP
+.TP
+.B [path]
+path to the root manifest (default: ./ip.toml)
+.TP
+.B \-\-search DIR
+directory to scan for available cores (repeatable; default: the manifest's parent directory)
+.TP
+.B \-\-output OUTPUT
+where to write the lockfile (default: ./ip.lock next to the manifest)
+.TP
+.B \-\-registry LOCATION
+resolve from a published registry (overrides --search); a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+.TP
+.B \-\-on\-conflict ON_CONFLICT
+how to handle an incompatible version conflict, overriding the manifest's [resolution] on-conflict (default: the manifest's value, or fail_on_conflict)
+.SS install
+.ad l
+Resolve dependencies and fetch them into the local cache.
+.PP
+.RS 4
+hdlpkg install [\-h] [\-\-search DIR] [\-\-cache\-dir DIR] [\-\-output OUTPUT] [\-\-locked] [\-\-registry LOCATION] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] [path]
+.RE
+.PP
+.TP
+.B [path]
+path to the root manifest (default: ./ip.toml)
+.TP
+.B \-\-search DIR
+directory to scan for available cores (repeatable)
+.TP
+.B \-\-cache\-dir DIR
+cache root (default: ~/.hdlpkg/cache)
+.TP
+.B \-\-output OUTPUT
+where to write the lockfile (default: ./ip.lock)
+.TP
+.B \-\-locked
+install exactly from an existing ip.lock without re-resolving (reproducible builds); fail if it is missing
+.TP
+.B \-\-registry LOCATION
+fetch from a published registry (overrides --search); a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+.TP
+.B \-\-on\-conflict ON_CONFLICT
+how to handle an incompatible version conflict, overriding the manifest's [resolution] on-conflict (default: the manifest's value, or fail_on_conflict)
+.SS pack
+.ad l
+Package this core into a distributable .ipkg.
+.PP
+.RS 4
+hdlpkg pack [\-h] [\-\-output OUTPUT] [\-\-sbom [FILE]] [\-\-search DIR] [path]
+.RE
+.PP
+.TP
+.B [path]
+path to the manifest
+.TP
+.B \-\-output OUTPUT
+output .ipkg path (default: <vlnv>.ipkg in the cwd)
+.TP
+.B \-\-sbom FILE
+also write a CycloneDX SBOM (default path: <vlnv>.cdx.json)
+.TP
+.B \-\-search DIR
+directory to scan for dependency cores when building the SBOM (default: the manifest's parent directory)
+.SS publish
+.ad l
+Publish this core to a registry.
+.PP
+.RS 4
+hdlpkg publish [\-h] \-\-registry LOCATION [path]
+.RE
+.PP
+.TP
+.B [path]
+path to the manifest
+.TP
+.B \-\-registry LOCATION  (required)
+a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+.SS pull
+.ad l
+Download a core from a registry by VLNV.
+.PP
+.RS 4
+hdlpkg pull [\-h] \-\-registry LOCATION [\-\-output DIR] [\-\-cache\-dir DIR] vlnv
+.RE
+.PP
+.TP
+.B vlnv  (required)
+the core to pull, e.g. acme:common:fifo:1.0.0
+.TP
+.B \-\-registry LOCATION  (required)
+a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+.TP
+.B \-\-output DIR
+extract the core into this directory
+.TP
+.B \-\-cache\-dir DIR
+cache root (default: ~/.hdlpkg/cache)
+.SS yank
+.ad l
+Hide a published version from new resolves.
+.PP
+.RS 4
+hdlpkg yank [\-h] \-\-registry LOCATION vlnv
+.RE
+.PP
+.TP
+.B vlnv  (required)
+the core version to yank, e.g. acme:common:fifo:1.0.0
+.TP
+.B \-\-registry LOCATION  (required)
+a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+.SS login
+.ad l
+Store an auth token for a private registry.
+.PP
+.RS 4
+hdlpkg login [\-h] [\-\-username USERNAME] [\-\-token TOKEN] LOCATION
+.RE
+.PP
+.TP
+.B LOCATION  (required)
+registry URL, e.g. oci://harbor.corp/ip
+.TP
+.B \-\-username, \-u USERNAME
+username for a registry that uses the OCI token-exchange (HTTP Basic) flow; omit for a direct bearer token
+.TP
+.B \-\-token, \-\-password TOKEN
+the bearer token or password (omit to be prompted without echo)
+.SS logout
+.ad l
+Remove a stored registry auth token.
+.PP
+.RS 4
+hdlpkg logout [\-h] LOCATION
+.RE
+.PP
+.TP
+.B LOCATION  (required)
+registry URL to forget
+.SS gen
+.ad l
+Generate tool-flow inputs for a target.
+.PP
+.RS 4
+hdlpkg gen [\-h] [\-\-search DIR] [\-\-output DIR] [\-\-locked] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] target [path]
+.RE
+.PP
+.TP
+.B target  (required)
+the [targets.*] to build (e.g. sim, synth)
+.TP
+.B [path]
+path to the root manifest
+.TP
+.B \-\-search DIR
+directory to scan for dependency cores (repeatable; default: the manifest's parent directory)
+.TP
+.B \-\-output DIR
+output directory (default: ./gen/<target>)
+.TP
+.B \-\-locked
+use the dependency versions pinned in ip.lock instead of re-resolving (reproducible generation); fail if it is missing
+.TP
+.B \-\-on\-conflict ON_CONFLICT
+how to handle an incompatible version conflict, overriding the manifest's [resolution] on-conflict (default: the manifest's value, or fail_on_conflict)
+.SS tree
+.ad l
+Print the resolved dependency graph.
+.PP
+.RS 4
+hdlpkg tree [\-h] [\-\-search DIR] [\-\-registry LOCATION] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] [path]
+.RE
+.PP
+.TP
+.B [path]
+path to the root manifest
+.TP
+.B \-\-search DIR
+directory to scan for dependency cores (repeatable; default: the manifest's parent directory)
+.TP
+.B \-\-registry LOCATION
+resolve from a published registry (overrides --search); a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+.TP
+.B \-\-on\-conflict ON_CONFLICT
+how to handle an incompatible version conflict, overriding the manifest's [resolution] on-conflict (default: the manifest's value, or fail_on_conflict)
+.SS export-ipxact
+.ad l
+Export an IP-XACT (IEEE 1685) component description.
+.PP
+.RS 4
+hdlpkg export\-ipxact [\-h] [\-\-output FILE] [path]
+.RE
+.PP
+.TP
+.B [path]
+path to the manifest
+.TP
+.B \-\-output FILE
+output XML path (default: <vendor>.<library>.<name>.<version>.xml in the cwd)
+.SS add
+.ad l
+Add or update a dependency in ip.toml.
+.PP
+.RS 4
+hdlpkg add [\-h] [\-\-version CONSTRAINT] dependency [path]
+.RE
+.PP
+.TP
+.B dependency  (required)
+vendor:library:name[@constraint] (e.g. acme:common:fifo@^1.0.0)
+.TP
+.B [path]
+path to the manifest
+.TP
+.B \-\-version CONSTRAINT
+version constraint (overrides any @constraint; default: *)
+.SH TYPICAL WORKFLOW
+.SS Producer \[em] publish a core
+.EX
+hdlpkg init \-\-vendor acme \-\-library comm \-\-name uart
+hdlpkg validate ip.toml
+hdlpkg pack ip.toml \-\-sbom
+hdlpkg login   oci://harbor.corp/ip
+hdlpkg publish ip.toml \-\-registry oci://harbor.corp/ip
+.EE
+.SS Consumer \[em] depend on it, reproducibly
+.EX
+hdlpkg add acme:comm:uart@^1.2.0
+hdlpkg resolve ip.toml \-\-registry oci://harbor.corp/ip
+hdlpkg install ip.toml \-\-registry oci://harbor.corp/ip \-\-locked
+hdlpkg gen sim ip.toml \-\-locked \-\-output build/sim
+.EE
+.PP
+\fBresolve\fR turns the version \fIconstraint\fR you declared into one exact,
+conflict-free version of every core in the transitive graph and records it (plus a
+SHA\-256 per core) in \fBip.lock\fR \[em] commit that file. \fBinstall \-\-locked\fR then
+re-creates that exact set anywhere, verifying each fetched artifact against the lock and
+failing closed on any mismatch; this is the reproducible / CI path. By contrast
+\fBpull\fR is a one-off fetch of a single core by exact VLNV \[em] handy to inspect a
+block, but it does not resolve a graph, pin versions, or give reproducibility.
+.SH VERSIONING AND CONFLICTS
+A core's \fB[package].scheme\fR selects how its version string is interpreted:
+.TP
+.B semver
+(default) Full SemVer 2.0.0 precedence and caret/tilde/range constraints.
+.TP
+.B calver
+Ordered calendar versions (\fB2026.1\fR); the first component (year) is the
+compatibility boundary.
+.TP
+.B monotonic
+A single ordered revision stream (\fBr3\fR, \fBD5020204\fR); newest supersedes.
+.TP
+.B opaque
+An uninterpreted vendor token, carried verbatim and pinned exactly.
+.PP
+Compatible dependents unify to one newest version (Cargo-style). A genuinely
+incompatible conflict is handled by the \fB[resolution] on-conflict\fR policy
+(\fB\-\-on\-conflict\fR): \fBfail_on_conflict\fR (default), \fBuse_latest\fR, or
+\fBisolate_namespaces\fR (which name-mangles coexisting SystemVerilog/VHDL packages so
+two versions can elaborate together).
+.SH REGISTRIES
+A \fB\-\-registry\fR / \fBlogin\fR \fILOCATION\fR is chosen by its scheme:
+.TP
+.B a path, e.g. ./registry
+A local-directory registry (zero setup; a shared folder works).
+.TP
+.B http(s)://host/prefix
+An HTTP registry (any GET/PUT-capable server).
+.TP
+.B oci://host/prefix
+An OCI registry (JFrog Artifactory, Harbor, Nexus, GitLab, ECR/ACR, Zot); use
+\fBoci+http://\fR for a plaintext/dev one.
+.PP
+Network registries are private by default: authenticate once with \fBhdlpkg login\fR
+(a direct bearer token, or \fB\-\-username\fR for the OCI token-exchange). Publishing is
+append-only \[em] a version is immutable; retire a bad one with \fByank\fR.
+.SH FILES
+.TP
+.B ip.toml
+The core manifest at a project root: identity, dependencies, filesets, targets.
+.TP
+.B ip.lock
+The generated, committed lockfile pinning every (transitive) dependency to one exact
+version plus a SHA\-256 checksum. Commit it for reproducible builds.
+.TP
+.B ~/.hdlpkg/cache
+Content-addressed cache of fetched cores, verified on every read.
+.TP
+.B ~/.hdlpkg/credentials.toml
+Per-host registry tokens stored by \fBlogin\fR. A \fBdocker login\fR
+(\fB~/.docker/config.json\fR) is reused as a fallback.
+.SH EXAMPLES
+.TP
+.B Scaffold and check a new core
+.EX
+hdlpkg init \-\-vendor you \-\-library demo \-\-name widget
+hdlpkg validate ip.toml
+.EE
+.TP
+.B A non-SemVer vendor version
+.EX
+hdlpkg init \-\-vendor you \-\-library demo \-\-name widget \\
+    \-\-version D5020204 \-\-scheme opaque
+.EE
+.TP
+.B Inspect the resolved graph
+.EX
+hdlpkg tree ip.toml \-\-registry oci://harbor.corp/ip
+.EE
+.TP
+.B Reproducible CI build (no re-resolve)
+.EX
+hdlpkg install ip.toml \-\-locked
+hdlpkg gen sim ip.toml \-\-locked \-\-output build/sim
+.EE
+.TP
+.B Grab one core to inspect it
+.EX
+hdlpkg pull acme:common:fifo:1.0.0 \-\-registry ./registry \-\-output ./fifo
+.EE
+.SH EXIT STATUS
+Returns \fB0\fR on success and \fB1\fR on any error (a bad manifest, an unresolvable graph, a registry/auth failure, or a checksum mismatch); the cause is printed to standard error.
+.SH ENVIRONMENT
+.TP
+.B HOME
+Base for the default cache and credentials store (\fB~/.hdlpkg\fR).
+.SH SEE ALSO
+Full documentation: \fBhttps://germanbravolopez.github.io/hdl\-ip\-packager/\fR
+.br
+Per-command help: \fBhdlpkg \fR\fIcommand\fR\fB \-\-help\fR
+.SH AUTHOR
+German Bravo Lopez.
+.SH COPYRIGHT
+MIT License. This is free software: you are free to change and redistribute it.

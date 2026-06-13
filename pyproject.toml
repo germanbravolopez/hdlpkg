@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hdl-ip-packager"
-version = "0.9.0"
+version = "0.10.0"
 description = "An IP packager and dependency manager for HDL (Verilog/VHDL/SystemVerilog) design reuse."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -60,6 +60,25 @@ Issues = "https://github.com/germanbravolopez/hdl-ip-packager/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/hdl_ip_packager"]
+
+# Ship the man page as data installed under <prefix>/share/man/man1, so a system or
+# pipx install puts `man hdlpkg` on the MANPATH. (pip into a bare venv may not add
+# that prefix to MANPATH; see man/README.md for the manual install.)
+[tool.hatch.build.targets.wheel.shared-data]
+"man/hdlpkg.1" = "share/man/man1/hdlpkg.1"
+
+# Keep the generator, man page, and its README in the source distribution.
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/",
+  "tests/",
+  "docs/",
+  "scripts/",
+  "man/",
+  "README.md",
+  "LICENSE",
+  "pyproject.toml",
+]
 
 # --------------------------------------------------------------------------- #
 # Tooling configuration — single source of truth lives in this file (PEP 518). #

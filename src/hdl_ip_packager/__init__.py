@@ -98,7 +98,7 @@ from .version import (
 )
 from .vlnv import PackageRef, Vlnv
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 __all__ = [
     "CYCLONEDX_SPEC_VERSION",
