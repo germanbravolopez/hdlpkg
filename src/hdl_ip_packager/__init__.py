@@ -11,6 +11,10 @@ for what is implemented versus planned.
 
 from __future__ import annotations
 
+# Defined before the submodule imports below so a submodule loaded during this
+# package's initialization (e.g. ``registry``) can read it without a circular import.
+__version__ = "0.10.0"
+
 from .backends import (
     Backend,
     CoreSource,
@@ -97,8 +101,6 @@ from .version import (
     parse_version,
 )
 from .vlnv import PackageRef, Vlnv
-
-__version__ = "0.10.0"
 
 __all__ = [
     "CYCLONEDX_SPEC_VERSION",

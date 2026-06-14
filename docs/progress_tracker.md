@@ -37,11 +37,12 @@ coexistence (and `gen` refusing two versions), the `[package].scheme` key
 protocol** — local + HTTP + OCI registry backends behind one `registry_from_location`
 abstraction, with `hdlpkg login` auth (direct bearer **and** the OCI token-exchange, reusing
 `docker login`); and **glob/directory filesets**. **Next**: the `0.10.0` third-party trial
-(against a real JFrog Artifactory behind Cloudflare) surfaced **two final blockers** — a
-default-User-Agent that a Cloudflare WAF rejects, and `gen` being unable to build from
-installed/cached deps — both now planned in **Blocking Issues** (additive/internal, no
-format change). Fixing them concludes the soak; a clean re-verify then promotes to `1.0.0`,
-which remains the human-gated stability sign-off. See the Release plan.
+(against a real JFrog Artifactory behind Cloudflare) surfaced two final blockers. The
+default-User-Agent rejected by Cloudflare's WAF is **fixed** (#12); the **one remaining
+blocker** is `gen` being unable to build from installed/cached deps (#13, planned in
+**Blocking Issues**; additive/internal, no format change). Fixing it concludes the soak; a
+clean re-verify then promotes to `1.0.0`, which remains the human-gated stability sign-off.
+See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
 pass; fully typed, linted, and tested (470 passing tests, ~95% coverage):
@@ -150,34 +151,14 @@ If the formats are still moving when M8 lands, release it as `0.7.0`, not `1.0.0
 
 ## Blocking Issues (must fix before the next release)
 
-Both surfaced by the **0.10.0 third-party trial** (an external customer running
-`trial.md` + the user guide against their own server and a **JFrog Artifactory behind
-a Cloudflare tunnel**, `jfrog.gbra.dev`). Both are real; both are **additive / internal**
-(no `ip.toml`/`ip.lock` format change), so fixing them is the last work before the soak
-concludes and `1.0.0` can be cut (human-gated sign-off). GitHub issues
-[#12](https://github.com/germanbravolopez/hdl-ip-packager/issues/12) and
+Surfaced by the **0.10.0 third-party trial** (an external customer running `trial.md` +
+the user guide against their own server and a **JFrog Artifactory behind a Cloudflare
+tunnel**, `jfrog.gbra.dev`). The Cloudflare User-Agent blocker
+([#12](https://github.com/germanbravolopez/hdl-ip-packager/issues/12)) is **fixed** (see
+Completed Milestones); the remaining blocker below is additive / internal (no
+`ip.toml`/`ip.lock` format change), so fixing it is the last work before the soak
+concludes and `1.0.0` can be cut (human-gated sign-off). GitHub issue
 [#13](https://github.com/germanbravolopez/hdl-ip-packager/issues/13).
-
-### [BUG] HTTP/OCI client sends urllib's default User-Agent — blocked by Cloudflare/WAFs (#12)
-- **Symptom**: `hdlpkg publish` (and pull/login) fails against a registry fronted by
-  Cloudflare with Browser Integrity Check / bot-fight on; works flawlessly over
-  `oci+http://localhost`. The OCI/auth logic is correct — this is a robustness gap, not a
-  design flaw.
-- **Root cause**: every outbound request omits a `User-Agent`, so `urllib` sends
-  `Python-urllib/3.x`, which Cloudflare rejects (403). Four sites, both backends:
-  `HttpRegistry._headers` ([registry.py:198](../src/hdl_ip_packager/registry.py#L198)) used by
-  `_get`/`_put`; `OciRegistry._headers`
-  ([registry.py:396](../src/hdl_ip_packager/registry.py#L396)) used by `_send`; and the
-  Basic-auth request in `_exchange_token`
-  ([registry.py:451](../src/hdl_ip_packager/registry.py#L451)).
-- **Fix**: add a module-level `_USER_AGENT = f"hdlpkg/{__version__}"` and inject it into
-  every request's headers — both `_headers()` methods and the `_exchange_token` header
-  dict. One small, low-blast-radius change touching only header construction (the
-  customer verified a one-line UA header resolves it).
-- **Tests**: a unit test (fake `urlopen` / the existing registry test transport) asserting
-  every request — HTTP `_get`/`_put`, OCI `_send`, and the token-exchange — carries a
-  non-default `User-Agent: hdlpkg/...`.
-- **Soak impact**: internal only; no `ip.toml`/`ip.lock`/CLI/registry-protocol change.
 
 ### [BUG] `gen` cannot consume installed/cached or published dependencies (#13)
 - **Symptom**: after `install` (or against a published registry) there is no way to
@@ -241,6 +222,20 @@ concludes and `1.0.0` can be cut (human-gated sign-off). GitHub issues
 ---
 
 ## Completed Milestones
+
+### Trial fix: send a non-default User-Agent on every registry request (#12) — June 2026
+- [x] **Registry HTTP/OCI requests now carry `User-Agent: hdlpkg/<version>`**, fixing a
+  trial blocker: the customer's **JFrog Artifactory behind Cloudflare** rejected `urllib`'s
+  default `Python-urllib/3.x` UA (Browser Integrity Check → 403), breaking
+  publish/pull/login while `oci+http://localhost` worked. Added a module-level `_USER_AGENT`
+  injected at all four request sites — `HttpRegistry._headers` (`_get`/`_put`),
+  `OciRegistry._headers` (`_send`), and the Basic-auth request in `_exchange_token`. The UA
+  reads the package `__version__`; to make that importable from `registry.py` (which loads
+  during `__init__`), `__version__` moved **above** the submodule imports in `__init__.py`,
+  removing a latent circular-import hazard. Files: `registry.py`, `__init__.py`,
+  `tests/unit/test_registry_user_agent.py` (fakes the transport; asserts every request —
+  HTTP GET/PUT, OCI send, token-exchange — carries a non-default UA). Internal/robustness
+  only — no `ip.toml`/`ip.lock`/CLI/registry-protocol change; does not affect the soak.
 
 ### Release 0.10.0 — June 2026
 - [x] **Cut `0.10.0`**, an additive docs release: ships the generated `hdlpkg(1)` man page

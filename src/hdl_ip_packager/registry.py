@@ -43,6 +43,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
+from . import __version__
 from .cache import ContentAddressedCache
 from .credentials import Credential, CredentialStore, registry_host
 from .exceptions import HdlPackagerError, RegistryError
@@ -65,6 +66,13 @@ __all__ = [
 
 _IPKG_NAME = f"core{IPKG_SUFFIX}"
 _YANKED_MARKER = ".yanked"
+
+
+# A non-default ``User-Agent`` for every outbound request. ``urllib``'s default
+# (``Python-urllib/3.x``) is rejected by common WAFs -- a JFrog Artifactory behind
+# Cloudflare's Browser Integrity Check returns 403, which broke publish/pull/login in
+# the trial. (``__version__`` is defined ahead of this module's import in ``__init__``.)
+_USER_AGENT = f"hdlpkg/{__version__}"
 
 
 class Registry(abc.ABC):
@@ -196,7 +204,10 @@ class HttpRegistry(Registry):
         self.token = token
 
     def _headers(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.token}"} if self.token else {}
+        headers = {"User-Agent": _USER_AGENT}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        return headers
 
     def _get(self, url: str) -> bytes:
         request = urllib.request.Request(url, headers=self._headers())
@@ -396,7 +407,7 @@ class OciRegistry(Registry):
     def _headers(
         self, accept: str | None = None, content_type: str | None = None
     ) -> dict[str, str]:
-        headers: dict[str, str] = {}
+        headers: dict[str, str] = {"User-Agent": _USER_AGENT}
         bearer = self._bearer()
         if bearer:
             headers["Authorization"] = f"Bearer {bearer}"
@@ -448,7 +459,7 @@ class OciRegistry(Registry):
         realm = challenge["realm"]
         params = {k: challenge[k] for k in ("service", "scope") if challenge.get(k)}
         url = f"{realm}?{urlencode(params)}" if params else realm
-        headers: dict[str, str] = {}
+        headers: dict[str, str] = {"User-Agent": _USER_AGENT}
         if self.credential:
             raw = f"{self.credential.username or ''}:{self.credential.secret}".encode()
             headers["Authorization"] = "Basic " + base64.b64encode(raw).decode("ascii")
