@@ -46,9 +46,9 @@ Implemented today:
 - **Lockfile (`ip.lock`)** — a deterministic, verifiable record of a resolve
   (exact VLNVs + source + SHA-256), written by `hdlpkg resolve`.
 - **Content-addressed cache + registries** — a SHA-256-keyed local cache with
-  verify-on-read, fed by **local-directory, HTTP, and OCI** registry backends behind one
-  `--registry` location (a path, `http(s)://`, or `oci://`); `hdlpkg install` resolves and
-  fetches dependencies into it.
+  verify-on-read, fed by **local-directory, HTTP, OCI, and Git** registry backends behind
+  one `--registry` location (a path, `http(s)://`, `oci://`, or `git+…://`); `hdlpkg install`
+  resolves and fetches dependencies into it.
 - **Private, self-hosted distribution** — publish/consume cores over an internal HTTP server
   or any **OCI registry** (Harbor, Artifactory, Nexus, GitLab, Zot, ECR/ACR) without going
   public; `hdlpkg login` stores per-host credentials (a direct bearer token, or a
@@ -111,6 +111,7 @@ python -m hdl_ip_packager info   # same CLI, invoked as a module
 hdlpkg login oci://harbor.corp.local/ip            # stores a per-host bearer token
 hdlpkg publish ip.toml --registry oci://harbor.corp.local/ip
 hdlpkg resolve ip.toml --registry oci://harbor.corp.local/ip   # nothing leaves your network
+hdlpkg resolve ip.toml --registry git+ssh://bitbucket.org/org/ip-registry.git  # a Git repo of cores
 ```
 
 There is also a full `hdlpkg(1)` man page (commands, the typical producer/consumer

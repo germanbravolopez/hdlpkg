@@ -104,7 +104,7 @@ directory to scan for available cores (repeatable; default: the manifest's paren
 where to write the lockfile (default: ./ip.lock next to the manifest)
 .TP
 .B \-\-registry LOCATION
-resolve from a published registry (overrides --search); a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+resolve from a published registry (overrides --search); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .TP
 .B \-\-on\-conflict ON_CONFLICT
 how to handle an incompatible version conflict, overriding the manifest's [resolution] on-conflict (default: the manifest's value, or fail_on_conflict)
@@ -133,7 +133,7 @@ where to write the lockfile (default: ./ip.lock)
 install exactly from an existing ip.lock without re-resolving (reproducible builds); fail if it is missing
 .TP
 .B \-\-registry LOCATION
-fetch from a published registry (overrides --search); a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+fetch from a published registry (overrides --search); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .TP
 .B \-\-on\-conflict ON_CONFLICT
 how to handle an incompatible version conflict, overriding the manifest's [resolution] on-conflict (default: the manifest's value, or fail_on_conflict)
@@ -170,7 +170,7 @@ hdlpkg publish [\-h] \-\-registry LOCATION [path]
 path to the manifest
 .TP
 .B \-\-registry LOCATION  (required)
-a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .SS pull
 .ad l
 Download a core from a registry by VLNV.
@@ -184,7 +184,7 @@ hdlpkg pull [\-h] \-\-registry LOCATION [\-\-output DIR] [\-\-cache\-dir DIR] vl
 the core to pull, e.g. acme:common:fifo:1.0.0
 .TP
 .B \-\-registry LOCATION  (required)
-a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .TP
 .B \-\-output DIR
 extract the core into this directory
@@ -204,7 +204,7 @@ hdlpkg yank [\-h] \-\-registry LOCATION vlnv
 the core version to yank, e.g. acme:common:fifo:1.0.0
 .TP
 .B \-\-registry LOCATION  (required)
-a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .SS login
 .ad l
 Store an auth token for a private registry.
@@ -255,7 +255,7 @@ directory to scan for dependency cores (repeatable; default: the manifest's pare
 output directory (default: ./gen/<target>)
 .TP
 .B \-\-registry LOCATION
-fetch dependency sources from a published registry instead of --search (materialized from the cache); a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+fetch dependency sources from a published registry instead of --search (materialized from the cache); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .TP
 .B \-\-cache\-dir DIR
 cache root for materialized dependencies (default: ~/.hdlpkg/cache)
@@ -281,7 +281,7 @@ path to the root manifest
 directory to scan for dependency cores (repeatable; default: the manifest's parent directory)
 .TP
 .B \-\-registry LOCATION
-resolve from a published registry (overrides --search); a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+resolve from a published registry (overrides --search); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .TP
 .B \-\-on\-conflict ON_CONFLICT
 how to handle an incompatible version conflict, overriding the manifest's [resolution] on-conflict (default: the manifest's value, or fail_on_conflict)

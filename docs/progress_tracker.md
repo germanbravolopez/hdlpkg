@@ -36,13 +36,14 @@ coexistence (and `gen` refusing two versions), the `[package].scheme` key
 (`semver`/`calver`/`monotonic`/`opaque`, set by `init --scheme`); **the distribution
 protocol** — local + HTTP + OCI registry backends behind one `registry_from_location`
 abstraction, with `hdlpkg login` auth (direct bearer **and** the OCI token-exchange, reusing
-`docker login`); and **glob/directory filesets**. **Next**: the `0.10.0` third-party trial
-(against a real JFrog Artifactory behind Cloudflare) surfaced two final blockers — a
-default-User-Agent rejected by Cloudflare's WAF (#12) and `gen` being unable to build from
-installed/cached deps (#13). **Both are now fixed** (additive/internal, no format change),
-so **the soak has no open blockers**. A clean re-verify is the gate to promote to `1.0.0` —
-the formats (`ip.toml`/`ip.lock`), CLI, and registry/OCI protocol have held across the
-whole trial — which remains the human-gated stability sign-off. See the Release plan.
+`docker login`); and **glob/directory filesets**. The `0.10.0` third-party trial (against a
+real JFrog Artifactory behind Cloudflare) surfaced two final blockers — a default-User-Agent
+rejected by Cloudflare's WAF (#12) and `gen` being unable to build from installed/cached
+deps (#13) — **both now fixed** (additive/internal, no format change). On top, a **Git-backed
+registry** (`git+...` locations with commit provenance) just landed, also additive. **Next**:
+bundle these into a **`0.11.0`** pre-1.0 release. The formats (`ip.toml`/`ip.lock`), CLI, and
+registry/OCI protocol have held across the whole trial, so `1.0.0` (the human-gated stability
+sign-off) is the step after. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
 pass; fully typed, linted, and tested (470 passing tests, ~95% coverage):
@@ -167,7 +168,6 @@ blockers; a clean re-verify is the gate to promote to `1.0.0` (human-gated sign-
 |-------|------|-------|
 | Full compile/elaborate/simulate of the consumer demo's SV + VHDL outputs | consumer demo (`verify.py`, `demo.py`, `.github/workflows/verify.yml`), `backends/` | **Strengthen the end-to-end proof.** Today the consumer demo (and the in-repo `gen` tests) only assert that `gen` *emits* the right tool-flow inputs (`.vc`/`run_ghdl.sh`/mangled sources); nothing actually **builds** them. Add a real toolchain pass that compiles, elaborates, and simulates the generated designs — `verilator`/`icarus` for the SystemVerilog SoCs (`soc/`, `soc_conflict/`) and `ghdl` for the VHDL one (`soc_vhdl/`) — so we prove the generated flows genuinely elaborate (and that the package name-mangling produces designs that *build*, not just text that looks right). Needs the HDL toolchains installed on the runner (e.g. `ghdl`, `verilator`/`iverilog` via apt or a setup action), so it is a separate, possibly opt-in CI lane from the pure-Python `verify` matrix. This feeds the 1.0 **third-party consume** confidence but does not itself gate the release. |
 | Encrypted IP distribution (IEEE 1735) | `packaging.py`, `registry.py`, `manifest.py`, `cli.py` | **Future feature.** Let a producer distribute a core whose HDL source is **encrypted**, so a consumer can resolve/install/`gen` against it (the tool can drive a tool flow) without the source ever being readable on disk. Two distinct layers, decide which to build: **(a) Standard HDL IP encryption (IEEE 1735 / `pragma protect`)** — the cross-vendor norm. Each source file carries an encrypted envelope (a symmetric session key wrapped under each *tool vendor's* public key + AES/RSA-encrypted payload, IEEE 1735 v1/v2 with "rights" digests). The EDA tool decrypts at compile time; the packager's job is to **carry, not break** these envelopes — pack/`extract`/SBOM must treat an encrypted file as opaque, the deterministic-pack digest still pins ciphertext, and `gen` must not assume it can read the source. The tool would *not* implement the crypto itself (vendor keys live in the EDA tools); at most it could shell out to `vivado -encrypt`/`vlog +protect` to *produce* envelopes. **(b) At-rest/transport encryption of the `.ipkg`** — encrypt the whole artifact in the registry/cache for confidential distribution (e.g. age/GPG or an OCI-layer key), decrypted on `pull` with a consumer key. This is independent of HDL-tool semantics and simpler, but does **not** give the per-tool, compile-time protection (a) does. Open questions: where keys/recipients are declared (a `[package]`/`[encryption]` manifest key vs. out-of-band), how it interacts with content-addressing (the digest must pin what is *stored*), how the SBOM marks a component encrypted, and how `validate`/`info` behave when source is unreadable. Needs a real EDA tool (or an interop fixture) to test (a) honestly — defer like the Git/OCI/Sigstore work. |
-| Git-backed registry (+ source provenance) | `registry.py`, `lockfile.py`, `cli.py` | **Surfaced by the 1.0.0-rc.1 third-party trial** (a customer storing IP source in Bitbucket asked to install IPs from git, and how to trace a VLNV/version back to exact source). **Decided shape: a Git-backed *registry channel*** — point `--registry` at a git URL (e.g. `git+ssh://bitbucket.org/org/ip-registry.git`), discover cores from tags/refs, mirror the `LocalDirectoryRegistry`/`HttpRegistry`/`OciRegistry` shape behind `registry_from_location` (a new `git+...` scheme). **Dependencies stay VLNV-based, so this is purely additive — no `ip.toml` format change.** It also closes the traceability gap the trial raised: the lockfile `source` records `git+<url>@<commit-sha>`, binding the VLNV/version to an immutable commit (today `ip.lock` already pins each dep to a SHA-256 **content** digest with verify-on-read, and `pack --sbom` lists component digests — this adds the *git provenance* on top). Needs the `git` CLI + a remote to build and test honestly. **Ships post-`1.0.0` as a backward-compatible `1.1.0`; does not touch the rc or reset the soak.** A *per-dependency* git source (`"org:lib:ip" = { git = ..., rev = ... }`) is a possible later backward-compatible extension if a customer needs it, but is intentionally **not** the first cut (it would change the manifest format). |
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git backend. Checksums + SBOM already ship; this adds authenticity on top. |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
 | Multi-version coexistence for *modules*/*entities* (beyond packages) | `mangle.py`, `cli.py` | **Package** coexistence is done for both SystemVerilog and VHDL (`gen` name-mangles under `isolate_namespaces`). What remains: two versions of a SystemVerilog *module*/interface or a VHDL *entity*. Unlike a package reference (`::` / `use work.`), an *instantiation* position (`foo bar (...)` in SV, `label : entity work.foo` / component instantiation in VHDL) cannot be disambiguated from other constructs without a real parser, so it is refused today. Needs an HDL-aware frontend (cf. the parked "source-unit tokenizing" backlog item). |
@@ -185,6 +185,28 @@ blockers; a clean re-verify is the gate to promote to `1.0.0` (human-gated sign-
 ---
 
 ## Completed Milestones
+
+### Git-backed registry with commit provenance — June 2026
+- [x] **A Git repository of cores is now a registry**, via a new `git+...://` location
+  (e.g. `git+ssh://bitbucket.org/org/ip-registry.git`, optional `@<ref>` for a branch/tag/
+  SHA). `registry_from_location` dispatches `git+` schemes to a new `GitRegistry` that
+  clones/fetches the repo into a cache (`~/.hdlpkg/git`, overridable with
+  `HDLPKG_GIT_CACHE`), checks out the requested ref (default: the remote's default branch),
+  and **mirrors `LocalDirectoryRegistry`** over the working tree — so discovery/manifest/
+  artifact reuse the proven local-scan path. Closes the traceability gap the trial raised:
+  `source_for` returns `git+<url>@<commit-sha>`, so the lockfile binds each pinned core to
+  an immutable commit (on top of the existing SHA-256 content digest). Authentication is
+  delegated to the user's own git config (ssh keys / credential helpers);
+  `GIT_TERMINAL_PROMPT=0` keeps a missing credential from hanging. **Purely additive** —
+  deps stay VLNV-based, **no `ip.toml`/`ip.lock` format change** (the lockfile `source` is
+  already a free-form string). Files: `registry.py` (`GitRegistry`, `_parse_git_location`
+  with `git@host` vs `@ref` disambiguation, `default_git_cache_root`), `__init__.py`, the
+  `_REGISTRY_HELP` string + regenerated `man/hdlpkg.1`, `tests/integration/`
+  `test_git_registry_cli.py` (a real local bare repo: resolve provenance, pull, ref
+  checkout, unknown-ref error — skips where Controlled Folder Access blocks git in `%TEMP%`,
+  runs in CI), `tests/unit/test_registry_location.py` (ref parsing). A *per-dependency* git
+  source (`{ git = …, rev = … }`) remains intentionally out of scope — it would change the
+  manifest format. Targeted for the upcoming `0.11.0`.
 
 ### Trial fix: `gen` consumes installed/cached and published dependencies (#13) — June 2026
 - [x] **`hdlpkg gen` can now build against dependencies that exist only as `.ipkg` blobs**

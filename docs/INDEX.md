@@ -98,6 +98,7 @@ quick-find reference.
 | `tests/unit/test_backends.py` | Verilator `.vc` / Vivado `.tcl` rendering + `get_backend` registry |
 | `tests/integration/test_gen_cli.py` | `hdlpkg gen` over the examples (resolve → assemble → render → write) |
 | `tests/integration/test_gen_registry_cli.py` | `hdlpkg gen` consuming deps from a registry (`--registry`) and offline from the installed cache (`gen --locked`) |
+| `tests/integration/test_git_registry_cli.py` | Git-backed registry (`git+...`): resolve provenance, pull, ref checkout (against a local bare repo) |
 | `tests/unit/test_registry_user_agent.py` | Every HTTP/OCI request carries a non-default `User-Agent` (the Cloudflare-WAF fix) |
 | `tests/unit/test_treeview.py` | `render_dependency_tree`: ordering, version annotation, diamond `(*)` marking |
 | `tests/integration/test_tree_cli.py` | `hdlpkg tree` over the examples |

@@ -264,11 +264,15 @@ publish/consume commands work against three backends, chosen by the location str
 | a path, e.g. `./registry` | a local directory registry |
 | `https://ip.corp.local/acme` | an HTTP registry (any `GET`/`PUT`-capable server) |
 | `oci://harbor.corp.local/ip` | an **OCI** registry (Harbor, Artifactory, Nexus, GitLab, Zot, ECR/ACR) — `oci+http://` for a plaintext/dev one |
+| `git+ssh://bitbucket.org/org/ip-registry.git` | a **Git** repository of cores (read-only); add `@<branch\|tag\|sha>` to pin a ref |
 
 Network registries are **private by default**: you authenticate once with `hdlpkg
 login`, and `resolve` / `install` / `publish` then use the stored credential
 automatically. Nothing is exposed publicly — the registry is whatever server you point
-at (typically one your company self-hosts).
+at (typically one your company self-hosts). A **Git** registry instead uses your own git
+credentials (ssh keys / credential helpers), and the lockfile records each core's exact
+commit (`git+<url>@<sha>`) for traceability; it is read-only (consume with `resolve` /
+`install` / `pull`, publish with the other backends).
 
 **Producer — publish a core** (from the machine that has the source):
 

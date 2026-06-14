@@ -75,6 +75,7 @@ from .manifest import (
 )
 from .packaging import artifact_filename, extract_ipkg, manifest_from_ipkg, pack_core
 from .registry import (
+    GitRegistry,
     HttpRegistry,
     LocalDirectoryRegistry,
     LocalRegistry,
@@ -125,6 +126,7 @@ __all__ = [
     "Fileset",
     "GenCore",
     "GenSourceFile",
+    "GitRegistry",
     "HdlPackagerError",
     "HttpRegistry",
     "InvalidConstraintError",

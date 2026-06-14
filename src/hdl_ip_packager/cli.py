@@ -67,8 +67,8 @@ from .version import (
 from .vlnv import PackageRef, Vlnv
 
 _REGISTRY_HELP = (
-    "a local directory, or a network URL (http(s)://... or oci://...); "
-    "use 'hdlpkg login' first for a private registry"
+    "a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); "
+    "use 'hdlpkg login' first for a private HTTP/OCI registry"
 )
 
 
