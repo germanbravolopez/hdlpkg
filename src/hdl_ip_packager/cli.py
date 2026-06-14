@@ -36,6 +36,7 @@ from .exceptions import (
     InvalidVlnvError,
     LockfileError,
     ManifestError,
+    RegistryError,
 )
 from .ipxact import to_ipxact
 from .lockfile import LOCKFILE_FILENAME, Lockfile, sha256_digest
@@ -259,10 +260,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_gen.add_argument("--output", metavar="DIR", help="output directory (default: ./gen/<target>)")
     p_gen.add_argument(
+        "--registry",
+        metavar="LOCATION",
+        help="fetch dependency sources from a published registry instead of --search "
+        "(materialized from the cache); " + _REGISTRY_HELP,
+    )
+    p_gen.add_argument(
+        "--cache-dir",
+        metavar="DIR",
+        help="cache root for materialized dependencies (default: ~/.hdlpkg/cache)",
+    )
+    p_gen.add_argument(
         "--locked",
         action="store_true",
         help=f"use the dependency versions pinned in {LOCKFILE_FILENAME} instead of "
-        "re-resolving (reproducible generation); fail if it is missing",
+        "re-resolving (reproducible generation); with an installed cache this works "
+        "offline. Fail if it is missing",
     )
     _add_conflict_arg(p_gen)
     p_gen.set_defaults(func=_cmd_gen)
@@ -619,24 +632,33 @@ def _cmd_gen(args: argparse.Namespace) -> int:
         known = ", ".join(sorted(root.targets)) or "(none)"
         raise BackendError(f"Unknown target {args.target!r}; the manifest defines: {known}.")
 
+    cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
+    cache = ContentAddressedCache(cache_root)
+
     if args.locked:
         # Reproducible generation: pin dependency versions from ip.lock, no re-resolve.
         lock = _load_lockfile(manifest_path)
-        registry = _local_registry(manifest_path, args.search)
-        dep_vlnvs = [pkg.vlnv for pkg in lock.packages]
+        registry = _reader_registry(manifest_path, args)
+        dep_specs = [(pkg.vlnv, pkg.checksum) for pkg in lock.packages]
     else:
-        resolution, registry = _resolve_local(manifest_path, args.search, _policy(args))
+        resolution, registry = _resolve(manifest_path, args)
         _print_warnings(resolution)
-        dep_vlnvs = list(resolution.vlnvs)
+        dep_specs = [(vlnv, "") for vlnv in resolution.vlnvs]
     root_source = _materialize_filesets(
         CoreSource(manifest=root, root=str(manifest_path.resolve().parent))
     )
-    dependencies = [
-        _materialize_filesets(
-            CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
-        )
-        for vlnv in dep_vlnvs
-    ]
+    try:
+        dependencies = [
+            _materialize_filesets(_dependency_source(vlnv, checksum, registry, cache, cache_root))
+            for vlnv, checksum in dep_specs
+        ]
+    except RegistryError as exc:
+        if args.locked and not args.registry:
+            raise BackendError(
+                f"{exc} Run 'hdlpkg install {args.path} --locked' to populate the cache "
+                "first, or pass --registry/--search."
+            ) from exc
+        raise
 
     out_dir = Path(args.output) if args.output else Path("gen") / args.target
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -669,6 +691,37 @@ def _cmd_gen(args: argparse.Namespace) -> int:
     for dest in written:
         print(f"  {dest}")
     return 0
+
+
+def _dependency_source(
+    vlnv: Vlnv,
+    checksum: str,
+    registry: Registry,
+    cache: ContentAddressedCache,
+    cache_root: Path,
+) -> CoreSource:
+    """Locate a dependency's on-disk source tree for ``gen``, materializing if needed.
+
+    Tries, in order: a locked artifact already in the cache (so ``install --locked`` then
+    ``gen --locked`` works fully offline); a loose source tree discoverable on disk
+    (``--search``/default scan, used in place); otherwise fetch the ``.ipkg`` from the
+    selected registry into the cache and extract it. The last two paths let ``gen`` build
+    against published/installed cores without their original source trees.
+    """
+    if checksum and cache.has(checksum):
+        return _extract_dependency(cache.get(checksum), checksum, cache_root)
+    if isinstance(registry, LocalDirectoryRegistry):
+        return CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
+    digest = registry.fetch(vlnv, cache)
+    return _extract_dependency(cache.get(digest), digest, cache_root)
+
+
+def _extract_dependency(ipkg: bytes, digest: str, cache_root: Path) -> CoreSource:
+    """Extract a dependency ``.ipkg`` into a digest-keyed dir under the cache (reused)."""
+    dest = cache_root / "src" / digest.split(":")[-1]
+    if not (dest / MANIFEST_FILENAME).exists():
+        extract_ipkg(ipkg, dest)
+    return CoreSource(manifest=Manifest.from_path(dest / MANIFEST_FILENAME), root=str(dest))
 
 
 def _materialize_filesets(source: CoreSource) -> CoreSource:

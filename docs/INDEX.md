@@ -97,6 +97,8 @@ quick-find reference.
 | `tests/unit/test_edam.py` | `build_eda_design`: fileset selection, topo order, dedup, target errors |
 | `tests/unit/test_backends.py` | Verilator `.vc` / Vivado `.tcl` rendering + `get_backend` registry |
 | `tests/integration/test_gen_cli.py` | `hdlpkg gen` over the examples (resolve → assemble → render → write) |
+| `tests/integration/test_gen_registry_cli.py` | `hdlpkg gen` consuming deps from a registry (`--registry`) and offline from the installed cache (`gen --locked`) |
+| `tests/unit/test_registry_user_agent.py` | Every HTTP/OCI request carries a non-default `User-Agent` (the Cloudflare-WAF fix) |
 | `tests/unit/test_treeview.py` | `render_dependency_tree`: ordering, version annotation, diamond `(*)` marking |
 | `tests/integration/test_tree_cli.py` | `hdlpkg tree` over the examples |
 | `tests/unit/test_ipxact.py` | `to_ipxact`: VLNV, fileSets/fileType, model views, determinism |

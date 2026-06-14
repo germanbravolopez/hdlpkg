@@ -238,7 +238,7 @@ registry URL to forget
 Generate tool-flow inputs for a target.
 .PP
 .RS 4
-hdlpkg gen [\-h] [\-\-search DIR] [\-\-output DIR] [\-\-locked] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] target [path]
+hdlpkg gen [\-h] [\-\-search DIR] [\-\-output DIR] [\-\-registry LOCATION] [\-\-cache\-dir DIR] [\-\-locked] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] target [path]
 .RE
 .PP
 .TP
@@ -254,8 +254,14 @@ directory to scan for dependency cores (repeatable; default: the manifest's pare
 .B \-\-output DIR
 output directory (default: ./gen/<target>)
 .TP
+.B \-\-registry LOCATION
+fetch dependency sources from a published registry instead of --search (materialized from the cache); a local directory, or a network URL (http(s)://... or oci://...); use 'hdlpkg login' first for a private registry
+.TP
+.B \-\-cache\-dir DIR
+cache root for materialized dependencies (default: ~/.hdlpkg/cache)
+.TP
 .B \-\-locked
-use the dependency versions pinned in ip.lock instead of re-resolving (reproducible generation); fail if it is missing
+use the dependency versions pinned in ip.lock instead of re-resolving (reproducible generation); with an installed cache this works offline. Fail if it is missing
 .TP
 .B \-\-on\-conflict ON_CONFLICT
 how to handle an incompatible version conflict, overriding the manifest's [resolution] on-conflict (default: the manifest's value, or fail_on_conflict)

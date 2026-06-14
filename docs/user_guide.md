@@ -358,8 +358,14 @@ the same base works first; if Docker works, `hdlpkg` will.
   → `install` (fetch + verify into the cache) → `gen <target>` to build.
 - **Reproducible / CI builds**: commit `ip.lock`, then build with `install --locked`
   and `gen --locked <target>` — these use the *exact* pinned versions and never
-  re-resolve, so the build is byte-for-byte the same everywhere. `hdlpkg resolve`
-  is the one command that updates the lock to newer compatible versions.
+  re-resolve, so the build is byte-for-byte the same everywhere. After
+  `install --locked` populates the cache, `gen --locked` builds **fully offline** —
+  no `--search` or `--registry` needed, since dependencies are materialized from the
+  cache by their lockfile digest. `hdlpkg resolve` is the one command that updates the
+  lock to newer compatible versions.
+- **Build straight from a registry**: `gen <target> --registry <location>` fetches each
+  dependency's `.ipkg` into the cache and uses it — so you can generate against published
+  cores without checking out their source trees.
 - **Publish a core**: `validate` → `pack` → `publish --registry …` (append-only;
   `yank` to retire a bad version).
 - **Consume from a published registry**: `resolve`/`install`/`tree --registry <dir>`

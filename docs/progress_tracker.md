@@ -37,12 +37,12 @@ coexistence (and `gen` refusing two versions), the `[package].scheme` key
 protocol** — local + HTTP + OCI registry backends behind one `registry_from_location`
 abstraction, with `hdlpkg login` auth (direct bearer **and** the OCI token-exchange, reusing
 `docker login`); and **glob/directory filesets**. **Next**: the `0.10.0` third-party trial
-(against a real JFrog Artifactory behind Cloudflare) surfaced two final blockers. The
-default-User-Agent rejected by Cloudflare's WAF is **fixed** (#12); the **one remaining
-blocker** is `gen` being unable to build from installed/cached deps (#13, planned in
-**Blocking Issues**; additive/internal, no format change). Fixing it concludes the soak; a
-clean re-verify then promotes to `1.0.0`, which remains the human-gated stability sign-off.
-See the Release plan.
+(against a real JFrog Artifactory behind Cloudflare) surfaced two final blockers — a
+default-User-Agent rejected by Cloudflare's WAF (#12) and `gen` being unable to build from
+installed/cached deps (#13). **Both are now fixed** (additive/internal, no format change),
+so **the soak has no open blockers**. A clean re-verify is the gate to promote to `1.0.0` —
+the formats (`ip.toml`/`ip.lock`), CLI, and registry/OCI protocol have held across the
+whole trial — which remains the human-gated stability sign-off. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
 pass; fully typed, linted, and tested (470 passing tests, ~95% coverage):
@@ -151,49 +151,13 @@ If the formats are still moving when M8 lands, release it as `0.7.0`, not `1.0.0
 
 ## Blocking Issues (must fix before the next release)
 
-Surfaced by the **0.10.0 third-party trial** (an external customer running `trial.md` +
-the user guide against their own server and a **JFrog Artifactory behind a Cloudflare
-tunnel**, `jfrog.gbra.dev`). The Cloudflare User-Agent blocker
-([#12](https://github.com/germanbravolopez/hdl-ip-packager/issues/12)) is **fixed** (see
-Completed Milestones); the remaining blocker below is additive / internal (no
-`ip.toml`/`ip.lock` format change), so fixing it is the last work before the soak
-concludes and `1.0.0` can be cut (human-gated sign-off). GitHub issue
-[#13](https://github.com/germanbravolopez/hdl-ip-packager/issues/13).
-
-### [BUG] `gen` cannot consume installed/cached or published dependencies (#13)
-- **Symptom**: after `install` (or against a published registry) there is no way to
-  `gen` — it still requires `--search` pointing at extracted source trees, so
-  `install → gen --locked` cannot work offline. For a package manager this defeats the
-  purpose.
-- **Root cause**: `_cmd_gen` builds each dependency `CoreSource` from
-  `registry.core_dir(vlnv)` ([cli.py](../src/hdl_ip_packager/cli.py)), but `core_dir`
-  exists **only** on `LocalDirectoryRegistry`
-  ([registry.py:150](../src/hdl_ip_packager/registry.py#L150)). Network/OCI registries and
-  the content-addressed cache hold `.ipkg` blobs, not loose trees, so `gen` structurally
-  cannot reach them. (This is the Open Non-Blocking "gen straight from a registry" item,
-  now escalated by the trial.)
-- **Fix**:
-  1. Add `--registry LOCATION` and `--cache-dir DIR` to the `gen` subparser (mirroring
-     `install`/`resolve`); keep `--search` for loose trees.
-  2. **Materialize** dependencies into local trees at the I/O boundary: `registry.fetch`
-     each dep's `.ipkg` into the cache, then `extract_ipkg` it into a managed,
-     digest-keyed dir (e.g. `<cache>/src/<digest>/`, reused/dedup), and build
-     `CoreSource(manifest, root=<extracted dir>)`. Downstream (`_materialize_filesets`,
-     `_gen_core`, the pure `edam` assembly) only read `source.root`, so they work
-     unchanged on extracted trees.
-  3. **Offline `gen --locked`**: read `ip.lock`, take each package's pinned **digest**
-     straight from the lock, and extract from the cache — no registry/network needed (so
-     `install --locked` then `gen --locked` works fully offline). Fail closed with a clear
-     "run `hdlpkg install --locked` first" if a locked blob is absent from the cache.
-  4. The root core's own sources stay local (its manifest directory), as today.
-- **Reuse**: `pull` already does fetch+extract; factor the extract-to-managed-dir step into
-  a shared cache/registry helper so `gen` and `pull` use one path.
-- **Tests**: integration — publish two cores to a `LocalDirectoryRegistry`,
-  `install --locked`, then `gen sim --locked` **with no `--search`, offline** emits the
-  expected tool inputs including the dependency RTL; plus a `gen --registry <local>`
-  (resolve+fetch) path; plus a clear error when a locked digest is not cached.
-- **Soak impact**: additive `gen` flags + a new offline path; **no** `ip.toml`/`ip.lock`
-  format change. Resolves the Open Non-Blocking "gen straight from a registry" item below.
+_None._ Both blockers the **0.10.0 third-party trial** surfaced (against a JFrog
+Artifactory behind a Cloudflare tunnel) are fixed and in **Completed Milestones**: the
+Cloudflare User-Agent rejection ([#12](https://github.com/germanbravolopez/hdl-ip-packager/issues/12))
+and `gen` being unable to consume installed/cached/published deps
+([#13](https://github.com/germanbravolopez/hdl-ip-packager/issues/13)). Both were
+additive/internal (no `ip.toml`/`ip.lock` format change). The soak now has no open
+blockers; a clean re-verify is the gate to promote to `1.0.0` (human-gated sign-off).
 
 ---
 
@@ -205,7 +169,6 @@ concludes and `1.0.0` can be cut (human-gated sign-off). GitHub issue
 | Encrypted IP distribution (IEEE 1735) | `packaging.py`, `registry.py`, `manifest.py`, `cli.py` | **Future feature.** Let a producer distribute a core whose HDL source is **encrypted**, so a consumer can resolve/install/`gen` against it (the tool can drive a tool flow) without the source ever being readable on disk. Two distinct layers, decide which to build: **(a) Standard HDL IP encryption (IEEE 1735 / `pragma protect`)** — the cross-vendor norm. Each source file carries an encrypted envelope (a symmetric session key wrapped under each *tool vendor's* public key + AES/RSA-encrypted payload, IEEE 1735 v1/v2 with "rights" digests). The EDA tool decrypts at compile time; the packager's job is to **carry, not break** these envelopes — pack/`extract`/SBOM must treat an encrypted file as opaque, the deterministic-pack digest still pins ciphertext, and `gen` must not assume it can read the source. The tool would *not* implement the crypto itself (vendor keys live in the EDA tools); at most it could shell out to `vivado -encrypt`/`vlog +protect` to *produce* envelopes. **(b) At-rest/transport encryption of the `.ipkg`** — encrypt the whole artifact in the registry/cache for confidential distribution (e.g. age/GPG or an OCI-layer key), decrypted on `pull` with a consumer key. This is independent of HDL-tool semantics and simpler, but does **not** give the per-tool, compile-time protection (a) does. Open questions: where keys/recipients are declared (a `[package]`/`[encryption]` manifest key vs. out-of-band), how it interacts with content-addressing (the digest must pin what is *stored*), how the SBOM marks a component encrypted, and how `validate`/`info` behave when source is unreadable. Needs a real EDA tool (or an interop fixture) to test (a) honestly — defer like the Git/OCI/Sigstore work. |
 | Git-backed registry (+ source provenance) | `registry.py`, `lockfile.py`, `cli.py` | **Surfaced by the 1.0.0-rc.1 third-party trial** (a customer storing IP source in Bitbucket asked to install IPs from git, and how to trace a VLNV/version back to exact source). **Decided shape: a Git-backed *registry channel*** — point `--registry` at a git URL (e.g. `git+ssh://bitbucket.org/org/ip-registry.git`), discover cores from tags/refs, mirror the `LocalDirectoryRegistry`/`HttpRegistry`/`OciRegistry` shape behind `registry_from_location` (a new `git+...` scheme). **Dependencies stay VLNV-based, so this is purely additive — no `ip.toml` format change.** It also closes the traceability gap the trial raised: the lockfile `source` records `git+<url>@<commit-sha>`, binding the VLNV/version to an immutable commit (today `ip.lock` already pins each dep to a SHA-256 **content** digest with verify-on-read, and `pack --sbom` lists component digests — this adds the *git provenance* on top). Needs the `git` CLI + a remote to build and test honestly. **Ships post-`1.0.0` as a backward-compatible `1.1.0`; does not touch the rc or reset the soak.** A *per-dependency* git source (`"org:lib:ip" = { git = ..., rev = ... }`) is a possible later backward-compatible extension if a customer needs it, but is intentionally **not** the first cut (it would change the manifest format). |
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git backend. Checksums + SBOM already ship; this adds authenticity on top. |
-| `gen` straight from a registry | `cli.py`, `registry.py` | **Escalated to Blocking by the 0.10.0 trial — see issue #13 above.** `resolve`/`install`/`tree --registry` already consume local/HTTP/OCI registries; the remaining fetch-then-extract path for `gen` (so `install -> gen --locked` works offline, without `--search`) is now a 1.0 blocker, planned in the Blocking Issues section. |
 | Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
 | Multi-version coexistence for *modules*/*entities* (beyond packages) | `mangle.py`, `cli.py` | **Package** coexistence is done for both SystemVerilog and VHDL (`gen` name-mangles under `isolate_namespaces`). What remains: two versions of a SystemVerilog *module*/interface or a VHDL *entity*. Unlike a package reference (`::` / `use work.`), an *instantiation* position (`foo bar (...)` in SV, `label : entity work.foo` / component instantiation in VHDL) cannot be disambiguated from other constructs without a real parser, so it is refused today. Needs an HDL-aware frontend (cf. the parked "source-unit tokenizing" backlog item). |
 
@@ -222,6 +185,25 @@ concludes and `1.0.0` can be cut (human-gated sign-off). GitHub issue
 ---
 
 ## Completed Milestones
+
+### Trial fix: `gen` consumes installed/cached and published dependencies (#13) — June 2026
+- [x] **`hdlpkg gen` can now build against dependencies that exist only as `.ipkg` blobs**
+  — in a published registry or the installed cache — not just loose `--search` source
+  trees. Fixes the trial blocker where `install` populated the cache but `gen` could not
+  use it: `_cmd_gen` built each dependency `CoreSource` from `registry.core_dir(vlnv)`,
+  which only `LocalDirectoryRegistry` implements. Added `gen --registry LOCATION` and
+  `--cache-dir DIR`, and a `_dependency_source` helper that picks, in order: (1) a **locked
+  artifact already in the cache** by its lockfile digest — so `install --locked` then
+  `gen --locked` works **fully offline**; (2) a loose `--search` tree, used in place
+  (unchanged); else (3) **fetch** the `.ipkg` from the selected registry into the cache and
+  **extract** it into a digest-keyed dir (`<cache>/src/<digest>/`, reused). Downstream
+  (`_materialize_filesets`, `_gen_core`, the pure `edam` assembly) only read `source.root`,
+  so they work unchanged on extracted trees. A missing-and-unreachable locked dep fails with
+  an actionable "run `hdlpkg install … --locked`" message. Files: `cli.py` (the helpers
+  reuse `extract_ipkg` + the content-addressed cache, mirroring `pull`),
+  `tests/integration/test_gen_registry_cli.py` (registry-fetch, offline install→gen, and the
+  error path), regenerated `man/hdlpkg.1`. Additive — no `ip.toml`/`ip.lock` format change;
+  closes the Open Non-Blocking "gen straight from a registry" item.
 
 ### Trial fix: send a non-default User-Agent on every registry request (#12) — June 2026
 - [x] **Registry HTTP/OCI requests now carry `User-Agent: hdlpkg/<version>`**, fixing a
