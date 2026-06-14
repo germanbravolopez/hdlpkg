@@ -103,6 +103,7 @@ quick-find reference.
 | `tests/unit/test_treeview.py` | `render_dependency_tree`: ordering, version annotation, diamond `(*)` marking |
 | `tests/integration/test_tree_cli.py` | `hdlpkg tree` over the examples |
 | `tests/unit/test_ipxact.py` | `to_ipxact`: VLNV, fileSets/fileType, model views, determinism |
+| `tests/unit/test_ipxact_xsd.py` | Validates `to_ipxact` output against the official Accellera 1685-2014 XSD (vendored under `tests/schema/`) via `lxml` |
 | `tests/integration/test_ipxact_cli.py` | `hdlpkg export-ipxact` writes a parseable component XML |
 | `tests/unit/test_sbom.py` | `build_cyclonedx`: components, dependency edges, determinism |
 | `tests/integration/test_sbom_cli.py` | `hdlpkg pack --sbom` writes a CycloneDX SBOM with resolved deps |

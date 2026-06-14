@@ -10,6 +10,10 @@
 # Run against the whole tree on demand with `pre-commit run --all-files`. Tool
 # configuration (ruff rules, line length, mypy strictness) stays in pyproject.toml
 # -- the pinned versions here only need to track the floors in the `dev` extra.
+# The vendored Accellera IP-XACT XSD must stay byte-for-byte verbatim (its license
+# forbids modification), so keep the whitespace/EOF fixers off it.
+exclude: ^tests/schema/
+
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9

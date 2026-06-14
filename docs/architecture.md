@@ -265,9 +265,11 @@ instantiation position needs a real HDL frontend).
 ### IP-XACT export *(implemented — [ipxact.py](../src/hdl_ip_packager/ipxact.py))*
 `export-ipxact` renders a manifest as an IEEE **1685-2014** component XML via the
 pure `to_ipxact`: VLNV identity, a `model` of one view + componentInstantiation per
-target, and the `fileSets`. The manifest's fileset `type` values are already the
-IP-XACT `fileType` vocabulary, so they map straight through. Output is well-formed
-and deterministic (stdlib `ElementTree`); XSD validation is a tracked follow-up.
+target, and the `fileSets`. Standard fileset `type` values map straight through to the
+IP-XACT `fileType` enumeration; a custom/tool-specific type uses the IP-XACT
+`<fileType user="…">user</fileType>` escape. Output is deterministic (stdlib
+`ElementTree`) and **validated against the official Accellera 1685-2014 XSD** by a test
+(the schema set is vendored under `tests/schema/`, `lxml` validates).
 
 ### Supply-chain *(SBOM implemented — [sbom.py](../src/hdl_ip_packager/sbom.py); signing planned)*
 Checksums first (the packed-content SHA-256 already pins every artifact across the
