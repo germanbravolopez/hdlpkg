@@ -19,7 +19,9 @@ docs/
 ├── modules/                      (the user manual: one page per module + the CLI)
 │   └── README.md                 (module-reference index)
 ├── design/                       (design proposals for in-flight work)
-│   └── module-entity-coexistence.md  (0.12.0: module/entity multi-version coexistence)
+│   ├── module-entity-coexistence.md  (0.12.0: module/entity multi-version coexistence)
+│   ├── rename-to-hdlpkg.md            (rename hdl-ip-packager -> hdlpkg, ships as 0.13.0)
+│   └── 0.13.0-git-and-ipxact.md       (0.14.0: git-registry hardening + richer IP-XACT)
 └── research/
     └── state_of_the_art.md       (survey of package managers + HDL tools; design rationale)
 ```
