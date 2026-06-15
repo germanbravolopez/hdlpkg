@@ -18,32 +18,22 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`0.10.0`** cut — an **additive, docs-only** release over `0.9.0`: a generated
-`hdlpkg(1)` man page, now shipped in the wheel (`share/man/man1`) and sdist. It changes no
-on-disk format, CLI surface, or registry protocol, so it **continues** the `0.9.0` re-soak
-toward `1.0.0` rather than resetting it. Background on the soak (unchanged by this release):
-`0.9.0` was the stable pre-1.0 release that **reset the `1.0.0-rc.1`
-soak**. The `1.0.0-rc.1` candidate (a PyPI pre-release) was meant to freeze the formats, but
-the third-party trial surfaced a real `ip.toml` gap — `[filesets]` could only list explicit
-files, unworkable for a large generated/vendored tree — so `files` entries now also accept
-**globs and directories**, and `hdlpkg init` grew `--scheme` for non-SemVer version codes.
-Both fold into the pre-1.0 contract, so per the soak rule the candidate is re-cut as `0.9.0`
-(formats explicitly **not** frozen yet) rather than promoted to `1.0.0`; `1.0.0-rc.1` is left
-behind as a superseded prerelease. `0.9.0` carries everything that landed since `0.8.0`: the
-**versioning contract** — Cargo-style unification, a `[resolution] on-conflict` policy
-(`fail_on_conflict` default / `use_latest` / `isolate_namespaces`) with multi-version
-coexistence (and `gen` refusing two versions), the `[package].scheme` key
-(`semver`/`calver`/`monotonic`/`opaque`, set by `init --scheme`); **the distribution
-protocol** — local + HTTP + OCI registry backends behind one `registry_from_location`
-abstraction, with `hdlpkg login` auth (direct bearer **and** the OCI token-exchange, reusing
-`docker login`); and **glob/directory filesets**. The `0.10.0` third-party trial (against a
-real JFrog Artifactory behind Cloudflare) surfaced two final blockers — a default-User-Agent
-rejected by Cloudflare's WAF (#12) and `gen` being unable to build from installed/cached
-deps (#13) — **both now fixed** (additive/internal, no format change). On top, a **Git-backed
-registry** (`git+...` locations with commit provenance) just landed, also additive. **Next**:
-bundle these into a **`0.11.0`** pre-1.0 release. The formats (`ip.toml`/`ip.lock`), CLI, and
-registry/OCI protocol have held across the whole trial, so `1.0.0` (the human-gated stability
-sign-off) is the step after. See the Release plan.
+**Version**: **`0.11.0`** cut — an **additive, internal** release over `0.10.0` that bundles
+everything from the `0.10.0` third-party trial and the work after it, with **no `ip.toml` /
+`ip.lock` / CLI / registry-protocol break**: the two trial blockers — a default-User-Agent
+rejected by Cloudflare's WAF ([#12](https://github.com/germanbravolopez/hdl-ip-packager/issues/12),
+now sends `hdlpkg/<version>`) and `gen` unable to build from installed/cached/published deps
+([#13](https://github.com/germanbravolopez/hdl-ip-packager/issues/13), via `gen --registry` /
+`--cache-dir` and offline `gen --locked`); a **Git-backed registry** (`git+...` locations with
+commit provenance in the lock); **IP-XACT export now validated against the official 1685-2014
+XSD** (which caught and fixed a non-enum `fileType` bug); a **VHDL package-mangling fix** so
+name-mangled coexistence designs analyze in GHDL, not just Verilator (single `_v` separator, no
+consecutive underscores); and the **decision to keep refusing module/entity coexistence** with a
+sharpened error. The new `git+` locations and the `gen --registry`/`--cache-dir` flags are purely
+additive. Everything that came before (the versioning contract, the distribution protocol with
+local/HTTP/OCI registries + `hdlpkg login`, glob/directory filesets, the man page) carries
+forward. **Next**: `1.0.0` — the **human-gated stability sign-off** (formats/CLI/registry have
+held across the whole trial; see the Release plan's 1.0 gate).
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
 pass; fully typed, linted, and tested (470 passing tests, ~95% coverage):
@@ -184,6 +174,14 @@ blockers; a clean re-verify is the gate to promote to `1.0.0` (human-gated sign-
 ---
 
 ## Completed Milestones
+
+### Release 0.11.0 — June 2026
+- [x] **Cut `0.11.0`**, an additive/internal release bundling the `0.10.0`-trial fixes and the
+  work after it — no `ip.toml`/`ip.lock`/CLI/registry-protocol break (so it continues the soak
+  toward the human-gated `1.0.0`): User-Agent fix (#12), `gen` from installed/cached/published
+  deps (#13), the Git-backed registry (`git+...`), IP-XACT 1685-2014 XSD validation (+ `fileType`
+  fix), the VHDL package-mangling GHDL fix, and the module/entity-coexistence decision. Bumped
+  `pyproject.toml` + `src/hdl_ip_packager/__init__.py` to `0.11.0`. Next: `1.0.0` sign-off.
 
 ### Module/entity coexistence — decision to keep refusing + sharpened error — June 2026
 - [x] **Decided not to build module/entity multi-version coexistence; kept the refusal,
