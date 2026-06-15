@@ -1,6 +1,6 @@
 # HDL IP Packager
 
-[![CI](https://github.com/germanbravolopez/hdl-ip-packager/actions/workflows/ci.yml/badge.svg)](https://github.com/germanbravolopez/hdl-ip-packager/actions/workflows/ci.yml)
+[![CI](https://github.com/germanbravolopez/hdlpkg/actions/workflows/ci.yml/badge.svg)](https://github.com/germanbravolopez/hdlpkg/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
@@ -105,7 +105,7 @@ hdlpkg gen sim ip.toml --search ../cores     # generate Verilator/Vivado inputs 
 hdlpkg gen sim ip.toml --locked              # offline after 'install --locked' (deps from the cache)
 hdlpkg tree ip.toml --search ../cores        # print the resolved dependency graph
 hdlpkg export-ipxact ip.toml                 # export an IP-XACT (IEEE 1685) component XML
-python -m hdl_ip_packager info   # same CLI, invoked as a module
+python -m hdlpkg info   # same CLI, invoked as a module
 
 # Private, self-hosted registry (HTTP or OCI) -- log in once, then publish/consume:
 hdlpkg login oci://harbor.corp.local/ip            # stores a per-host bearer token
@@ -168,7 +168,7 @@ summary report. From the repo root:
 pytest                                   # run everything (with the local summary)
 pytest -m unit                           # only fast unit tests
 pytest -m "not integration"              # skip filesystem/integration tests
-pytest --cov=hdl_ip_packager --cov-report=term-missing   # with coverage
+pytest --cov=hdlpkg --cov-report=term-missing   # with coverage
 
 # Produce the JUnit XML + the rendered Markdown report (what CI shows):
 pytest --junitxml=test-results.xml
@@ -184,7 +184,7 @@ summary into the GitHub Actions run page.
 ## Documentation
 
 Full technical documentation lives in [`docs/`](./docs/README.md) and is published
-as a site at <https://germanbravolopez.github.io/hdl-ip-packager/> (built from
+as a site at <https://germanbravolopez.github.io/hdlpkg/> (built from
 `docs/` by [`.github/workflows/docs.yml`](./.github/workflows/docs.yml) on every
 push to `main`). To preview it locally:
 
@@ -234,7 +234,7 @@ Releases are **tag-driven**, and the `X.Y.Z` tag must sit on the merge commit on
 `main` — so a release goes through the same PR flow, not a direct push:
 
 1. On a `release/X.Y.Z` branch cut off **`develop`**, bump the version in **both**
-   `pyproject.toml` and `src/hdl_ip_packager/__init__.py`, record the release in
+   `pyproject.toml` and `src/hdlpkg/__init__.py`, record the release in
    `docs/progress_tracker.md`, and make the gates green.
 2. Open a PR into `main`, **review it (`/code-review`) and merge with a merge commit**
    (the agent owns this — see the workflow above; the `1.0.0` sign-off is the one

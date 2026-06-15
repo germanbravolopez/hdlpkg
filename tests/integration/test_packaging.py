@@ -15,17 +15,17 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager.exceptions import PackagingError
-from hdl_ip_packager.lockfile import sha256_digest
-from hdl_ip_packager.manifest import Manifest
-from hdl_ip_packager.packaging import (
+from hdlpkg.exceptions import PackagingError
+from hdlpkg.lockfile import sha256_digest
+from hdlpkg.manifest import Manifest
+from hdlpkg.packaging import (
     artifact_filename,
     expand_fileset_files,
     extract_ipkg,
     manifest_from_ipkg,
     pack_core,
 )
-from hdl_ip_packager.vlnv import Vlnv
+from hdlpkg.vlnv import Vlnv
 
 pytestmark = pytest.mark.integration
 

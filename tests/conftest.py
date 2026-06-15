@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 # A complete, valid manifest used across manifest/CLI tests. Keep it in sync with
-# the schema documented in src/hdl_ip_packager/manifest.py.
+# the schema documented in src/hdlpkg/manifest.py.
 SAMPLE_MANIFEST = """\
 [package]
 vendor      = "acme"

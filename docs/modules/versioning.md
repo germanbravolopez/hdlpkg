@@ -3,8 +3,8 @@
 Semantic-version parsing, precedence, and constraint matching. Pure module (no I/O),
 the reference example for the project's testability rule.
 
-- **Source**: [src/hdl_ip_packager/version.py](../../src/hdl_ip_packager/version.py)
-- **Import**: `from hdl_ip_packager import Version, VersionConstraint, OpaqueVersion, CalVer, MonotonicVersion, compatibility_group, parse_version`
+- **Source**: [src/hdlpkg/version.py](../../src/hdlpkg/version.py)
+- **Import**: `from hdlpkg import Version, VersionConstraint, OpaqueVersion, CalVer, MonotonicVersion, compatibility_group, parse_version`
 
 ## Purpose
 
@@ -103,7 +103,7 @@ e.g. `git describe` tags.)
 ## Example
 
 ```python
-from hdl_ip_packager import Version, VersionConstraint
+from hdlpkg import Version, VersionConstraint
 
 v = Version.parse("1.4.0-rc.1")
 assert v.is_prerelease and v.core == (1, 4, 0)

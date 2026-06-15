@@ -64,7 +64,7 @@ it handles UTF-8 cleanly on this machine. Use the **PowerShell** tool when a tas
 is Windows-specific (e.g. exercising `.ps1`, or reproducing a Windows-only path).
 
 Note: `python` is the interpreter on PATH (Python 3.11). The `hdlpkg` script may
-not be on PATH after `pip install -e` — use `python -m hdl_ip_packager …` if so.
+not be on PATH after `pip install -e` — use `python -m hdlpkg …` if so.
 
 ## Things to watch on this machine
 

@@ -27,7 +27,7 @@ If the tracker lists two approaches (e.g. "minimal option" vs "architectural opt
 - **Apply `/coding-guidelines` to every new identifier you introduce.** Read the skill file (`.claude/commands/coding-guidelines.md`) at the start of implementation if you haven't already this session. English everywhere — names, comments, docstrings, docs.
 - **Types are mandatory on `src/` (mypy `--strict`).** Model data as `@dataclass(frozen=True)` with `parse` / `from_*` classmethods. Don't introduce `Any` or untyped public functions.
 - **Purity by default.** Keep logic free of I/O; do filesystem/network only in the CLI and registry layers. This is the testability rule (step 6 depends on it) — extract the pure core as a free function so a unit test can call it directly, and keep the CLI/registry wrapper thin. See `.claude/commands/coding-guidelines.md` and `docs/architecture.md` §Testing.
-- **Errors derive from `HdlPackagerError`** (`src/hdl_ip_packager/exceptions.py`). Never `print` errors in library code — raise; the CLI layer is the only place that formats them for the user.
+- **Errors derive from `HdlPackagerError`** (`src/hdlpkg/exceptions.py`). Never `print` errors in library code — raise; the CLI layer is the only place that formats them for the user.
 - **Keep inline comments few and short.** Default to none; add a one-or-two-line comment only at a critical/non-obvious spot, and never restate the docs milestone you write in step 5 inside the code. Longer blocks are reserved for file/module headers and test files.
 - Read existing call sites before changing signatures — `Grep` first, edit second.
 - Track multi-step work with `TodoWrite`. Mark steps complete as you finish them.

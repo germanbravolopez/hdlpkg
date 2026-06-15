@@ -6,8 +6,8 @@ to a unique one. Pure module (no I/O): it operates on source text passed in, so 
 work stays in the [CLI](cli.md). Full design rationale:
 [docs/design/module-entity-coexistence.md](../design/module-entity-coexistence.md).
 
-- **Source**: [src/hdl_ip_packager/mangle.py](../../src/hdl_ip_packager/mangle.py)
-- **Import**: `from hdl_ip_packager import rewrite_sv_packages, rewrite_vhdl_packages, declared_packages, mangled_name, plan_package_mangling`
+- **Source**: [src/hdlpkg/mangle.py](../../src/hdlpkg/mangle.py)
+- **Import**: `from hdlpkg import rewrite_sv_packages, rewrite_vhdl_packages, declared_packages, mangled_name, plan_package_mangling`
 
 ## Why
 
@@ -70,7 +70,7 @@ tree into `<output>/src/`, and builds the design over it
 ## Example
 
 ```python
-from hdl_ip_packager import rewrite_sv_packages
+from hdlpkg import rewrite_sv_packages
 
 src = "module fifo; import bus_pkg::*; logic [DATA_WIDTH-1:0] c; endmodule"
 print(rewrite_sv_packages(src, {"bus_pkg": "bus_pkg_v1_1_0"}))

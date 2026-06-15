@@ -4,8 +4,8 @@ Where IP cores live so they can be discovered, fetched, and published. Multiple
 backends coexist behind one `Registry` interface; the resolver and CLI depend only on
 the interface, never a concrete backend.
 
-- **Source**: [src/hdl_ip_packager/registry.py](../../src/hdl_ip_packager/registry.py)
-- **Import**: `from hdl_ip_packager import Registry, LocalDirectoryRegistry, HttpRegistry, LocalRegistry, OciRegistry, registry_from_location, available_from_registry`
+- **Source**: [src/hdlpkg/registry.py](../../src/hdlpkg/registry.py)
+- **Import**: `from hdlpkg import Registry, LocalDirectoryRegistry, HttpRegistry, LocalRegistry, OciRegistry, registry_from_location, available_from_registry`
 
 ## Selecting a backend: `registry_from_location`
 
@@ -195,7 +195,7 @@ re-publish of an existing version.
 
 ```python
 from pathlib import Path
-from hdl_ip_packager import LocalRegistry, ContentAddressedCache, Vlnv
+from hdlpkg import LocalRegistry, ContentAddressedCache, Vlnv
 
 reg = LocalRegistry("registry/")
 reg.publish_core(Manifest.from_path("examples/fifo/ip.toml"), "examples/fifo")

@@ -6,9 +6,9 @@
 # nav-integrity test in tests/unit/test_docs_site.py can validate it.
 site_name: HDL IP Packager
 site_description: An IP packager and dependency manager for HDL design reuse.
-site_url: https://germanbravolopez.github.io/hdl-ip-packager/
-repo_url: https://github.com/germanbravolopez/hdl-ip-packager
-repo_name: germanbravolopez/hdl-ip-packager
+site_url: https://germanbravolopez.github.io/hdlpkg/
+repo_url: https://github.com/germanbravolopez/hdlpkg
+repo_name: germanbravolopez/hdlpkg
 edit_uri: edit/main/docs/
 copyright: Copyright &copy; German Bravo Lopez
 

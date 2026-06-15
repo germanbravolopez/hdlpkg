@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager import __version__, cli
-from hdl_ip_packager.manifest import Manifest
+from hdlpkg import __version__, cli
+from hdlpkg.manifest import Manifest
 
 pytestmark = pytest.mark.unit
 

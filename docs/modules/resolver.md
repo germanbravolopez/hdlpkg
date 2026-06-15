@@ -4,8 +4,8 @@ Turns a root manifest plus the set of available core versions into the chosen
 version(s) per package. Pure module (no I/O): the available versions are passed in, so
 the solve is deterministic and fully unit-testable.
 
-- **Source**: [src/hdl_ip_packager/resolver.py](../../src/hdl_ip_packager/resolver.py)
-- **Import**: `from hdl_ip_packager import resolve, Resolution`
+- **Source**: [src/hdlpkg/resolver.py](../../src/hdlpkg/resolver.py)
+- **Import**: `from hdlpkg import resolve, Resolution`
 
 ## Purpose
 
@@ -77,8 +77,8 @@ constraints, and the versions on offer (or the conflicting versions).
 ## Example
 
 ```python
-from hdl_ip_packager import Manifest, resolve
-from hdl_ip_packager.registry import LocalDirectoryRegistry, available_from_registry
+from hdlpkg import Manifest, resolve
+from hdlpkg.registry import LocalDirectoryRegistry, available_from_registry
 
 root = Manifest.from_path("examples/uart/ip.toml")
 registry = LocalDirectoryRegistry([Path("examples")])

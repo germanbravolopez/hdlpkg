@@ -17,18 +17,18 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager import registry as registry_mod
-from hdl_ip_packager.cache import ContentAddressedCache
-from hdl_ip_packager.exceptions import RegistryError
-from hdl_ip_packager.lockfile import sha256_digest
-from hdl_ip_packager.manifest import Manifest
-from hdl_ip_packager.registry import (
+from hdlpkg import registry as registry_mod
+from hdlpkg.cache import ContentAddressedCache
+from hdlpkg.exceptions import RegistryError
+from hdlpkg.lockfile import sha256_digest
+from hdlpkg.manifest import Manifest
+from hdlpkg.registry import (
     HttpRegistry,
     LocalDirectoryRegistry,
     Registry,
     available_from_registry,
 )
-from hdl_ip_packager.vlnv import PackageRef, Vlnv
+from hdlpkg.vlnv import PackageRef, Vlnv
 
 pytestmark = pytest.mark.integration
 
@@ -125,7 +125,7 @@ def _serve(directory: Path) -> Iterator[str]:
 
 
 def _write_http_layout(root: Path) -> None:
-    from hdl_ip_packager.packaging import pack_core
+    from hdlpkg.packaging import pack_core
 
     core = root / "acme" / "common" / "fifo"
     vdir = core / "1.0.0"

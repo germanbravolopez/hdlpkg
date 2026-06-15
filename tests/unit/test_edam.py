@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager.backends import CoreSource, build_eda_design
-from hdl_ip_packager.exceptions import BackendError
-from hdl_ip_packager.manifest import Manifest
+from hdlpkg.backends import CoreSource, build_eda_design
+from hdlpkg.exceptions import BackendError
+from hdlpkg.manifest import Manifest
 
 pytestmark = pytest.mark.unit
 

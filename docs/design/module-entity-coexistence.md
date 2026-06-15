@@ -15,7 +15,7 @@ example built in real Verilator on CI. Reviewer decisions are in
 
 Today, under `[resolution] on-conflict = "isolate_namespaces"`, `gen` lets two
 incompatible versions of a shared **package** coexist in one elaboration by
-name-mangling the package and every reference to it ([mangle.py](../../src/hdl_ip_packager/mangle.py)).
+name-mangling the package and every reference to it ([mangle.py](../../src/hdlpkg/mangle.py)).
 Two versions of a shared **module** (SV) or **entity** (VHDL) are still **refused**
 (`_reject_unmangleable`). This proposal lifts that refusal: coexisting module/entity
 versions get the same per-version name-mangling, so both elaborate side by side.

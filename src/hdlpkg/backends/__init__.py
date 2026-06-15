@@ -1,7 +1,7 @@
 """Tool-flow generation backends.
 
 The ``gen`` command builds a tool-agnostic :class:`EdaDesign` from a resolved
-design (:mod:`~hdl_ip_packager.backends.edam`) and hands it to a :class:`Backend`
+design (:mod:`~hdlpkg.backends.edam`) and hands it to a :class:`Backend`
 selected by the target's ``toolflow`` (:func:`get_backend`). Backends are pure:
 they return ``{filename: text}`` and never touch the filesystem.
 """

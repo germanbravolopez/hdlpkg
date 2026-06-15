@@ -13,7 +13,7 @@ poisoning a build. Writes are atomic (temp file + ``os.replace``) so a crash mid
 
 Blobs are sharded git-style (``<root>/sha256/ab/cdef...``) to keep directories
 small. The digest format is the canonical ``sha256:<hex>`` produced by
-:func:`hdl_ip_packager.lockfile.sha256_digest`. This is the store the registry
+:func:`hdlpkg.lockfile.sha256_digest`. This is the store the registry
 backends (M4) fetch into; what a "core blob" contains is defined by packaging (M5).
 """
 

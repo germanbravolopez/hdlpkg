@@ -4,8 +4,8 @@ The generated, committed record of a resolve: the exact `Vlnv` chosen for every
 package, each with an integrity `checksum` and its `source`. Committing it gives
 reproducible, verifiable builds (the Cargo / Orbit / Go model). Pure module.
 
-- **Source**: [src/hdl_ip_packager/lockfile.py](../../src/hdl_ip_packager/lockfile.py)
-- **Import**: `from hdl_ip_packager import Lockfile, LockedPackage, sha256_digest`
+- **Source**: [src/hdlpkg/lockfile.py](../../src/hdlpkg/lockfile.py)
+- **Import**: `from hdlpkg import Lockfile, LockedPackage, sha256_digest`
 
 ## The `ip.lock` format
 
@@ -56,7 +56,7 @@ integrity failure in `verify`.
 ## Example
 
 ```python
-from hdl_ip_packager import Lockfile
+from hdlpkg import Lockfile
 
 lock = Lockfile.from_path("examples/uart/ip.lock")
 # Re-fetch the cores, compute their digests, and fail closed on any mismatch:

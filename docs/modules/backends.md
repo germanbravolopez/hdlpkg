@@ -3,8 +3,8 @@
 Turn a resolved design into the concrete input files an EDA tool consumes, behind
 `hdlpkg gen`. Tool specifics never leak into the manifest/resolver/packaging layers.
 
-- **Source**: [src/hdl_ip_packager/backends/](../../src/hdl_ip_packager/backends/)
-- **Import**: `from hdl_ip_packager import build_eda_design, get_backend, supported_toolflows, CoreSource, EdaDesign, EdaFile`
+- **Source**: [src/hdlpkg/backends/](../../src/hdlpkg/backends/)
+- **Import**: `from hdlpkg import build_eda_design, get_backend, supported_toolflows, CoreSource, EdaDesign, EdaFile`
 
 ## The pipeline
 
@@ -78,7 +78,7 @@ for an unknown target name.
 ## Example
 
 ```python
-from hdl_ip_packager import Manifest, build_eda_design, get_backend, CoreSource
+from hdlpkg import Manifest, build_eda_design, get_backend, CoreSource
 
 root = CoreSource(Manifest.from_path("examples/uart/ip.toml"), "examples/uart")
 fifo = CoreSource(Manifest.from_path("examples/fifo/ip.toml"), "examples/fifo")

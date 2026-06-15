@@ -5,7 +5,7 @@ its (resolved) dependencies -- so a consumer can audit provenance and licences.
 We emit **CycloneDX 1.5** JSON, a widely-tooled SBOM standard, at ``pack`` time.
 
 :func:`build_cyclonedx` is **pure**: it maps a root
-:class:`~hdl_ip_packager.manifest.Manifest` plus its resolved dependency manifests
+:class:`~hdlpkg.manifest.Manifest` plus its resolved dependency manifests
 to a deterministic JSON string (no I/O, no timestamps, sorted keys and entries), so
 the same inputs always produce byte-identical output -- a property an SBOM needs to
 be cacheable and diff-able. The CLI ``pack --sbom`` is the thin write wrapper.

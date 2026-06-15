@@ -1,4 +1,4 @@
-"""Unit tests for hdl_ip_packager.version (Version + VersionConstraint).
+"""Unit tests for hdlpkg.version (Version + VersionConstraint).
 
 This is the project's reference test module: a pure unit under test, no fixtures
 beyond literals, and dense coverage of the tricky parts (SemVer precedence,
@@ -11,8 +11,8 @@ import itertools
 
 import pytest
 
-from hdl_ip_packager.exceptions import InvalidConstraintError, InvalidVersionError
-from hdl_ip_packager.version import (
+from hdlpkg.exceptions import InvalidConstraintError, InvalidVersionError
+from hdlpkg.version import (
     CalVer,
     MonotonicVersion,
     OpaqueVersion,

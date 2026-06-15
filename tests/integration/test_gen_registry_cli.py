@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager import cli
+from hdlpkg import cli
 
 pytestmark = pytest.mark.integration
 

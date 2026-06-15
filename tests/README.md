@@ -72,7 +72,7 @@ pytest tests/unit/test_version.py   # a single file
 pytest -k "constraint"             # tests matching a keyword
 
 # Coverage (gate is set by fail_under in pyproject.toml):
-pytest --cov=hdl_ip_packager --cov-report=term-missing
+pytest --cov=hdlpkg --cov-report=term-missing
 
 # Produce the JUnit XML + the rendered Markdown report (what CI publishes):
 pytest --junitxml=test-results.xml

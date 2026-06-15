@@ -2,9 +2,9 @@
 
 The command-line interface. It is intentionally thin: it parses arguments and
 delegates to the library, so every behavior stays unit-testable. Run it as the
-`hdlpkg` console script or as `python -m hdl_ip_packager`.
+`hdlpkg` console script or as `python -m hdlpkg`.
 
-- **Source**: [src/hdl_ip_packager/cli.py](../../src/hdl_ip_packager/cli.py)
+- **Source**: [src/hdlpkg/cli.py](../../src/hdlpkg/cli.py)
 
 ## Conventions
 
@@ -68,7 +68,7 @@ versions.)
 
 ### <a id="tree"></a>`tree [path] [--search DIR …] [--registry DIR]`
 Resolve and **print the dependency graph** as an ASCII tree
-([`treeview`](../../src/hdl_ip_packager/treeview.py)), annotating each edge with its
+([`treeview`](../../src/hdlpkg/treeview.py)), annotating each edge with its
 constraint and the chosen version; diamonds are expanded once and later marked `(*)`.
 
 ```

@@ -3,7 +3,7 @@
 This top-level package re-exports the stable public API. Import the pieces you
 need directly from here::
 
-    from hdl_ip_packager import Manifest, Vlnv, Version, VersionConstraint
+    from hdlpkg import Manifest, Vlnv, Version, VersionConstraint
 
 See ``docs/architecture.md`` for the module map and ``docs/progress_tracker.md``
 for what is implemented versus planned.

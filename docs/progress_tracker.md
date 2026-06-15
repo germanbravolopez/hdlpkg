@@ -27,11 +27,13 @@ parameter maps, instance arrays, multiple instances, and **generate-nested** ins
 interfaces (also as a port/`virtual` type and modport select), and VHDL entities (direct +
 component instantiation, generate-nested) — with a **classify-all-or-refuse** safety model
 for SV and a cross-ref guard. No new dependency (approach A). Everything before it carries
-forward. **Next**: `0.13.0` — Git-registry hardening (the ref-resolution/parsing follow-ups,
-exercised end to end via `hdlpkg-livetest`) + richer IP-XACT mapping (bus interfaces,
-parameters) and an IP-XACT 2022 output mode. The project stays **pre-1.0** (formats keep the
-licence to change), validated continuously via `hdlpkg-livetest`; `1.0.0` is a deliberate
-freeze for later. See the Release plan.
+forward. **Next**: `0.13.0` is the **`hdl-ip-packager` -> `hdlpkg` rename** (the import package
+and PyPI distribution take the name the CLI already uses; no `ip.toml`/`ip.lock`/CLI change —
+see [docs/design/rename-to-hdlpkg.md](design/rename-to-hdlpkg.md)). The git/IP-XACT work then
+ships as `0.14.0` (Git-registry hardening + richer IP-XACT mapping + an IP-XACT 2022 output
+mode; see [docs/design/0.13.0-git-and-ipxact.md](design/0.13.0-git-and-ipxact.md)). The project
+stays **pre-1.0** (formats keep the licence to change), validated continuously via
+`hdlpkg-livetest`; `1.0.0` is a deliberate freeze for later. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) and iterating through the backlog as
 `0.x` capability releases; fully typed, linted, and tested (509 passing tests, ~95% coverage):

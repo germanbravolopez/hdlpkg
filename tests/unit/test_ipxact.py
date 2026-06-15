@@ -6,8 +6,8 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-from hdl_ip_packager.ipxact import IPXACT_NAMESPACE, to_ipxact
-from hdl_ip_packager.manifest import Manifest
+from hdlpkg.ipxact import IPXACT_NAMESPACE, to_ipxact
+from hdlpkg.manifest import Manifest
 
 pytestmark = pytest.mark.unit
 

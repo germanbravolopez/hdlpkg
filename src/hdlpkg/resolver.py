@@ -1,20 +1,20 @@
 """Dependency resolution.
 
-The resolver turns a root :class:`~hdl_ip_packager.manifest.Manifest` plus the set
+The resolver turns a root :class:`~hdlpkg.manifest.Manifest` plus the set
 of available core versions into a concrete, reproducible solution: the chosen
-:class:`~hdl_ip_packager.vlnv.Vlnv`\\ (s) for every package that satisfy every
+:class:`~hdlpkg.vlnv.Vlnv`\\ (s) for every package that satisfy every
 constraint. The solution is what gets written to the lockfile (``ip.lock``).
 
 Design (see ``docs/architecture.md`` and ``docs/research/state_of_the_art.md``):
 
 * **Compatibility unification (Cargo-style).** Dependents whose ranges fall in the
   same *compatibility group* -- same major for SemVer (see
-  :func:`~hdl_ip_packager.version.compatibility_group`) -- always unify to the
+  :func:`~hdlpkg.version.compatibility_group`) -- always unify to the
   single newest version satisfying them all. A diamond on ``^1.0`` + ``^1.1``
   resolves to one ``1.1.x``.
 * **Conflict policy.** Only a genuinely *incompatible* conflict -- two SemVer
   majors, or two distinct exact pins of an ``opaque``-scheme package -- is governed
-  by a :data:`~hdl_ip_packager.manifest.ConflictPolicy`:
+  by a :data:`~hdlpkg.manifest.ConflictPolicy`:
 
   - ``fail_on_conflict`` (default): raise :class:`ResolutionError`.
   - ``use_latest``: collapse to the newest of the conflicting versions and warn.

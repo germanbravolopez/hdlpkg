@@ -11,10 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager import cli
-from hdl_ip_packager.packaging import manifest_from_ipkg
-from hdl_ip_packager.registry import LocalRegistry
-from hdl_ip_packager.vlnv import PackageRef, Vlnv
+from hdlpkg import cli
+from hdlpkg.packaging import manifest_from_ipkg
+from hdlpkg.registry import LocalRegistry
+from hdlpkg.vlnv import PackageRef, Vlnv
 
 pytestmark = pytest.mark.integration
 

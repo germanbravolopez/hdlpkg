@@ -1,6 +1,6 @@
 """The tool-flow backend interface.
 
-A *backend* turns the tool-agnostic :class:`~hdl_ip_packager.backends.edam.EdaDesign`
+A *backend* turns the tool-agnostic :class:`~hdlpkg.backends.edam.EdaDesign`
 into the concrete input files one EDA tool consumes (a Verilator ``.vc`` command
 file, a Vivado source ``.tcl`` script, ...). Backends are **pure**: ``generate``
 returns a ``{filename: text}`` mapping and writes nothing; the CLI layer writes

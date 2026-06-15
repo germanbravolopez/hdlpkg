@@ -34,8 +34,8 @@ Each core is a directory with a manifest and its sources:
 ## Try them
 
 ```bash
-python -m hdl_ip_packager info examples/fifo/ip.toml
-python -m hdl_ip_packager validate examples/uart/ip.toml
+python -m hdlpkg info examples/fifo/ip.toml
+python -m hdlpkg validate examples/uart/ip.toml
 ```
 
 `tests/integration/test_examples.py` checks that every manifest here validates,

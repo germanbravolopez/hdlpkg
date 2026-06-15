@@ -5,7 +5,7 @@ name        = "uart"
 version     = "1.2.0"
 description = "8N1 UART with a FIFO-buffered receive path"
 license     = "Apache-2.0"
-authors     = ["HDL IP Packager Examples <examples@hdl-ip-packager.dev>"]
+authors     = ["HDL IP Packager Examples <examples@hdlpkg.dev>"]
 top         = "uart_top"
 keywords    = ["uart", "serial", "comm"]
 

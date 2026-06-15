@@ -3,8 +3,8 @@
 One exception hierarchy rooted at a single base, so a caller (the CLI, or another
 tool embedding the library) can catch the whole family with one `except`.
 
-- **Source**: [src/hdl_ip_packager/exceptions.py](../../src/hdl_ip_packager/exceptions.py)
-- **Import**: `from hdl_ip_packager import HdlPackagerError, ManifestError, ...`
+- **Source**: [src/hdlpkg/exceptions.py](../../src/hdlpkg/exceptions.py)
+- **Import**: `from hdlpkg import HdlPackagerError, ManifestError, ...`
 
 ## The hierarchy
 
@@ -36,7 +36,7 @@ expects a `ValueError` from a parse still works.
 ## Example
 
 ```python
-from hdl_ip_packager import Manifest, HdlPackagerError, ManifestError
+from hdlpkg import Manifest, HdlPackagerError, ManifestError
 
 try:
     Manifest.from_str("not a manifest")

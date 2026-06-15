@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager.credentials import (
+from hdlpkg.credentials import (
     Credential,
     CredentialStore,
     default_credentials_path,
@@ -16,7 +16,7 @@ from hdl_ip_packager.credentials import (
     registry_host,
     save_credentials,
 )
-from hdl_ip_packager.exceptions import CredentialsError
+from hdlpkg.exceptions import CredentialsError
 
 pytestmark = pytest.mark.unit
 

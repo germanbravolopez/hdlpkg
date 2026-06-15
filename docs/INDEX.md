@@ -25,25 +25,25 @@ quick-find reference.
 
 | Module | File | Status |
 |--------|------|--------|
-| Versioning (SemVer + constraints) | `src/hdl_ip_packager/version.py` | implemented |
-| Identity (VLNV) | `src/hdl_ip_packager/vlnv.py` | implemented |
-| Manifest (`ip.toml`) | `src/hdl_ip_packager/manifest.py` | implemented |
-| Scaffolder (`init`) | `src/hdl_ip_packager/scaffold.py` | implemented |
-| Exceptions | `src/hdl_ip_packager/exceptions.py` | implemented |
-| CLI (`hdlpkg`) | `src/hdl_ip_packager/cli.py` | implemented |
-| Public API | `src/hdl_ip_packager/__init__.py` | implemented |
-| `python -m` shim | `src/hdl_ip_packager/__main__.py` | implemented |
-| Resolver | `src/hdl_ip_packager/resolver.py` | implemented |
-| Lockfile (`ip.lock`) | `src/hdl_ip_packager/lockfile.py` | implemented |
-| Content-addressed cache | `src/hdl_ip_packager/cache.py` | implemented |
-| Registry (local + HTTP + OCI, all writable) | `src/hdl_ip_packager/registry.py` | implemented |
-| Registry credentials (`login`/`logout`) | `src/hdl_ip_packager/credentials.py` | implemented |
-| Packaging (`.ipkg`) | `src/hdl_ip_packager/packaging.py` | implemented |
-| Tool-flow backends (`gen`) | `src/hdl_ip_packager/backends/` | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) |
-| Name-mangling (packages, SV modules/interfaces, VHDL entities) | `src/hdl_ip_packager/mangle.py` | implemented |
-| Dependency tree view (`tree`) | `src/hdl_ip_packager/treeview.py` | implemented |
-| IP-XACT export (`export-ipxact`) | `src/hdl_ip_packager/ipxact.py` | implemented (1685-2014) |
-| SBOM (`pack --sbom`) | `src/hdl_ip_packager/sbom.py` | implemented (CycloneDX 1.5) |
+| Versioning (SemVer + constraints) | `src/hdlpkg/version.py` | implemented |
+| Identity (VLNV) | `src/hdlpkg/vlnv.py` | implemented |
+| Manifest (`ip.toml`) | `src/hdlpkg/manifest.py` | implemented |
+| Scaffolder (`init`) | `src/hdlpkg/scaffold.py` | implemented |
+| Exceptions | `src/hdlpkg/exceptions.py` | implemented |
+| CLI (`hdlpkg`) | `src/hdlpkg/cli.py` | implemented |
+| Public API | `src/hdlpkg/__init__.py` | implemented |
+| `python -m` shim | `src/hdlpkg/__main__.py` | implemented |
+| Resolver | `src/hdlpkg/resolver.py` | implemented |
+| Lockfile (`ip.lock`) | `src/hdlpkg/lockfile.py` | implemented |
+| Content-addressed cache | `src/hdlpkg/cache.py` | implemented |
+| Registry (local + HTTP + OCI, all writable) | `src/hdlpkg/registry.py` | implemented |
+| Registry credentials (`login`/`logout`) | `src/hdlpkg/credentials.py` | implemented |
+| Packaging (`.ipkg`) | `src/hdlpkg/packaging.py` | implemented |
+| Tool-flow backends (`gen`) | `src/hdlpkg/backends/` | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) |
+| Name-mangling (packages, SV modules/interfaces, VHDL entities) | `src/hdlpkg/mangle.py` | implemented |
+| Dependency tree view (`tree`) | `src/hdlpkg/treeview.py` | implemented |
+| IP-XACT export (`export-ipxact`) | `src/hdlpkg/ipxact.py` | implemented (1685-2014) |
+| SBOM (`pack --sbom`) | `src/hdlpkg/sbom.py` | implemented (CycloneDX 1.5) |
 
 ## Tooling & build files
 
@@ -173,13 +173,13 @@ quick-find reference.
 | How a specific module behaves (reference) | `docs/modules/<module>.md` (indexed by `docs/modules/README.md`) |
 | Every CLI command + flag | `docs/modules/cli.md` |
 | Why these design choices | `docs/research/state_of_the_art.md` |
-| How a manifest is parsed | `src/hdl_ip_packager/manifest.py` + `docs/architecture.md` §3 |
-| Constraint syntax (`^`, `~`, ranges) | `src/hdl_ip_packager/version.py` + `docs/architecture.md` §3 |
-| Pre-release matching rule | `src/hdl_ip_packager/version.py` (`VersionConstraint`) |
-| Conflict policy / multi-version coexistence | `docs/modules/resolver.md` + `src/hdl_ip_packager/resolver.py` |
-| Name-mangling (package/module/interface/entity coexistence at `gen`) | `docs/modules/mangle.md` + `src/hdl_ip_packager/mangle.py` |
-| Non-SemVer version schemes (calver / monotonic / opaque) | `docs/modules/versioning.md` (`CalVer` / `MonotonicVersion` / `OpaqueVersion`) + `src/hdl_ip_packager/version.py` |
-| Adding a new CLI command | `src/hdl_ip_packager/cli.py` (`build_parser`) |
+| How a manifest is parsed | `src/hdlpkg/manifest.py` + `docs/architecture.md` §3 |
+| Constraint syntax (`^`, `~`, ranges) | `src/hdlpkg/version.py` + `docs/architecture.md` §3 |
+| Pre-release matching rule | `src/hdlpkg/version.py` (`VersionConstraint`) |
+| Conflict policy / multi-version coexistence | `docs/modules/resolver.md` + `src/hdlpkg/resolver.py` |
+| Name-mangling (package/module/interface/entity coexistence at `gen`) | `docs/modules/mangle.md` + `src/hdlpkg/mangle.py` |
+| Non-SemVer version schemes (calver / monotonic / opaque) | `docs/modules/versioning.md` (`CalVer` / `MonotonicVersion` / `OpaqueVersion`) + `src/hdlpkg/version.py` |
+| Adding a new CLI command | `src/hdlpkg/cli.py` (`build_parser`) |
 | Adding a new module | `docs/ai_agent_instructions.md` + `docs/README.md` |
 | Test layout / adding tests | `tests/README.md` |
 | Test summary in CI | `scripts/render_test_summary.py` + `.github/workflows/ci.yml` |

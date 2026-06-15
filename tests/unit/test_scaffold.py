@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager.exceptions import InvalidVersionError, InvalidVlnvError
-from hdl_ip_packager.manifest import Manifest
-from hdl_ip_packager.scaffold import DEFAULT_VERSION, ScaffoldOptions, render_manifest
-from hdl_ip_packager.version import Version
+from hdlpkg.exceptions import InvalidVersionError, InvalidVlnvError
+from hdlpkg.manifest import Manifest
+from hdlpkg.scaffold import DEFAULT_VERSION, ScaffoldOptions, render_manifest
+from hdlpkg.version import Version
 
 pytestmark = pytest.mark.unit
 

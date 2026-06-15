@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager import cli
-from hdl_ip_packager.lockfile import Lockfile
+from hdlpkg import cli
+from hdlpkg.lockfile import Lockfile
 
 pytestmark = pytest.mark.integration
 

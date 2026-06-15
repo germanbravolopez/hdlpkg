@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager import cli
-from hdl_ip_packager.ipxact import IPXACT_NAMESPACE
+from hdlpkg import cli
+from hdlpkg.ipxact import IPXACT_NAMESPACE
 
 pytestmark = pytest.mark.integration
 

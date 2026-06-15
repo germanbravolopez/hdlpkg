@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from hdl_ip_packager.manifest import Manifest
-from hdl_ip_packager.sbom import CYCLONEDX_SPEC_VERSION, build_cyclonedx
+from hdlpkg.manifest import Manifest
+from hdlpkg.sbom import CYCLONEDX_SPEC_VERSION, build_cyclonedx
 
 pytestmark = pytest.mark.unit
 

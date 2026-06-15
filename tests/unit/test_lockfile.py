@@ -9,15 +9,15 @@ from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager.exceptions import LockfileError
-from hdl_ip_packager.lockfile import (
+from hdlpkg.exceptions import LockfileError
+from hdlpkg.lockfile import (
     LOCKFILE_VERSION,
     LockedPackage,
     Lockfile,
     sha256_digest,
 )
-from hdl_ip_packager.resolver import Resolution
-from hdl_ip_packager.vlnv import Vlnv
+from hdlpkg.resolver import Resolution
+from hdlpkg.vlnv import Vlnv
 
 pytestmark = pytest.mark.unit
 

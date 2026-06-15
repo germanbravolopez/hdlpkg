@@ -6,7 +6,7 @@ particular) ingest IP-XACT, so exporting one lets a core authored with this
 packager be consumed by the wider tool ecosystem. We borrow IP-XACT's VLNV scheme
 already (see ``vlnv.py``); here we emit a component document from a manifest.
 
-:func:`to_ipxact` is **pure**: it maps a :class:`~hdl_ip_packager.manifest.Manifest`
+:func:`to_ipxact` is **pure**: it maps a :class:`~hdlpkg.manifest.Manifest`
 to a deterministic XML string (no I/O), so the CLI ``export-ipxact`` command is a
 thin write wrapper. The output targets the **1685-2014** schema (VLNV, then a ``model``
 of one view + componentInstantiation per ``[targets.*]``, then the ``fileSets``) and

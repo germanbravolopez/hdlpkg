@@ -64,13 +64,13 @@ def test_extract_section_does_not_match_version_prefix() -> None:
 def test_build_release_body_includes_summary_and_pypi_link() -> None:
     body = ern.build_release_body(TRACKER, "0.8.0")
     assert "completeness pass" in body
-    assert "https://pypi.org/project/hdl-ip-packager/0.8.0/" in body
+    assert "https://pypi.org/project/hdlpkg/0.8.0/" in body
 
 
 def test_build_release_body_falls_back_when_no_entry() -> None:
     body = ern.build_release_body(TRACKER, "1.0.0-rc.1")
     assert "Release 1.0.0-rc.1." in body
-    assert "https://pypi.org/project/hdl-ip-packager/1.0.0-rc.1/" in body
+    assert "https://pypi.org/project/hdlpkg/1.0.0-rc.1/" in body
 
 
 def test_build_release_body_respects_project_slug() -> None:
@@ -85,7 +85,7 @@ def test_main_ok(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
     assert rc == 0
     out = capsys.readouterr().out
     assert "completeness pass" in out
-    assert "pypi.org/project/hdl-ip-packager/0.8.0/" in out
+    assert "pypi.org/project/hdlpkg/0.8.0/" in out
 
 
 def test_main_missing_version_returns_one(capsys: pytest.CaptureFixture[str]) -> None:

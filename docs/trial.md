@@ -18,9 +18,9 @@ the producer -> consumer story end to end with someone who did *not* build the t
 Python 3.11+:
 
 ```bash
-pip install hdl-ip-packager
+pip install hdlpkg
 hdlpkg --version
-# if 'hdlpkg' is not on PATH: python -m hdl_ip_packager --version
+# if 'hdlpkg' is not on PATH: python -m hdlpkg --version
 ```
 
 ## 2. A 5-minute smoke test (no registry needed)
@@ -84,7 +84,7 @@ A successful "someone else published, I consumed it" is itself the signal we nee
 ## How to report
 
 Open an issue at
-**https://github.com/germanbravolopez/hdl-ip-packager/issues** — include your OS, Python
+**https://github.com/germanbravolopez/hdlpkg/issues** — include your OS, Python
 version, the exact command, and the full output. Format or protocol friction is especially
 worth raising **while we are pre-1.0**: it is much easier to fix before the formats settle
 than after.

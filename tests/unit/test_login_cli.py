@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager import cli
-from hdl_ip_packager.credentials import load_credentials
+from hdlpkg import cli
+from hdlpkg.credentials import load_credentials
 
 pytestmark = pytest.mark.unit
 
@@ -29,7 +29,7 @@ def test_login_stores_token_then_logout_removes_it(creds_path: Path) -> None:
 def test_login_prompts_when_token_flag_omitted(
     creds_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("hdl_ip_packager.cli.getpass.getpass", lambda prompt="": "prompted")
+    monkeypatch.setattr("hdlpkg.cli.getpass.getpass", lambda prompt="": "prompted")
     assert cli.main(["login", "https://reg.corp/x"]) == 0
     assert load_credentials(creds_path).token_for("reg.corp") == "prompted"
 

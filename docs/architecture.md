@@ -11,7 +11,7 @@ is meant to grow. Sections marked **(implemented)** exist and are tested today;
 
 ## 1. The big picture
 
-The packager is a Python library (`hdl_ip_packager`) with a thin CLI (`hdlpkg`). It
+The packager is a Python library (`hdlpkg`) with a thin CLI (`hdlpkg`). It
 takes a tree of IP cores — each described by an `ip.toml` manifest — and provides
 the **manifest → resolve → lock → fetch → generate** pipeline that lets a design
 reuse versioned IP the way software reuses packages.
@@ -35,30 +35,30 @@ reuse versioned IP the way software reuses packages.
 
 ## 2. Module map
 
-All source lives under [src/hdl_ip_packager/](../src/hdl_ip_packager/). This page is
+All source lives under [src/hdlpkg/](../src/hdlpkg/). This page is
 the *design* view (how modules fit and why); for the per-module **reference** (public
 API, behavior, errors, examples) see the [module manual](modules/README.md), and for a
 task-oriented intro see the [user guide](user_guide.md).
 
 | Module | File | Status | Responsibility |
 |--------|------|--------|----------------|
-| Versioning | [version.py](../src/hdl_ip_packager/version.py) | implemented | `Version` (SemVer) + `VersionConstraint`, `compatibility_group`, and the non-SemVer schemes `CalVer` / `MonotonicVersion` / `OpaqueVersion` (`parse_version`) |
-| Identity | [vlnv.py](../src/hdl_ip_packager/vlnv.py) | implemented | `PackageRef` (`vendor:library:name`) and `Vlnv` (+`:version`) |
-| Manifest | [manifest.py](../src/hdl_ip_packager/manifest.py) | implemented | Parse/validate `ip.toml` → `Manifest` (identity, deps, filesets, targets) |
-| Scaffolder | [scaffold.py](../src/hdl_ip_packager/scaffold.py) | implemented | Pure renderer for a starter `ip.toml` (behind `hdlpkg init`) |
-| Errors | [exceptions.py](../src/hdl_ip_packager/exceptions.py) | implemented | One exception hierarchy rooted at `HdlPackagerError` |
-| CLI | [cli.py](../src/hdl_ip_packager/cli.py) | implemented | `hdlpkg` entry point; all commands implemented (`info`/`validate`/`init`/`add`/`resolve`/`install`/`pack`/`publish`/`pull`/`yank`/`login`/`logout`/`gen`/`tree`/`export-ipxact`) |
-| Resolver | [resolver.py](../src/hdl_ip_packager/resolver.py) | implemented | Constraints → selected `Vlnv`(s) (backtracking, Cargo-style unification, `[resolution] on-conflict` policy, scheme-aware) |
-| Lockfile | [lockfile.py](../src/hdl_ip_packager/lockfile.py) | implemented | Serialize/parse/verify `ip.lock` (a `Resolution` + per-core source + SHA-256) |
-| Cache | [cache.py](../src/hdl_ip_packager/cache.py) | implemented | Content-addressed local blob store (SHA-256 key, verify-on-read, atomic writes) |
-| Registry | [registry.py](../src/hdl_ip_packager/registry.py) | implemented (local + HTTP + OCI, all writable) | Abstract `Registry` + local-dir/writable-local/HTTP/OCI backends + `registry_from_location` scheme dispatch + graph walker (Git tracked as an issue) |
-| Credentials | [credentials.py](../src/hdl_ip_packager/credentials.py) | implemented | Per-host bearer tokens for private registries (`hdlpkg login`); pure `CredentialStore` + TOML load/save |
-| Packaging | [packaging.py](../src/hdl_ip_packager/packaging.py) | implemented | Build/read the deterministic `.ipkg` artifact (`pack_core`, `extract_ipkg`) |
-| Backends | [backends/](../src/hdl_ip_packager/backends/) | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) | EDAM-like intermediate (`build_eda_design`) → tool inputs behind `hdlpkg gen` |
-| Name-mangling | [mangle.py](../src/hdl_ip_packager/mangle.py) | implemented (SV + VHDL packages, SV modules/interfaces, VHDL entities) | Rewrite coexisting unit names so two versions build together under `gen` |
-| Tree view | [treeview.py](../src/hdl_ip_packager/treeview.py) | implemented | `render_dependency_tree` → ASCII dependency graph behind `hdlpkg tree` |
-| IP-XACT | [ipxact.py](../src/hdl_ip_packager/ipxact.py) | implemented | `to_ipxact` → IEEE 1685-2014 component XML behind `hdlpkg export-ipxact` |
-| SBOM | [sbom.py](../src/hdl_ip_packager/sbom.py) | implemented (CycloneDX) | `build_cyclonedx` → deterministic CycloneDX 1.5 SBOM behind `hdlpkg pack --sbom` |
+| Versioning | [version.py](../src/hdlpkg/version.py) | implemented | `Version` (SemVer) + `VersionConstraint`, `compatibility_group`, and the non-SemVer schemes `CalVer` / `MonotonicVersion` / `OpaqueVersion` (`parse_version`) |
+| Identity | [vlnv.py](../src/hdlpkg/vlnv.py) | implemented | `PackageRef` (`vendor:library:name`) and `Vlnv` (+`:version`) |
+| Manifest | [manifest.py](../src/hdlpkg/manifest.py) | implemented | Parse/validate `ip.toml` → `Manifest` (identity, deps, filesets, targets) |
+| Scaffolder | [scaffold.py](../src/hdlpkg/scaffold.py) | implemented | Pure renderer for a starter `ip.toml` (behind `hdlpkg init`) |
+| Errors | [exceptions.py](../src/hdlpkg/exceptions.py) | implemented | One exception hierarchy rooted at `HdlPackagerError` |
+| CLI | [cli.py](../src/hdlpkg/cli.py) | implemented | `hdlpkg` entry point; all commands implemented (`info`/`validate`/`init`/`add`/`resolve`/`install`/`pack`/`publish`/`pull`/`yank`/`login`/`logout`/`gen`/`tree`/`export-ipxact`) |
+| Resolver | [resolver.py](../src/hdlpkg/resolver.py) | implemented | Constraints → selected `Vlnv`(s) (backtracking, Cargo-style unification, `[resolution] on-conflict` policy, scheme-aware) |
+| Lockfile | [lockfile.py](../src/hdlpkg/lockfile.py) | implemented | Serialize/parse/verify `ip.lock` (a `Resolution` + per-core source + SHA-256) |
+| Cache | [cache.py](../src/hdlpkg/cache.py) | implemented | Content-addressed local blob store (SHA-256 key, verify-on-read, atomic writes) |
+| Registry | [registry.py](../src/hdlpkg/registry.py) | implemented (local + HTTP + OCI, all writable) | Abstract `Registry` + local-dir/writable-local/HTTP/OCI backends + `registry_from_location` scheme dispatch + graph walker (Git tracked as an issue) |
+| Credentials | [credentials.py](../src/hdlpkg/credentials.py) | implemented | Per-host bearer tokens for private registries (`hdlpkg login`); pure `CredentialStore` + TOML load/save |
+| Packaging | [packaging.py](../src/hdlpkg/packaging.py) | implemented | Build/read the deterministic `.ipkg` artifact (`pack_core`, `extract_ipkg`) |
+| Backends | [backends/](../src/hdlpkg/backends/) | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) | EDAM-like intermediate (`build_eda_design`) → tool inputs behind `hdlpkg gen` |
+| Name-mangling | [mangle.py](../src/hdlpkg/mangle.py) | implemented (SV + VHDL packages, SV modules/interfaces, VHDL entities) | Rewrite coexisting unit names so two versions build together under `gen` |
+| Tree view | [treeview.py](../src/hdlpkg/treeview.py) | implemented | `render_dependency_tree` → ASCII dependency graph behind `hdlpkg tree` |
+| IP-XACT | [ipxact.py](../src/hdlpkg/ipxact.py) | implemented | `to_ipxact` → IEEE 1685-2014 component XML behind `hdlpkg export-ipxact` |
+| SBOM | [sbom.py](../src/hdlpkg/sbom.py) | implemented (CycloneDX) | `build_cyclonedx` → deterministic CycloneDX 1.5 SBOM behind `hdlpkg pack --sbom` |
 
 The dependency direction is strictly one-way and acyclic:
 
@@ -101,7 +101,7 @@ pre-release of the same `MAJOR.MINOR.PATCH` (the Cargo rule).
 
 ### Manifest — `ip.toml`
 The per-core, author-written manifest. Schema (full example in
-[manifest.py](../src/hdl_ip_packager/manifest.py) and the [README](../README.md)):
+[manifest.py](../src/hdlpkg/manifest.py) and the [README](../README.md)):
 
 - `[package]` — `vendor`, `library`, `name`, `version` (required); plus
   `description`, `license`, `authors`, `top`, `keywords`, and an optional `scheme`
@@ -117,7 +117,7 @@ The per-core, author-written manifest. Schema (full example in
 
 Validation is strict and every error names the offending field via `ManifestError`.
 
-### Lockfile — `ip.lock` *(implemented — [lockfile.py](../src/hdl_ip_packager/lockfile.py))*
+### Lockfile — `ip.lock` *(implemented — [lockfile.py](../src/hdlpkg/lockfile.py))*
 Generated record of a resolve: the exact `Vlnv` chosen for every package plus a
 SHA-256 integrity `checksum` and a `source`. Committed to version control for
 reproducible, verifiable builds (the Cargo/Orbit/Go model). Serialized as TOML
@@ -131,7 +131,7 @@ digest** of the core (the same SHA-256 the cache keys on and the registry serves
 
 ## 4. Subsystem designs
 
-### Resolver *(implemented — [resolver.py](../src/hdl_ip_packager/resolver.py))*
+### Resolver *(implemented — [resolver.py](../src/hdlpkg/resolver.py))*
 Input: the root `Manifest` + `available: Mapping[PackageRef, Sequence[Manifest]]`
 (the *manifests* of each package's known versions, so a candidate's own
 `[dependencies]` and declared version *scheme* drive the transitive solve). Output:
@@ -162,7 +162,7 @@ package and possibly more under `isolate_namespaces`.
   registry/cache layer supplies `available`. Can be lowered to a SAT/CDCL solver
   later without changing the contract.
 
-### Cache *(implemented — [cache.py](../src/hdl_ip_packager/cache.py))*
+### Cache *(implemented — [cache.py](../src/hdlpkg/cache.py))*
 `ContentAddressedCache` is a local blob store keyed by the SHA-256 of each blob's
 own bytes (sharded git-style as `<root>/sha256/ab/cdef...`). It is **verify-on
 -read**: `get()` recomputes the digest and raises `RegistryError` if it disagrees
@@ -172,7 +172,7 @@ atomic (temp file + `os.replace`) and idempotent (content-addressing dedupes).
 offline reuse. The registry backends fetch into this store; a blob is a core's
 packed `.ipkg` (see Packaging below).
 
-### Registry *(implemented: local + HTTP + OCI — [registry.py](../src/hdl_ip_packager/registry.py))*
+### Registry *(implemented: local + HTTP + OCI — [registry.py](../src/hdlpkg/registry.py))*
 `Registry` is an ABC with `versions()`, `manifest()`, `artifact_bytes()`, `publish_core()`,
 and a shared `fetch()` that stores a core's packed `.ipkg` in the content-addressed cache
 (verified). `available_from_registry()` walks the dependency graph to build the
@@ -202,7 +202,7 @@ uses: it dispatches a location string to the right backend by URL scheme (bare p
 `path:` → local, `http(s)://` → HTTP, `oci://` / `oci+http://` → OCI, `git+…://` → Git) and
 wires in the stored token, so the rest of the CLI is backend-agnostic and the on-disk
 lockfile/protocol surface is stable. The network backends are **private by design**: a
-per-host bearer token from [credentials.py](../src/hdl_ip_packager/credentials.py) (set by
+per-host bearer token from [credentials.py](../src/hdlpkg/credentials.py) (set by
 `hdlpkg login`) authenticates a self-hosted registry, so teams share IP inside a company
 network without publishing publicly (the Git backend instead relies on the user's git
 credentials). A core's "artifact" is its deterministic `.ipkg` (see Packaging below), so its
@@ -214,7 +214,7 @@ token-exchange** flow (`OciRegistry` answers a `401` + `WWW-Authenticate: Bearer
 realm=...` by exchanging HTTP Basic credentials -- or going anonymous -- at the realm
 for a scoped access token, then retrying), so managed Harbor/cloud registries work too.
 
-### Credentials *(implemented — [credentials.py](../src/hdl_ip_packager/credentials.py))*
+### Credentials *(implemented — [credentials.py](../src/hdlpkg/credentials.py))*
 A pure `CredentialStore` maps a **registry host** (`oci://harbor.corp/ip/a` and
 `.../ip/b` share one credential for `harbor.corp`) to a `Credential` (a secret plus an
 optional username -> direct bearer vs. HTTP Basic for the token exchange), with TOML
@@ -224,7 +224,7 @@ serialization (reading the legacy `[tokens]` form too); the thin
 allows. `hdlpkg login [-u]`/`logout` manage it; `registry_from_location` reads it, with
 `docker login` (`~/.docker/config.json`) credentials merged in as a fallback.
 
-### Packaging *(implemented — [packaging.py](../src/hdl_ip_packager/packaging.py))*
+### Packaging *(implemented — [packaging.py](../src/hdlpkg/packaging.py))*
 `pack_core` builds a **deterministic** `.ipkg` (a gzip+tar of `ip.toml` plus every
 fileset file, with sorted entries, fixed mode/owner, zero mtime and gzip header),
 so a core always packs to byte-identical bytes and its SHA-256 is a stable content
@@ -234,9 +234,9 @@ checksum is the packed-content digest). The CLI exposes `pack`, `publish`
 (append-only into a writable `LocalRegistry`, with `yank` to retire a version
 without breaking old lockfiles), and `pull` (fetch by VLNV into the cache, extract).
 
-### Backends *(tool-flow generation implemented — [backends/](../src/hdl_ip_packager/backends/))*
+### Backends *(tool-flow generation implemented — [backends/](../src/hdlpkg/backends/))*
 `gen` builds a tool-agnostic EDAM-like intermediate
-([edam.py](../src/hdl_ip_packager/backends/edam.py): `build_eda_design`) from the
+([edam.py](../src/hdlpkg/backends/edam.py): `build_eda_design`) from the
 root core, its resolved dependencies, and a chosen target, then hands it to the
 `Backend` selected by the target's `toolflow`. The root contributes its target's
 filesets (testbench included for `sim`, excluded for `synth`); each dependency
@@ -249,7 +249,7 @@ can state exactly what a fileset needs. Five backends ship: `VerilatorBackend`
 (`generate` returns `{filename: text}`), so the CLI does the file writing. Tool
 specifics stay out of the manifest/resolver/packaging layers.
 
-### Name-mangling *(implemented — [mangle.py](../src/hdl_ip_packager/mangle.py))*
+### Name-mangling *(implemented — [mangle.py](../src/hdlpkg/mangle.py))*
 When `isolate_namespaces` keeps two versions of one core, their declared units collide in
 HDL's one global namespace. Under `gen` the pure `mangle.py` rewrites each version's unit
 name to a unique one (`bus_pkg` → `bus_pkg_v1_1_0`, `widget` → `widget_v1_0_0`) and
@@ -269,7 +269,7 @@ also declared by an *unrelated* core is likewise refused. The CLI materializes t
 tree into `<output>/src/` and builds over it (`build_eda_design(allow_multiversion=True)`).
 The design rationale is in [docs/design/module-entity-coexistence.md](design/module-entity-coexistence.md).
 
-### IP-XACT export *(implemented — [ipxact.py](../src/hdl_ip_packager/ipxact.py))*
+### IP-XACT export *(implemented — [ipxact.py](../src/hdlpkg/ipxact.py))*
 `export-ipxact` renders a manifest as an IEEE **1685-2014** component XML via the
 pure `to_ipxact`: VLNV identity, a `model` of one view + componentInstantiation per
 target, and the `fileSets`. Standard fileset `type` values map straight through to the
@@ -278,7 +278,7 @@ IP-XACT `fileType` enumeration; a custom/tool-specific type uses the IP-XACT
 `ElementTree`) and **validated against the official Accellera 1685-2014 XSD** by a test
 (the schema set is vendored under `tests/schema/`, `lxml` validates).
 
-### Supply-chain *(SBOM implemented — [sbom.py](../src/hdl_ip_packager/sbom.py); signing planned)*
+### Supply-chain *(SBOM implemented — [sbom.py](../src/hdlpkg/sbom.py); signing planned)*
 Checksums first (the packed-content SHA-256 already pins every artifact across the
 cache, lockfile, and registry); then a deterministic **CycloneDX 1.5** SBOM emitted
 at `pack` time via `pack --sbom` (`build_cyclonedx`: the core + its resolved

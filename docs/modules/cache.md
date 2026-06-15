@@ -3,8 +3,8 @@
 The local, on-disk store the packager populates while resolving cores, so repeated
 builds are offline and reproducible.
 
-- **Source**: [src/hdl_ip_packager/cache.py](../../src/hdl_ip_packager/cache.py)
-- **Import**: `from hdl_ip_packager import ContentAddressedCache, default_cache_root`
+- **Source**: [src/hdlpkg/cache.py](../../src/hdlpkg/cache.py)
+- **Import**: `from hdlpkg import ContentAddressedCache, default_cache_root`
 
 ## Purpose & properties
 
@@ -46,7 +46,7 @@ install` and `hdlpkg pull` both populate it.
 ## Example
 
 ```python
-from hdl_ip_packager import ContentAddressedCache, default_cache_root
+from hdlpkg import ContentAddressedCache, default_cache_root
 
 cache = ContentAddressedCache(default_cache_root())
 digest = cache.put(b"core bytes")

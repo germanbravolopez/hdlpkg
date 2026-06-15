@@ -75,9 +75,9 @@ The version lives in **two** places and they must match (the publish guard check
 `pyproject.toml`; `--version` reads `__init__.py`):
 
 - `pyproject.toml` -> `[project].version = "X.Y.Z"`
-- `src/hdl_ip_packager/__init__.py` -> `__version__ = "X.Y.Z"`
+- `src/hdlpkg/__init__.py` -> `__version__ = "X.Y.Z"`
 
-Sanity-check they agree: `python -m hdl_ip_packager --version` prints `hdlpkg X.Y.Z`.
+Sanity-check they agree: `python -m hdlpkg --version` prints `hdlpkg X.Y.Z`.
 
 ### 3. Make the quality gates green (hard gate)
 
@@ -236,12 +236,12 @@ The PyPI JSON API lags the workflow by a cache window; poll until the new versio
 appears rather than assuming success from the green workflow alone:
 
 ```bash
-until curl -s "https://pypi.org/pypi/hdl-ip-packager/json?$(date +%s)" | grep -q '"X.Y.Z"'; do sleep 5; done
-curl -s "https://pypi.org/pypi/hdl-ip-packager/json?$(date +%s)" | python -c "import sys,json; d=json.load(sys.stdin); print('latest:', d['info']['version']); print('files:', [f['filename'] for f in d['releases']['X.Y.Z']])"
+until curl -s "https://pypi.org/pypi/hdlpkg/json?$(date +%s)" | grep -q '"X.Y.Z"'; do sleep 5; done
+curl -s "https://pypi.org/pypi/hdlpkg/json?$(date +%s)" | python -c "import sys,json; d=json.load(sys.stdin); print('latest:', d['info']['version']); print('files:', [f['filename'] for f in d['releases']['X.Y.Z']])"
 ```
 
 Confirm the wheel + sdist are both listed. Surface the release URL
-(`https://pypi.org/project/hdl-ip-packager/X.Y.Z/`).
+(`https://pypi.org/project/hdlpkg/X.Y.Z/`).
 
 ### 10. Post-release housekeeping
 

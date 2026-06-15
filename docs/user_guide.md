@@ -43,15 +43,15 @@ a committed lockfile, content-addressed integrity — to hardware.
 Requires **Python 3.11+**. Install the published package from PyPI:
 
 ```bash
-pip install hdl-ip-packager
-hdlpkg --help            # if 'hdlpkg' is not on PATH: python -m hdl_ip_packager --help
+pip install hdlpkg
+hdlpkg --help            # if 'hdlpkg' is not on PATH: python -m hdlpkg --help
 ```
 
 > **Trying a pre-release (e.g. a `1.0.0-rc.N` candidate)?** `pip` skips pre-releases by
 > default, so ask for it explicitly:
 > ```bash
-> pip install --pre hdl-ip-packager        # newest, including pre-releases
-> pip install hdl-ip-packager==1.0.0rc1    # or pin the exact candidate
+> pip install --pre hdlpkg        # newest, including pre-releases
+> pip install hdlpkg==1.0.0rc1    # or pin the exact candidate
 > ```
 
 From a source checkout instead (for development — tests, lint, types):

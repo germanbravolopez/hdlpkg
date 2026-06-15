@@ -1,12 +1,12 @@
-"""Unit tests for hdl_ip_packager.vlnv (PackageRef + Vlnv)."""
+"""Unit tests for hdlpkg.vlnv (PackageRef + Vlnv)."""
 
 from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager.exceptions import InvalidVlnvError
-from hdl_ip_packager.version import CalVer, MonotonicVersion, OpaqueVersion, Version
-from hdl_ip_packager.vlnv import PackageRef, Vlnv
+from hdlpkg.exceptions import InvalidVlnvError
+from hdlpkg.version import CalVer, MonotonicVersion, OpaqueVersion, Version
+from hdlpkg.vlnv import PackageRef, Vlnv
 
 pytestmark = pytest.mark.unit
 
