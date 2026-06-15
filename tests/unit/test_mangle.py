@@ -279,11 +279,72 @@ class TestVhdlPlanner:
         assert "use work.bus_v1_1_0.all;" in plan.rewritten[("acme:ip:fifo:1.0.0", "fifo.vhd")]
         assert "use work.bus_v2_0_0.all;" in plan.rewritten[("acme:ip:legacy:1.0.0", "legacy.vhd")]
 
-    def test_refuses_colliding_vhdl_entities(self) -> None:
-        ent = "entity bus is end entity bus;\n"
-        cores = [
-            _core(_BUS.format(v="1.0.0"), {"e.vhd": ent}, language="vhdl"),
-            _core(_BUS.format(v="2.0.0"), {"e.vhd": ent}, language="vhdl"),
+    def _entity_scenario(self, consumer_body: str) -> list[GenCore]:
+        # Two versions of `entity bus`; one consumer (resolving to ^1.0.0) references it.
+        ent = "entity bus is end entity bus;\narchitecture rtl of bus is begin end rtl;\n"
+        return [
+            _core(_BUS.format(v="1.0.0"), {"bus.vhd": ent}, language="vhdl"),
+            _core(_BUS.format(v="2.0.0"), {"bus.vhd": ent}, language="vhdl"),
+            _core(
+                _CONSUMER.format(n="fifo", c="^1.0.0"),
+                {"fifo.vhd": consumer_body},
+                language="vhdl",
+            ),
         ]
-        with pytest.raises(BackendError, match="colliding entity name"):
+
+    def test_mangles_coexisting_entities_decl_and_arch(self) -> None:
+        plan = plan_package_mangling(self._entity_scenario("entity fifo is end;\n"))
+        assert plan.renamed == {"bus": ("bus_v1_0_0", "bus_v2_0_0")}
+        v1 = plan.rewritten[("acme:common:bus:1.0.0", "bus.vhd")]
+        assert "entity bus_v1_0_0 is end entity bus_v1_0_0;" in v1
+        assert "architecture rtl of bus_v1_0_0 is" in v1
+        assert "entity bus_v2_0_0 is" in plan.rewritten[("acme:common:bus:2.0.0", "bus.vhd")]
+
+    def test_mangles_direct_instantiation(self) -> None:
+        body = (
+            "architecture rtl of fifo is\nbegin\n"
+            "  u : entity work.bus port map (clk => clk);\n"
+            "  g : for i in 0 to 1 generate u2 : entity work.bus; end generate;\n"
+            "end rtl;\n"
+        )
+        out = plan_package_mangling(self._entity_scenario(body)).rewritten[
+            ("acme:ip:fifo:1.0.0", "fifo.vhd")
+        ]
+        assert "u : entity work.bus_v1_0_0 port map" in out
+        assert "u2 : entity work.bus_v1_0_0;" in out  # generate-nested direct instance
+
+    def test_mangles_component_instantiation(self) -> None:
+        body = (
+            "architecture rtl of fifo is\n"
+            "  component bus port (clk : in bit); end component;\n"
+            "begin\n"
+            "  u : bus port map (clk => clk);\n"
+            "  u3 : component bus port map (clk => clk);\n"
+            "end rtl;\n"
+        )
+        out = plan_package_mangling(self._entity_scenario(body)).rewritten[
+            ("acme:ip:fifo:1.0.0", "fifo.vhd")
+        ]
+        assert "component bus_v1_0_0 port" in out  # component declaration
+        assert "u : bus_v1_0_0 port map" in out  # bare component instantiation
+        assert "u3 : component bus_v1_0_0 port map" in out
+
+    def test_leaves_label_and_selected_name_inert(self) -> None:
+        # `bus :` is a label and `rec.bus` is a selected name -- neither is an entity ref.
+        body = (
+            "architecture rtl of fifo is\nbegin\n"
+            "  bus : process begin end process;\n"  # a label coinciding with the name
+            "  u : entity work.bus;\n"  # the real reference
+            "end rtl;\n"
+        )
+        out = plan_package_mangling(self._entity_scenario(body)).rewritten[
+            ("acme:ip:fifo:1.0.0", "fifo.vhd")
+        ]
+        assert "bus : process" in out  # label untouched
+        assert "u : entity work.bus_v1_0_0;" in out  # reference rewritten
+
+    def test_refuses_entity_name_declared_by_another_core(self) -> None:
+        # The same entity name declared by an unrelated core is ambiguous -> refuse.
+        cores = self._entity_scenario("entity bus is end;\n")  # consumer also declares `bus`
+        with pytest.raises(BackendError, match="ambiguous across"):
             plan_package_mangling(cores)

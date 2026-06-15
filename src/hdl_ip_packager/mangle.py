@@ -15,16 +15,22 @@ Handled, each with its own comment/string-aware lexer (so no full parser is need
 * **SV modules/programs** -- ``module``/``macromodule``/``program <n>``,
   ``endmodule : <n>``, and instantiations ``<n> [#( … )] <inst> [ […] ]* ( … )`` (incl.
   parameter maps, instance arrays, multiple instances, and generate-nested instances).
+* **VHDL entities** -- ``entity <n>`` / ``architecture A of <n>`` / ``end [...] <n>`` /
+  ``component <n>`` declarations, the direct instantiation ``entity work.<n>``, and the
+  component instantiation ``label : [component] <n> [generic|port] map`` (incl.
+  generate-nested).
 
-Because a unit reference (an instantiation) is not keyword-marked the way a package
-reference is, module mangling is **classify-all-or-refuse**: a version is renamed only
-when *every* occurrence of its name is provably a declaration, an instantiation, or an
-inert reference -- otherwise the coexistence is refused (never a partial rewrite). See
-``_reject_unclassifiable_sv_modules``.
+Because an SV module instantiation is not keyword-marked the way a package reference is,
+module mangling is **classify-all-or-refuse**: a version is renamed only when *every*
+occurrence of its name is provably a declaration, an instantiation, or an inert reference
+-- otherwise the coexistence is refused (never a partial rewrite). See
+``_reject_unclassifiable_sv_modules``. (VHDL entity references are all keyword-marked, so
+any other occurrence is inert by construction.) A colliding module/entity name also
+declared by an *unrelated* core is refused (``_reject_cross_ref_units``).
 
-**Not** handled yet (refused with a clear message): SV *interfaces* and VHDL *entities*
-(added incrementally), any other source language, and a (System)Verilog macro that
-*constructs* a name by token pasting (its body is left untouched).
+**Not** handled yet (refused with a clear message): SV *interfaces* (added next), any
+other source language, and a (System)Verilog macro that *constructs* a name by token
+pasting (its body is left untouched).
 
 This module is **pure**: it operates on source text passed in by the caller, so the
 filesystem work (reading sources, writing the rewritten tree) stays in the CLI.
@@ -359,7 +365,9 @@ def _vhdl_position(sig: Sequence[tuple[int, str, str]], position: int, kind: str
     """Whether the VHDL significant token at *position* is a rewritable position for *kind*."""
     if kind == _PACKAGE:
         return _is_vhdl_package_position(sig, position)
-    return False  # entity positions are added in a later chunk
+    if kind == _ENTITY:
+        return _is_vhdl_entity_position(sig, position)
+    return False
 
 
 def _is_sv_package_position(sig: Sequence[tuple[int, str, str]], position: int) -> bool:
@@ -384,6 +392,31 @@ def _is_vhdl_package_position(sig: Sequence[tuple[int, str, str]], position: int
     if prev == "body" and prev_prev == "package":  # `package body N` / `end package body N`
         return True
     return prev == "." and prev_prev == "work"  # `use work.N...` reference
+
+
+def _is_vhdl_entity_position(sig: Sequence[tuple[int, str, str]], position: int) -> bool:
+    """True if the VHDL significant token at *position* is an entity declaration or reference.
+
+    Covers ``entity N is`` / ``architecture A of N`` / ``configuration C of N`` / ``end [...] N``
+    / ``component N`` declarations, the direct instantiation ``entity work.N`` (incl.
+    ``use entity work.N``), and the component instantiation ``label : [component] N
+    [generic|port] map`` / ``label : N use ...`` / ``label : N;``. Generate-nested
+    instantiations have the same shape, so they match here too. An entity name cannot be a
+    value in VHDL, so any other occurrence (a label ``N :``, a selected/named-library name
+    ``x.N``) is inert and left untouched.
+    """
+    prev = sig[position - 1][2].lower() if position >= 1 else None
+    prev2 = sig[position - 2][2].lower() if position >= 2 else None
+    prev3 = sig[position - 3][2].lower() if position >= 3 else None
+    nxt = sig[position + 1][2].lower() if position + 1 < len(sig) else None
+    if prev in ("entity", "component", "end"):  # decl / end label / `component N`
+        return True
+    if prev == "of" and prev3 in ("architecture", "configuration"):  # `... of N`
+        return True
+    if prev == "." and prev2 == "work":  # direct instantiation `entity work.N`
+        return True
+    # component instantiation `label : [component] N [generic|port] map` / `: N use` / `: N;`
+    return prev == ":" and nxt in ("port", "generic", "use", ";")
 
 
 # --------------------------------------------------------------------------- plan
@@ -462,12 +495,13 @@ class ManglePlan:
 def plan_package_mangling(cores: Sequence[GenCore]) -> ManglePlan:
     """Plan the unit renames needed to let coexisting versions build together.
 
-    Handles colliding **packages** (SV + VHDL) and **SV modules/programs**. Returns a
-    :class:`ManglePlan` whose ``rewritten`` maps every source file's key to its
-    (possibly unchanged) text. Raises :class:`BackendError` when a conflict cannot be
-    mangled safely -- a colliding SV *interface* or VHDL *entity* (not implemented yet),
-    a source whose language the mangler does not handle, an unclassifiable module
-    occurrence, or two versions that mangle to the same name.
+    Handles colliding **packages** (SV + VHDL), **SV modules/programs**, and **VHDL
+    entities**. Returns a :class:`ManglePlan` whose ``rewritten`` maps every source
+    file's key to its (possibly unchanged) text. Raises :class:`BackendError` when a
+    conflict cannot be mangled safely -- a colliding SV *interface* (not implemented
+    yet), a source whose language the mangler does not handle, an unclassifiable module
+    occurrence, a name also declared by an unrelated core, or two versions that mangle to
+    the same name.
     """
     by_ref: dict[PackageRef, list[GenCore]] = {}
     for core in cores:
@@ -495,13 +529,13 @@ def plan_package_mangling(cores: Sequence[GenCore]) -> ManglePlan:
             colliding = sorted(name for name, count in counts.items() if count >= 2)
             if not colliding:
                 continue
-            if kind in (_PACKAGE, _MODULE):  # mangleable
+            if kind in (_PACKAGE, _MODULE, _ENTITY):  # mangleable
                 for name in colliding:
                     owner_of[name] = ref
                     kind_of[name] = kind
                 if kind == _MODULE:
                     sv_module_collisions.update(colliding)
-            else:  # interface / entity -- support added in later chunks
+            else:  # interface -- support added in a later chunk
                 _refuse_unsupported_kind(ref, kind, colliding)
     _reject_cross_ref_units(cores, owner_of, kind_of)
     _reject_unclassifiable_sv_modules(cores, sv_module_collisions)
@@ -571,23 +605,24 @@ def _refuse_unsupported_kind(ref: PackageRef, kind: str, names: Sequence[str]) -
 def _reject_cross_ref_units(
     cores: Sequence[GenCore], owner_of: Mapping[str, PackageRef], kind_of: Mapping[str, str]
 ) -> None:
-    """Refuse a colliding *module* name also declared by an unrelated core.
+    """Refuse a colliding *module*/*entity* name also declared by an unrelated core.
 
     Mangling keys a colliding name to the ref whose versions collide on it. If a *different*
-    core declares the same module name, that name is ambiguous across cores -- renaming it
-    would corrupt the unrelated core -- so refuse rather than guess. (Realistic designs give
-    each module a unique name; this guards the accidental clash.)
+    core declares the same module/entity name, that name is ambiguous across cores --
+    renaming it would corrupt the unrelated core -- so refuse rather than guess. (Realistic
+    designs give each unit a unique name; this guards the accidental clash.)
     """
     for name, owner_ref in owner_of.items():
-        if kind_of[name] != _MODULE:
+        kind = kind_of[name]
+        if kind not in (_MODULE, _ENTITY):
             continue
         for core in cores:
             if core.manifest.ref == owner_ref:
                 continue
-            declared = {n for f in core.files for n in f.declared_by_kind().get(_MODULE, set())}
+            declared = {n for f in core.files for n in f.declared_by_kind().get(kind, set())}
             if name in declared:
                 raise BackendError(
-                    f"Cannot coexist versions of module {name!r}: it is also declared by "
+                    f"Cannot coexist versions of {kind} {name!r}: it is also declared by "
                     f"{core.manifest.ref} (a different core), so the name is ambiguous across "
                     f"cores. Rename one of them, or resolve to a single version."
                 )
