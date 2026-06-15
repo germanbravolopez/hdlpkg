@@ -56,6 +56,15 @@ __all__ = [
 _SV_LANGUAGES = frozenset({"systemverilog", "verilog"})
 _VHDL_LANGUAGE = "vhdl"
 
+# Mangleable unit kinds. Each kind has its own declaration scanner and reference
+# position rules; the rewriter dispatches on the kind carried in a rename entry. Only
+# ``_PACKAGE`` is wired today -- module/interface/entity kinds are added incrementally.
+_PACKAGE = "package"
+
+# A rename entry: the version-unique mangled name plus the unit kind it applies to
+# (so the rewriter knows which position rules to use for that name).
+_Rename = tuple[str, str]  # (mangled_name, unit_kind)
+
 # A comment/string-aware token scan. Order matters: comments and strings are matched
 # before identifiers so their contents are never treated as code.
 _TOKEN_RE = re.compile(
@@ -203,7 +212,8 @@ def rewrite_sv_packages(source: str, renames: Mapping[str, str]) -> str:
     """
     if not renames:
         return source
-    return _rewrite(_tokens(source), renames, _is_sv_package_position, fold=False)
+    kinded = {name: (mangled, _PACKAGE) for name, mangled in renames.items()}
+    return _rewrite(_tokens(source), kinded, _sv_position, fold=False)
 
 
 def rewrite_vhdl_packages(source: str, renames: Mapping[str, str]) -> str:
@@ -215,30 +225,52 @@ def rewrite_vhdl_packages(source: str, renames: Mapping[str, str]) -> str:
     """
     if not renames:
         return source
-    return _rewrite(_vhdl_tokens(source), renames, _is_vhdl_package_position, fold=True)
+    kinded = {name: (mangled, _PACKAGE) for name, mangled in renames.items()}
+    return _rewrite(_vhdl_tokens(source), kinded, _vhdl_position, fold=True)
 
 
-_PositionPredicate = Callable[[Sequence[tuple[int, str, str]], int], bool]
+# A position predicate decides whether the significant token at *position* is a
+# rewritable position for a unit of the given *kind*.
+_PositionPredicate = Callable[[Sequence[tuple[int, str, str]], int, str], bool]
 
 
 def _rewrite(
     tokens: Sequence[tuple[str, str]],
-    renames: Mapping[str, str],
+    renames: Mapping[str, _Rename],
     is_position: _PositionPredicate,
     *,
     fold: bool,
 ) -> str:
-    """Replace identifier tokens in package positions per *renames* (case-fold if *fold*)."""
+    """Replace identifier tokens in a unit's positions per *renames* (case-fold if *fold*).
+
+    *renames* maps a name to ``(mangled_name, kind)``; *is_position* is consulted with
+    that kind so each name is rewritten only in the positions valid for its unit kind.
+    """
     sig = _significant(tokens)
     position_of = {index: position for position, (index, _k, _t) in enumerate(sig)}
     out: list[str] = []
-    for index, (kind, text) in enumerate(tokens):
+    for index, (tok_kind, text) in enumerate(tokens):
         key = text.lower() if fold else text
-        if kind == "ident" and key in renames and is_position(sig, position_of[index]):
-            out.append(renames[key])
+        entry = renames.get(key) if tok_kind == "ident" else None
+        if entry is not None and is_position(sig, position_of[index], entry[1]):
+            out.append(entry[0])
         else:
             out.append(text)
     return "".join(out)
+
+
+def _sv_position(sig: Sequence[tuple[int, str, str]], position: int, kind: str) -> bool:
+    """Whether the SV significant token at *position* is a rewritable position for *kind*."""
+    if kind == _PACKAGE:
+        return _is_sv_package_position(sig, position)
+    return False  # module / interface positions are added in later chunks
+
+
+def _vhdl_position(sig: Sequence[tuple[int, str, str]], position: int, kind: str) -> bool:
+    """Whether the VHDL significant token at *position* is a rewritable position for *kind*."""
+    if kind == _PACKAGE:
+        return _is_vhdl_package_position(sig, position)
+    return False  # entity positions are added in a later chunk
 
 
 def _is_sv_package_position(sig: Sequence[tuple[int, str, str]], position: int) -> bool:
@@ -292,12 +324,18 @@ class GenSourceFile:
             return set(declared_vhdl_entities(self.text))
         return set()
 
-    def rewrite(self, renames: Mapping[str, str]) -> str:
-        """Rewrite this file's package names per *renames* (by its language)."""
+    def rewrite(self, renames: Mapping[str, _Rename]) -> str:
+        """Rewrite this file's unit names per *renames* (by its language).
+
+        *renames* maps a name to ``(mangled_name, kind)``; the rewriter applies the
+        position rules for each name's kind in this file's language.
+        """
+        if not renames:
+            return self.text
         if self.language in _SV_LANGUAGES:
-            return rewrite_sv_packages(self.text, renames)
+            return _rewrite(_tokens(self.text), renames, _sv_position, fold=False)
         if self.language == _VHDL_LANGUAGE:
-            return rewrite_vhdl_packages(self.text, renames)
+            return _rewrite(_vhdl_tokens(self.text), renames, _vhdl_position, fold=True)
         return self.text
 
 
@@ -330,8 +368,9 @@ def plan_package_mangling(cores: Sequence[GenCore]) -> ManglePlan:
         by_ref.setdefault(core.manifest.ref, []).append(core)
     conflicted = {ref: group for ref, group in by_ref.items() if len(group) > 1}
 
-    owner_of: dict[str, PackageRef] = {}  # colliding package name -> the ref it belongs to
-    declares: dict[str, set[str]] = {}  # VLNV string -> the package names it declares
+    owner_of: dict[str, PackageRef] = {}  # colliding unit name -> the ref it belongs to
+    kind_of: dict[str, str] = {}  # colliding unit name -> its unit kind
+    declares: dict[str, set[str]] = {}  # VLNV string -> the unit names it declares
     for ref, group in conflicted.items():
         _reject_unmangleable(ref, group)
         per_version: dict[str, set[str]] = {}
@@ -341,13 +380,14 @@ def plan_package_mangling(cores: Sequence[GenCore]) -> ManglePlan:
             per_version[str(core.manifest.vlnv)] = names
         counts = Counter(name for names in per_version.values() for name in names)
         for name, count in counts.items():
-            if count >= 2:  # the same package name declared by two versions -> collides
+            if count >= 2:  # the same unit name declared by two versions -> collides
                 owner_of[name] = ref
+                kind_of[name] = _PACKAGE
 
     rewritten: dict[tuple[str, str], str] = {}
     renamed: dict[str, set[str]] = {name: set() for name in owner_of}
     for core in cores:
-        rename_map = _rename_map_for(core, owner_of, declares, conflicted, renamed)
+        rename_map = _rename_map_for(core, owner_of, kind_of, declares, conflicted, renamed)
         for source in core.files:
             rewritten[source.key] = source.rewrite(rename_map)
     _reject_colliding_mangled_names(owner_of, declares, conflicted, renamed)
@@ -415,22 +455,28 @@ def _reject_unmangleable(ref: PackageRef, group: Sequence[GenCore]) -> None:
 def _rename_map_for(
     core: GenCore,
     owner_of: Mapping[str, PackageRef],
+    kind_of: Mapping[str, str],
     declares: Mapping[str, set[str]],
     conflicted: Mapping[PackageRef, Sequence[GenCore]],
     renamed: dict[str, set[str]],
-) -> dict[str, str]:
-    """The package renames to apply to *core*'s sources (records them in *renamed*)."""
-    rename_map: dict[str, str] = {}
+) -> dict[str, _Rename]:
+    """The unit renames to apply to *core*'s sources (records them in *renamed*).
+
+    Each entry maps a name to ``(mangled_name, kind)``: a core that *declares* a
+    colliding unit renames it to its own version; a core that *uses* it renames to the
+    version that core resolved to.
+    """
+    rename_map: dict[str, _Rename] = {}
     own = declares.get(str(core.manifest.vlnv), set())
     for name, owner_ref in owner_of.items():
-        if name in own:  # this core *is* a version that declares the package
+        if name in own:  # this core *is* a version that declares the unit
             mangled = mangled_name(name, core.manifest.vlnv.version)
-        else:  # this core *uses* the package -> rewrite to the version it resolved to
+        else:  # this core *uses* the unit -> rewrite to the version it resolved to
             used = _resolved_version(core.manifest, owner_ref, conflicted[owner_ref])
             if used is None:
                 continue
             mangled = mangled_name(name, used.version)
-        rename_map[name] = mangled
+        rename_map[name] = (mangled, kind_of[name])
         renamed[name].add(mangled)
     return rename_map
 
