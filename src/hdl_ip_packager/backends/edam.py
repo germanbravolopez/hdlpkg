@@ -154,11 +154,11 @@ def _dependency_fileset_names(manifest: Manifest) -> list[str]:
 def _reject_multiversion(dependencies: Sequence[CoreSource]) -> None:
     """Refuse to assemble two versions of one package without mangling.
 
-    HDL puts every ``module``/``package`` name in one global namespace, so two
-    versions of a core collide at elaboration. The CLI's ``gen`` first name-mangles
-    coexisting SystemVerilog *packages* (then calls this with ``allow_multiversion``);
-    reaching here means that did not happen, so it stops with a clear message rather
-    than emitting a design that cannot elaborate.
+    HDL puts every ``module``/``package``/``entity`` name in one global namespace, so two
+    versions of a core collide at elaboration. The CLI's ``gen`` first name-mangles the
+    coexisting design units (then calls this with ``allow_multiversion``); reaching here
+    means that did not happen, so it stops with a clear message rather than emitting a
+    design that cannot elaborate.
     """
     versions_by_ref: dict[PackageRef, set[str]] = {}
     for core in dependencies:
@@ -169,9 +169,10 @@ def _reject_multiversion(dependencies: Sequence[CoreSource]) -> None:
         listed = ", ".join(sorted(vers))
         raise BackendError(
             f"Cannot generate a design with two versions of {ref} ({listed}): HDL elaboration "
-            f"cannot host two versions of one package in a single namespace. Generate under "
-            f"[resolution] on-conflict = 'isolate_namespaces' (which name-mangles SystemVerilog/"
-            f"VHDL packages), resolve to a single version ('use_latest'), or split the build."
+            f"cannot host two versions of one design unit in a single namespace. Generate under "
+            f"[resolution] on-conflict = 'isolate_namespaces' (which name-mangles the coexisting "
+            f"packages/modules/interfaces/entities), resolve to a single version ('use_latest'), "
+            f"or split the build."
         )
 
 

@@ -80,8 +80,8 @@ MANIFEST_FILENAME = "ip.toml"
 # * ``"use_latest"`` -- collapse to the newest of the conflicting versions (single
 #   copy) and warn that lower requirements may be violated.
 # * ``"isolate_namespaces"`` -- keep every incompatible version in the resolve /
-#   lock / tree. (Physical coexistence at ``gen`` is not built, so ``gen`` refuses
-#   to emit two versions of one package.)
+#   lock / tree; ``gen`` name-mangles the coexisting design units (packages, modules,
+#   interfaces, entities) so both versions elaborate side by side.
 ConflictPolicy = Literal["fail_on_conflict", "use_latest", "isolate_namespaces"]
 SUPPORTED_CONFLICT_POLICIES: tuple[ConflictPolicy, ...] = (
     "fail_on_conflict",

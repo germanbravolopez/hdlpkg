@@ -36,6 +36,7 @@ tests/
     ├── test_conflict_policy_cli.py on-conflict policies + gen refusing module coexistence
     ├── test_mangle_gen_cli.py     gen name-mangles coexisting SV packages end to end
     ├── test_mangle_vhdl_gen_cli.py gen (ghdl) name-mangles coexisting VHDL packages
+    ├── test_mangle_unit_gen_cli.py gen name-mangles coexisting SV interfaces + VHDL entities
     ├── test_opaque_registry_cli.py opaque (non-SemVer) publish/resolve/pull round-trip
     ├── test_http_registry_cli.py   writable + authenticated HTTP registry, full CLI flow
     ├── test_oci_registry_cli.py    OCI distribution v2 backend vs a mock registry, full CLI flow
