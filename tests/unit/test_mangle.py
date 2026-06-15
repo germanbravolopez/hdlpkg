@@ -244,6 +244,35 @@ class TestPlanner:
         with pytest.raises(BackendError, match="cannot classify"):
             plan_package_mangling(self._module_scenario(body))
 
+    def _interface_scenario(self, consumer_body: str) -> list[GenCore]:
+        ifc = "interface bus; endinterface\n"
+        return [
+            _core(_BUS.format(v="1.0.0"), {"bus.sv": ifc}),
+            _core(_BUS.format(v="2.0.0"), {"bus.sv": ifc}),
+            _core(_CONSUMER.format(n="fifo", c="^1.0.0"), {"fifo.sv": consumer_body}),
+        ]
+
+    def test_mangles_coexisting_interfaces_all_positions(self) -> None:
+        body = (
+            "module fifo (bus port_if, bus.master mp);\n"  # port type + modport select
+            "  bus u_if ();\n"  # instantiation
+            "  virtual bus v;\n"  # virtual interface
+            "endmodule\n"
+        )
+        plan = plan_package_mangling(self._interface_scenario(body))
+        assert plan.renamed == {"bus": ("bus_v1_0_0", "bus_v2_0_0")}
+        assert "interface bus_v1_0_0;" in plan.rewritten[("acme:common:bus:1.0.0", "bus.sv")]
+        out = plan.rewritten[("acme:ip:fifo:1.0.0", "fifo.sv")]
+        assert "module fifo (bus_v1_0_0 port_if, bus_v1_0_0.master mp)" in out
+        assert "bus_v1_0_0 u_if ()" in out
+        assert "virtual bus_v1_0_0 v;" in out
+
+    def test_refuses_unclassifiable_interface_occurrence(self) -> None:
+        # An interface name as a type-parameter default is an unmodeled type context.
+        body = "module fifo #(type T = bus) (); endmodule\n"
+        with pytest.raises(BackendError, match="cannot classify"):
+            plan_package_mangling(self._interface_scenario(body))
+
     def test_refuses_unknown_language(self) -> None:
         cores = [
             _core(_BUS.format(v="1.0.0"), {"bus.x": "anything\n"}, language="chiselsource"),

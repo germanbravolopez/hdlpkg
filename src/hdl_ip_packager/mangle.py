@@ -19,18 +19,22 @@ Handled, each with its own comment/string-aware lexer (so no full parser is need
   ``component <n>`` declarations, the direct instantiation ``entity work.<n>``, and the
   component instantiation ``label : [component] <n> [generic|port] map`` (incl.
   generate-nested).
+* **SV interfaces** -- the ``interface <n>`` declaration, an instantiation, a port/var
+  type ``<n> sig`` / ``virtual <n> v``, and a modport select ``<n>.<modport>``.
 
 Because an SV module instantiation is not keyword-marked the way a package reference is,
 module mangling is **classify-all-or-refuse**: a version is renamed only when *every*
 occurrence of its name is provably a declaration, an instantiation, or an inert reference
 -- otherwise the coexistence is refused (never a partial rewrite). See
-``_reject_unclassifiable_sv_modules``. (VHDL entity references are all keyword-marked, so
-any other occurrence is inert by construction.) A colliding module/entity name also
-declared by an *unrelated* core is refused (``_reject_cross_ref_units``).
+``_reject_unclassifiable_sv_modules`` (and ``_reject_unclassifiable_sv_interfaces``).
+(VHDL entity references are all keyword-marked, so any other occurrence is inert by
+construction.) A colliding module/interface/entity name also declared by an *unrelated*
+core is refused (``_reject_cross_ref_units``).
 
-**Not** handled yet (refused with a clear message): SV *interfaces* (added next), any
-other source language, and a (System)Verilog macro that *constructs* a name by token
-pasting (its body is left untouched).
+**Not** handled (refused with a clear message): any other source language; an SV
+interface name in an unmodeled type context (e.g. a type-parameter default); and a
+(System)Verilog macro that *constructs* a name by token pasting (its body is left
+untouched).
 
 This module is **pure**: it operates on source text passed in by the caller, so the
 filesystem work (reading sources, writing the rewritten tree) stays in the CLI.
@@ -298,7 +302,9 @@ def _sv_position(sig: Sequence[tuple[int, str, str]], position: int, kind: str) 
         return _is_sv_package_position(sig, position)
     if kind == _MODULE:
         return _is_sv_module_position(sig, position)
-    return False  # interface positions are added in a later chunk
+    if kind == _INTERFACE:
+        return _is_sv_interface_position(sig, position)
+    return False
 
 
 def _skip_group(
@@ -359,6 +365,32 @@ def _sv_instantiation_position(sig: Sequence[tuple[int, str, str]], position: in
 def _is_sv_module_position(sig: Sequence[tuple[int, str, str]], position: int) -> bool:
     """True if ``sig[position]`` is a rewritable SV module position (declaration or use)."""
     return _sv_module_decl_position(sig, position) or _sv_instantiation_position(sig, position)
+
+
+def _is_sv_interface_position(sig: Sequence[tuple[int, str, str]], position: int) -> bool:
+    """True if ``sig[position]`` is a rewritable SV interface position.
+
+    An interface name is also a *type*, so it is rewritten in more places than a module:
+    the ``interface <n>`` / ``endinterface : <n>`` declaration; an instantiation
+    ``<n> <inst> (…)``; a port/variable type ``<n> <sig>`` or ``virtual <n> <vif>`` (both
+    ``<n>`` directly before an identifier); and a modport select ``<n>.<modport>``
+    (``<n>`` directly before ``.``). A member access ``x.<n>`` (``<n>`` after ``.``) is
+    inert and left untouched.
+    """
+    prev = sig[position - 1][2] if position >= 1 else None
+    prev_prev = sig[position - 2][2] if position >= 2 else None
+    if prev == "interface":  # declaration
+        return True
+    if prev == ":" and prev_prev == "endinterface":  # end label
+        return True
+    if prev == ".":  # member access `x.<n>` -> inert
+        return False
+    following = sig[position + 1] if position + 1 < len(sig) else None
+    if following is None:
+        return False
+    if following[2] == ".":  # modport select `<n>.<modport>`
+        return True
+    return following[1] == "ident"  # instantiation `<n> u (…)` or type `<n> sig` / `virtual <n> v`
 
 
 def _vhdl_position(sig: Sequence[tuple[int, str, str]], position: int, kind: str) -> bool:
@@ -495,13 +527,12 @@ class ManglePlan:
 def plan_package_mangling(cores: Sequence[GenCore]) -> ManglePlan:
     """Plan the unit renames needed to let coexisting versions build together.
 
-    Handles colliding **packages** (SV + VHDL), **SV modules/programs**, and **VHDL
-    entities**. Returns a :class:`ManglePlan` whose ``rewritten`` maps every source
-    file's key to its (possibly unchanged) text. Raises :class:`BackendError` when a
-    conflict cannot be mangled safely -- a colliding SV *interface* (not implemented
-    yet), a source whose language the mangler does not handle, an unclassifiable module
-    occurrence, a name also declared by an unrelated core, or two versions that mangle to
-    the same name.
+    Handles colliding **packages** (SV + VHDL), **SV modules/programs**, **SV
+    interfaces**, and **VHDL entities**. Returns a :class:`ManglePlan` whose ``rewritten``
+    maps every source file's key to its (possibly unchanged) text. Raises
+    :class:`BackendError` when a conflict cannot be mangled safely -- a source whose
+    language the mangler does not handle, an unclassifiable module/interface occurrence, a
+    name also declared by an unrelated core, or two versions that mangle to the same name.
     """
     by_ref: dict[PackageRef, list[GenCore]] = {}
     for core in cores:
@@ -512,6 +543,7 @@ def plan_package_mangling(cores: Sequence[GenCore]) -> ManglePlan:
     kind_of: dict[str, str] = {}  # colliding unit name -> its unit kind
     declares: dict[str, set[str]] = {}  # VLNV string -> the unit names it declares
     sv_module_collisions: set[str] = set()
+    sv_interface_collisions: set[str] = set()
     for ref, group in conflicted.items():
         _reject_unknown_language(ref, group)
         declared_per_version: list[dict[str, set[str]]] = []
@@ -527,18 +559,16 @@ def plan_package_mangling(cores: Sequence[GenCore]) -> ManglePlan:
                 name for by_kind in declared_per_version for name in by_kind.get(kind, set())
             )
             colliding = sorted(name for name, count in counts.items() if count >= 2)
-            if not colliding:
-                continue
-            if kind in (_PACKAGE, _MODULE, _ENTITY):  # mangleable
-                for name in colliding:
-                    owner_of[name] = ref
-                    kind_of[name] = kind
-                if kind == _MODULE:
-                    sv_module_collisions.update(colliding)
-            else:  # interface -- support added in a later chunk
-                _refuse_unsupported_kind(ref, kind, colliding)
+            for name in colliding:
+                owner_of[name] = ref
+                kind_of[name] = kind
+            if kind == _MODULE:
+                sv_module_collisions.update(colliding)
+            elif kind == _INTERFACE:
+                sv_interface_collisions.update(colliding)
     _reject_cross_ref_units(cores, owner_of, kind_of)
     _reject_unclassifiable_sv_modules(cores, sv_module_collisions)
+    _reject_unclassifiable_sv_interfaces(cores, sv_interface_collisions)
 
     rewritten: dict[tuple[str, str], str] = {}
     renamed: dict[str, set[str]] = {name: set() for name in owner_of}
@@ -592,14 +622,36 @@ def _reject_unknown_language(ref: PackageRef, group: Sequence[GenCore]) -> None:
         )
 
 
-def _refuse_unsupported_kind(ref: PackageRef, kind: str, names: Sequence[str]) -> None:
-    """Refuse a colliding unit kind whose mangling is not implemented yet."""
-    raise BackendError(
-        f"Cannot coexist two versions of {ref}: they declare colliding {kind} name(s) "
-        f"{list(names)}, which automatic name-mangling does not handle yet. Resolve to a "
-        f"single version ([resolution] on-conflict = 'use_latest', or tighten the "
-        f"constraint), or expose the shared logic as a package (which is name-mangled)."
-    )
+def _reject_unclassifiable_sv_interfaces(cores: Sequence[GenCore], names: set[str]) -> None:
+    """Refuse if any SV source uses a colliding interface name in an unclassifiable position.
+
+    An interface reference is always ``<name>`` directly before an identifier (an
+    instantiation or a port/variable/``virtual`` type) or before ``.`` (a modport select);
+    a declaration or an ``x.<name>`` member are the other classifiable cases. Any other
+    occurrence -- e.g. an interface name as a type-parameter default ``#(type T = <name>)``
+    -- is a context the rewriter does not model, so refuse rather than risk a dangling
+    reference.
+    """
+    if not names:
+        return
+    for core in cores:
+        for source in core.files:
+            if source.language not in _SV_LANGUAGES:
+                continue
+            sig = _significant(_tokens(source.text))
+            for position, (_index, tok_kind, text) in enumerate(sig):
+                if tok_kind != "ident" or text not in names:
+                    continue
+                if _is_sv_interface_position(sig, position):
+                    continue  # declaration / instantiation / type / modport -> rewritten
+                if position >= 1 and sig[position - 1][2] == ".":
+                    continue  # member access x.<name> -> inert
+                raise BackendError(
+                    f"Cannot coexist versions of interface {text!r}: it appears in "
+                    f"{source.key[1]!r} in a position the mangler cannot classify (near "
+                    f"'{text}'). Resolve to a single version, or expose the shared logic as "
+                    f"a package."
+                )
 
 
 def _reject_cross_ref_units(
@@ -614,7 +666,7 @@ def _reject_cross_ref_units(
     """
     for name, owner_ref in owner_of.items():
         kind = kind_of[name]
-        if kind not in (_MODULE, _ENTITY):
+        if kind not in (_MODULE, _ENTITY, _INTERFACE):
             continue
         for core in cores:
             if core.manifest.ref == owner_ref:
