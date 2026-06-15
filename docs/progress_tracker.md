@@ -18,28 +18,23 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`0.11.0`** cut — an **additive, internal** release over `0.10.0` that bundles
-everything from the `0.10.0` third-party trial and the work after it, with **no `ip.toml` /
-`ip.lock` / CLI / registry-protocol break**: the two trial blockers — a default-User-Agent
-rejected by Cloudflare's WAF ([#12](https://github.com/germanbravolopez/hdl-ip-packager/issues/12),
-now sends `hdlpkg/<version>`) and `gen` unable to build from installed/cached/published deps
-([#13](https://github.com/germanbravolopez/hdl-ip-packager/issues/13), via `gen --registry` /
-`--cache-dir` and offline `gen --locked`); a **Git-backed registry** (`git+...` locations with
-commit provenance in the lock); **IP-XACT export now validated against the official 1685-2014
-XSD** (which caught and fixed a non-enum `fileType` bug); a **VHDL package-mangling fix** so
-name-mangled coexistence designs analyze in GHDL, not just Verilator (single `_v` separator, no
-consecutive underscores); and the **decision to keep refusing module/entity coexistence** with a
-sharpened error. The new `git+` locations and the `gen --registry`/`--cache-dir` flags are purely
-additive. Everything that came before (the versioning contract, the distribution protocol with
-local/HTTP/OCI registries + `hdlpkg login`, glob/directory filesets, the man page) carries
-forward. **Next**: keep iterating on `0.x` — `0.12.0` takes on the HDL-aware frontend (a
-real parser) and module/entity multi-version coexistence. The project stays **pre-1.0** (the
-`ip.toml`/`ip.lock`/CLI formats keep the licence to change) and is validated continuously by the
-`hdlpkg-livetest` project rather than a one-shot release candidate; `1.0.0` is a deliberate
-freeze for later, once the design has settled. See the Release plan.
+**Version**: **`0.12.0`** cut — an **additive, internal** release over `0.11.0` (no
+`ip.toml`/`ip.lock`/CLI/registry-protocol break): `gen` now **name-mangles coexisting
+modules, interfaces, and entities**, not just packages, under `[resolution] on-conflict =
+"isolate_namespaces"`. The pure `mangle.py` gained kind-aware rewrite dispatch and
+declaration + instantiation position rules per unit kind — SV modules/programs (incl.
+parameter maps, instance arrays, multiple instances, and **generate-nested** instances), SV
+interfaces (also as a port/`virtual` type and modport select), and VHDL entities (direct +
+component instantiation, generate-nested) — with a **classify-all-or-refuse** safety model
+for SV and a cross-ref guard. No new dependency (approach A). Everything before it carries
+forward. **Next**: `0.13.0` — Git-registry hardening (the ref-resolution/parsing follow-ups,
+exercised end to end via `hdlpkg-livetest`) + richer IP-XACT mapping (bus interfaces,
+parameters) and an IP-XACT 2022 output mode. The project stays **pre-1.0** (formats keep the
+licence to change), validated continuously via `hdlpkg-livetest`; `1.0.0` is a deliberate
+freeze for later. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) and iterating through the backlog as
-`0.x` capability releases; fully typed, linted, and tested (500+ passing tests, ~95% coverage):
+`0.x` capability releases; fully typed, linted, and tested (509 passing tests, ~95% coverage):
 - **Versioning** — SemVer 2.0.0 `Version` + `VersionConstraint` (caret/tilde/range
   grammar, pre-release precedence).
 - **Identity** — `PackageRef` and `Vlnv` (`vendor:library:name:version`).
@@ -183,6 +178,15 @@ the next `0.x` release.
 ---
 
 ## Completed Milestones
+
+### Release 0.12.0 — June 2026
+- [x] **Cut `0.12.0`**, an additive/internal release (no `ip.toml`/`ip.lock`/CLI/registry break):
+  `gen` now name-mangles coexisting **modules, interfaces, and entities** (not just packages) under
+  `isolate_namespaces`, including generate-nested instantiations, via the in-house scoped rewriter
+  (approach A, zero new deps). Bumped `pyproject.toml` + `src/hdl_ip_packager/__init__.py` to
+  `0.12.0` and regenerated the man page. Proven by the unit/integration suites and the consumer
+  demo's `soc_modver` example built in real Verilator on CI. Next: `0.13.0` (Git-registry hardening
+  + richer IP-XACT).
 
 ### Module/interface/entity multi-version coexistence — June 2026
 - [x] **`gen` now name-mangles coexisting *modules*, *interfaces*, and *entities*, not just
