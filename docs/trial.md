@@ -1,26 +1,25 @@
-# Third-party trial (1.0.0-rc.1)
+# Try hdlpkg (feedback welcome)
 
-We are about to finalize **`1.0.0`** — the first stable release, which commits us to the
-on-disk formats (`ip.toml`, `ip.lock`), the `hdlpkg` CLI surface, and the registry
-protocol. Before we make that promise, we are running a **soak** on the release
-candidate `1.0.0-rc.1` and would love an outside pair of hands to try it and tell us
-what breaks or feels wrong.
+`hdlpkg` is **pre-1.0 and iterating**: it ships a steady stream of `0.x` capability
+releases, and the `ip.toml` / `ip.lock` / CLI shapes can still improve while we are there.
+That makes this the best possible time to try it on a real core and tell us what breaks or
+feels wrong — format and CLI feedback is cheap to act on now, and steers the next release.
 
 This page is the short brief; the [user guide](user_guide.md) has the full how-to.
 
 ## What we are asking
 
-Install the candidate, publish a core and consume it from a **different** machine/account
-over a registry, and report anything surprising. The point is to validate the
-producer -> consumer story end to end with someone who did *not* build the tool.
+Install the current release, publish a core and consume it from a **different**
+machine/account over a registry, and report anything surprising. The point is to validate
+the producer -> consumer story end to end with someone who did *not* build the tool.
 
-## 1. Install the release candidate
+## 1. Install
 
-`pip` skips pre-releases by default, so ask for it explicitly (Python 3.11+):
+Python 3.11+:
 
 ```bash
-pip install --pre hdl-ip-packager        # or: pip install hdl-ip-packager==1.0.0rc1
-hdlpkg --version                          # expect: hdlpkg 1.0.0-rc.1
+pip install hdl-ip-packager
+hdlpkg --version
 # if 'hdlpkg' is not on PATH: python -m hdl_ip_packager --version
 ```
 
@@ -61,30 +60,33 @@ To tear the registry down again:
 docker rm -f reg
 ```
 
-For a **private** registry, `hdlpkg login <location>` first (add `--username` for a
-registry that uses the OCI token-exchange). See the user guide's
+A **Git repository** of cores also works as a registry — point `--registry` at a
+`git+ssh://` / `git+https://` URL (optionally `@<ref>`); see the user guide. For a
+**private** registry, `hdlpkg login <location>` first (add `--username` for a registry that
+uses the OCI token-exchange). See the user guide's
 [*Sharing over a registry*](user_guide.md#sharing-over-a-registry-local-http-or-oci)
 section.
 
 ## What we most want to hear
 
-Because `1.0.0` freezes these, feedback on them is the most valuable:
+While the project is still `0.x`, feedback on the things that will eventually freeze at
+`1.0` is the most valuable — it is far cheaper to change them now:
 
 - **The `ip.toml` format** — is anything awkward, missing, or surprising to author?
 - **The `ip.lock` format** — does committing and consuming it behave as you expect?
 - **The CLI** — command/flag names, error messages, anything that made you guess.
 - **The registry protocol / `login`** — did publish/consume across two parties work,
-  including against your own registry (Harbor/Artifactory/Zot/GitLab/cloud)?
+  including against your own registry (Harbor/Artifactory/Zot/GitLab/cloud or a Git repo)?
 - Anything that **crashed**, gave a confusing error, or did the wrong thing.
 
 A successful "someone else published, I consumed it" is itself the signal we need.
 
 ## How to report
 
-Open an issue (or comment on the rc tracking issue) at
+Open an issue at
 **https://github.com/germanbravolopez/hdl-ip-packager/issues** — include your OS, Python
-version, the exact command, and the full output. Format or protocol problems are
-especially important to raise **now**: fixing one resets the soak (and ships as `0.9.0`
-rather than `1.0.0`), so we would much rather hear it before the final cut than after.
+version, the exact command, and the full output. Format or protocol friction is especially
+worth raising **while we are pre-1.0**: it is much easier to fix before the formats settle
+than after.
 
-Thank you — this is exactly the validation that lets us stand behind `1.0.0`.
+Thank you — this kind of outside validation is exactly what shapes each release.

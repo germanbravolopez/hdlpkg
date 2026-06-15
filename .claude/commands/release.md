@@ -42,11 +42,13 @@ update this skill afterwards.
 5. **No existing `X.Y.Z` tag.** `git tag -l X.Y.Z` must be empty. (PyPI is
    immutable and append-only — a version can never be re-published, so a clean cut
    needs an unused number.)
-6. **`1.0.0` requires explicit user sign-off.** `1.0.0` is the stability commitment,
-   gated on the criteria in the Release plan (frozen `ip.toml`/`ip.lock` formats,
-   stable CLI + registry protocol, a third-party publish/consume, an `rc` soak). Do
-   **not** tag `1.0.0` autonomously — present the checklist and get a go-ahead. If
-   formats are still moving, ship it as the next `0.y.0` instead.
+6. **The project ships continuous `0.x` capability releases (pre-1.0).** Normal releases
+   are `0.MINOR.0` (a capability) or `0.MINOR.PATCH` (fixes); the `0.x` SemVer licence to
+   change `ip.toml`/`ip.lock`/CLI still applies. **`1.0.0` is a deliberate freeze for
+   later** — when the formats/CLI/registry have settled across several `0.x` releases and
+   real `hdlpkg-livetest`/adopter use (see the Release plan). Do **not** tag `1.0.0`
+   autonomously; it requires explicit user sign-off. There is no candidate-period gate — keep
+   shipping `0.x`.
 
 If any precondition fails, stop and surface it — don't paper over it.
 
@@ -267,16 +269,18 @@ Confirm the wheel + sdist are both listed. Surface the release URL
   tagged commit on `main`.
 - **Two version files in lockstep.** `pyproject.toml` and `__init__.py` must always
   agree; the guard only checks the former, so a mismatch ships a mislabeled wheel.
-- **Release at plan boundaries only.** Cut a release at the capability groupings in
-  the Release plan (e.g. 0.2 = M1+M2), not after every milestone.
+- **Release at capability boundaries.** Cut a `0.x.0` when a backlog item (or a
+  coherent group of them) is done end to end, not after every commit; patch releases
+  ship fixes between them.
 - **PR-based, merge-commit only.** The release bump reaches `main` via a
   `release/X.Y.Z` PR merged with a merge commit (ruleset "main"); never push the
   bump straight to `main`. The agent **reviews the PR with `/code-review` (step 7)**,
   resolves or files every finding, then merges with `gh pr merge --merge --admin`
   (GitHub forbids self-approval, so `--admin` bypasses the required-review check and
   logs it). The `X.Y.Z` tag is created on the merged `main` afterwards.
-- **`1.0.0` is a sign-off, not a default.** Get explicit user confirmation against
-  the stability gate; never tag it autonomously.
+- **Pre-1.0 by default; `1.0.0` is a deliberate freeze for later.** Cut `0.x`
+  capability releases as the backlog lands; never tag `1.0.0` autonomously — it needs
+  explicit user sign-off once the formats/CLI/registry have settled.
 - **Resolve review findings before merge.** Every `/code-review` finding is either
   fixed on the release branch or filed in Open Non-Blocking Issues before the merge —
   never merge with an open, unaddressed finding.

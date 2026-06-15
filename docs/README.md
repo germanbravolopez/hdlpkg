@@ -12,7 +12,7 @@ docs/
 ├── README.md                     (this file - docs folder navigation)
 ├── INDEX.md                      (project-wide quick-find: files, concepts, topics)
 ├── user_guide.md                 (start here if you are new - what it does + a walkthrough)
-├── trial.md                      (third-party trial brief for the 1.0.0-rc.1 soak)
+├── trial.md                      (short "try it and give feedback" brief for evaluators)
 ├── ai_agent_instructions.md      (agent/contributor onboarding - start here)
 ├── architecture.md               (module map, data model, subsystem designs, data flow)
 ├── progress_tracker.md           (status + ordered roadmap; read before working)
@@ -34,7 +34,7 @@ When a new module lands, add its page there and register it in that index and in
 | Document | Purpose | Read time |
 |----------|---------|-----------|
 | [user_guide.md](./user_guide.md) | **New here? Start here** — what the tool does and a hands-on walkthrough | 8 min |
-| [trial.md](./trial.md) | Third-party trial brief for the `1.0.0-rc.1` soak: install the rc, publish/consume, report findings | 4 min |
+| [trial.md](./trial.md) | Short "try it and give feedback" brief for evaluators: install, publish/consume over a registry, report findings | 4 min |
 | [modules/](./modules/README.md) | The user manual: per-module reference + the full CLI command reference | As needed |
 | [ai_agent_instructions.md](./ai_agent_instructions.md) | Briefing, file map, coding + testability rules, agent obligations | 6 min |
 | [architecture.md](./architecture.md) | How it is built and how it grows | 12 min |
