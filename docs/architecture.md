@@ -55,7 +55,7 @@ task-oriented intro see the [user guide](user_guide.md).
 | Credentials | [credentials.py](../src/hdl_ip_packager/credentials.py) | implemented | Per-host bearer tokens for private registries (`hdlpkg login`); pure `CredentialStore` + TOML load/save |
 | Packaging | [packaging.py](../src/hdl_ip_packager/packaging.py) | implemented | Build/read the deterministic `.ipkg` artifact (`pack_core`, `extract_ipkg`) |
 | Backends | [backends/](../src/hdl_ip_packager/backends/) | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) | EDAM-like intermediate (`build_eda_design`) → tool inputs behind `hdlpkg gen` |
-| Name-mangling | [mangle.py](../src/hdl_ip_packager/mangle.py) | implemented (SystemVerilog + VHDL packages) | Rewrite coexisting package names so two versions build together under `gen` |
+| Name-mangling | [mangle.py](../src/hdl_ip_packager/mangle.py) | implemented (SV + VHDL packages, SV modules/interfaces, VHDL entities) | Rewrite coexisting unit names so two versions build together under `gen` |
 | Tree view | [treeview.py](../src/hdl_ip_packager/treeview.py) | implemented | `render_dependency_tree` → ASCII dependency graph behind `hdlpkg tree` |
 | IP-XACT | [ipxact.py](../src/hdl_ip_packager/ipxact.py) | implemented | `to_ipxact` → IEEE 1685-2014 component XML behind `hdlpkg export-ipxact` |
 | SBOM | [sbom.py](../src/hdl_ip_packager/sbom.py) | implemented (CycloneDX) | `build_cyclonedx` → deterministic CycloneDX 1.5 SBOM behind `hdlpkg pack --sbom` |
@@ -145,8 +145,8 @@ package and possibly more under `isolate_namespaces`.
   exact pins of an `opaque` core) is governed by the `[resolution] on-conflict`
   policy (`--on-conflict` overrides it): `fail_on_conflict` (default, raise),
   `use_latest` (collapse to newest + warn), `isolate_namespaces` (keep all in the
-  lock/tree; `gen` [name-mangles](#name-mangling) coexisting SystemVerilog/VHDL packages
-  so they build together — module/entity coexistence is still refused).
+  lock/tree; `gen` [name-mangles](#name-mangling) coexisting design units — SV/VHDL
+  packages, SV modules/interfaces, and VHDL entities — so they build together).
 - **Version scheme** — `[package].scheme` selects how a core's versions are parsed,
   ordered, and grouped: `semver` (default; non-SemVer rejected at parse), `calver`
   (ordered numeric `2024.1`, year-as-major), `monotonic` (an ordered revision `r3`,
@@ -249,22 +249,25 @@ can state exactly what a fileset needs. Five backends ship: `VerilatorBackend`
 (`generate` returns `{filename: text}`), so the CLI does the file writing. Tool
 specifics stay out of the manifest/resolver/packaging layers.
 
-### Name-mangling *(implemented for SystemVerilog + VHDL packages — [mangle.py](../src/hdl_ip_packager/mangle.py))*
-When `isolate_namespaces` keeps two versions of one package, they collide in HDL's one
-global namespace. Under `gen` the pure `mangle.py` rewrites each version's **package**
-name to a unique one (`bus_pkg` → `bus_pkg_v1_1_0`) and rewrites every consumer's
-references to the version it resolved to. Each language has a comment/string-aware
-scanner that touches only unambiguous package positions — SystemVerilog
-(`package`/`endpackage`/`import`/`::`) and VHDL, case-insensitively
-(`package`/`use work.<name>`) — so a coincidental signal name or a name in a
-comment/string is never changed, no parser needed. The CLI materializes the rewritten
+### Name-mangling *(implemented — [mangle.py](../src/hdl_ip_packager/mangle.py))*
+When `isolate_namespaces` keeps two versions of one core, their declared units collide in
+HDL's one global namespace. Under `gen` the pure `mangle.py` rewrites each version's unit
+name to a unique one (`bus_pkg` → `bus_pkg_v1_1_0`, `widget` → `widget_v1_0_0`) and
+rewrites every consumer's references to the version it resolved to. All four unit kinds are
+handled, each via a comment/string-aware scanner (no full parser):
+**SV packages** (`package`/`endpackage`/`import`/`::`), **VHDL packages**
+(`package`/`use work.<n>`), **SV modules/programs** (declaration + instantiation
+`<n> [#(…)] <inst> […] (` incl. parameter maps, instance arrays, multiple instances, and
+generate-nested), **SV interfaces** (also as a port/`virtual` type and modport select), and
+**VHDL entities** (`entity`/`architecture`/`component` declarations, direct `entity work.<n>`
+and component instantiation, generate-nested).
+Because an SV module/interface instantiation is not keyword-marked, module/interface
+mangling is **classify-all-or-refuse**: a version is renamed only when *every* occurrence of
+its name is provably a declaration, an instantiation/reference, or inert — otherwise the
+coexistence is refused (never a partial rewrite). A colliding module/interface/entity name
+also declared by an *unrelated* core is likewise refused. The CLI materializes the rewritten
 tree into `<output>/src/` and builds over it (`build_eda_design(allow_multiversion=True)`).
-*Module*/interface (SV) and *entity* (VHDL) coexistence is **refused by design**: an
-SV module instantiation (`foo u_foo (...)`) has no leading keyword and cannot be told
-apart from other constructs without a full HDL parser, so the refusal (with a
-why-and-remedy `BackendError`) is the correct behavior until that frontend lands.
-(A VHDL-entity-only subset using the unambiguous `entity work.X` form is feasible
-parser-free but was consciously deferred — see the tracker.)
+The design rationale is in [docs/design/module-entity-coexistence.md](design/module-entity-coexistence.md).
 
 ### IP-XACT export *(implemented — [ipxact.py](../src/hdl_ip_packager/ipxact.py))*
 `export-ipxact` renders a manifest as an IEEE **1685-2014** component XML via the

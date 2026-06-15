@@ -1,10 +1,13 @@
 # Design proposal — module/entity multi-version coexistence (0.12.0)
 
-**Status:** **accepted** — approach **A** (in-house, zero-dep); implementing in small
-staged commits toward 0.12.0. **Scope (confirmed):** SystemVerilog *modules*,
-*interfaces*, and *programs* **and** VHDL *entities*, including **instantiations nested
-in `generate` statements** (both languages — common in real designs). Reviewer
-decisions are recorded in [§12](#12-reviewer-decisions).
+**Status:** **implemented** (landed on `develop` for 0.12.0) via approach **A**
+(in-house, zero-dep). **Scope delivered:** SystemVerilog *modules*, *interfaces*, and
+*programs* **and** VHDL *entities*, including **instantiations nested in `generate`
+statements** (both languages), with the classify-all-or-refuse safety model and a
+cross-ref guard. Exercised end to end by `tests/unit/test_mangle.py`,
+`tests/integration/test_mangle_unit_gen_cli.py`, and the consumer demo's `soc_modver`
+example built in real Verilator on CI. Reviewer decisions are in
+[§12](#12-reviewer-decisions); this doc is retained as the design record.
 
 ---
 

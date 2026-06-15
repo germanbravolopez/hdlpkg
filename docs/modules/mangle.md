@@ -1,8 +1,10 @@
 # Name-mangling — `mangle.py`
 
-Lets two versions of one **package** (SystemVerilog or VHDL) coexist in a single `gen`
-build by rewriting each version's package name to a unique one. Pure module (no I/O):
-it operates on source text passed in, so the file work stays in the [CLI](cli.md).
+Lets two versions of one **design unit** — a package, SV module/program, SV interface,
+or VHDL entity — coexist in a single `gen` build by rewriting each version's unit name
+to a unique one. Pure module (no I/O): it operates on source text passed in, so the file
+work stays in the [CLI](cli.md). Full design rationale:
+[docs/design/module-entity-coexistence.md](../design/module-entity-coexistence.md).
 
 - **Source**: [src/hdl_ip_packager/mangle.py](../../src/hdl_ip_packager/mangle.py)
 - **Import**: `from hdl_ip_packager import rewrite_sv_packages, rewrite_vhdl_packages, declared_packages, mangled_name, plan_package_mangling`
@@ -17,28 +19,36 @@ consumer's references to the version *it resolved to*, so both build together. T
 the "physical" half of multi-version coexistence (the "bookkeeping" half is the
 resolver/lock/tree).
 
-## Safety: only unambiguous package positions
+## Safety: classify-all-or-refuse
 
-A name is rewritten **only** where the HDL syntax makes it unambiguously a package
-reference, so no parser is needed. Each language has its own comment/string-aware
-scanner:
+A name is rewritten only in the declaration/reference positions its unit kind allows,
+via per-language comment/string-aware scanners (no parser). For **packages** every
+reference is keyword-marked (`::` / `use work.`), so the rewriter just touches those
+positions. For **SV modules/interfaces** an instantiation has *no* leading keyword, so
+mangling is **classify-all-or-refuse**: a version is renamed only when *every* occurrence
+of its name is provably a declaration, an instantiation/reference, or inert — otherwise
+the whole coexistence is refused (never a partial rewrite). A colliding module/interface/
+entity name also declared by an *unrelated* core is refused (the name is ambiguous).
 
-- **`rewrite_sv_packages`** (SystemVerilog) — `package <name>` / `endpackage : <name>`
-  declarations, `import <name>::…`, and `<name>::…` scoped references; skips `//`,
-  `/* */`, and `"…"`.
-- **`rewrite_vhdl_packages`** (VHDL, case-insensitive) — `package <name>` /
-  `package body <name>` declarations, `end [package [body]] <name>` labels, and
-  `use work.<name>…` references; skips `--`, `/* */`, strings, and character literals.
+Positions handled per kind:
 
-A coincidental signal named `bus_pkg`, or the name inside a comment or string, is
-**never** touched.
+- **SV packages** — `package <n>` / `endpackage : <n>`, `import <n>::`, `<n>::`.
+- **VHDL packages** (case-insensitive) — `package <n>` / `package body <n>`,
+  `end [package [body]] <n>`, `use work.<n>`.
+- **SV modules/programs** — `module`/`macromodule`/`program <n>`, `endmodule : <n>`, and
+  instantiations `<n> [#(…)] <inst> […]* (` (parameter maps, instance arrays, multiple
+  instances, generate-nested).
+- **SV interfaces** — the above plus a port/variable type `<n> sig`, `virtual <n> v`, and
+  a modport select `<n>.<modport>`.
+- **VHDL entities** — `entity`/`architecture A of`/`component`/`end <n>` declarations,
+  direct `entity work.<n>`, and component instantiation `label : [component] <n>`
+  (generate-nested for both).
 
-**Not handled** (refused upstream with a clear `BackendError`): two versions of a
-*module*/interface (SV) or *entity* (VHDL) — instantiation position is ambiguous
-without a real parser — and an unknown source language. **Known limitations**: an SV
-macro that *constructs* a package name by token pasting, and a VHDL `use` against a
-named library other than `work` (everything is analyzed into `work`), are left
-untouched.
+A coincidental signal named `bus_pkg`, or a name inside a comment/string, is **never**
+touched. **Refused / not handled**: an unknown source language; a (System)Verilog macro
+that *constructs* a name by token pasting; an SV interface in an unmodeled type context
+(e.g. a type-parameter default); and a VHDL `use`/reference against a named library other
+than `work` (everything is analyzed into `work`).
 
 ## API
 

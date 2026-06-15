@@ -40,7 +40,7 @@ quick-find reference.
 | Registry credentials (`login`/`logout`) | `src/hdl_ip_packager/credentials.py` | implemented |
 | Packaging (`.ipkg`) | `src/hdl_ip_packager/packaging.py` | implemented |
 | Tool-flow backends (`gen`) | `src/hdl_ip_packager/backends/` | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) |
-| Name-mangling (SV + VHDL packages) | `src/hdl_ip_packager/mangle.py` | implemented |
+| Name-mangling (packages, SV modules/interfaces, VHDL entities) | `src/hdl_ip_packager/mangle.py` | implemented |
 | Dependency tree view (`tree`) | `src/hdl_ip_packager/treeview.py` | implemented |
 | IP-XACT export (`export-ipxact`) | `src/hdl_ip_packager/ipxact.py` | implemented (1685-2014) |
 | SBOM (`pack --sbom`) | `src/hdl_ip_packager/sbom.py` | implemented (CycloneDX 1.5) |
@@ -80,9 +80,10 @@ quick-find reference.
 | `tests/unit/test_lockfile.py` | Lockfile model: round-trip, determinism, parse errors, checksum verification |
 | `tests/integration/test_resolve_cli.py` | `hdlpkg resolve` end to end on the bundled examples |
 | `tests/integration/test_conflict_policy_cli.py` | `on-conflict` policies end to end: fail / isolate / use_latest + `gen` refusing module coexistence |
-| `tests/unit/test_mangle.py` | SV + VHDL package mangler: rewrite (comment/string-safe), declared-name scan, planner + refusals |
+| `tests/unit/test_mangle.py` | mangler for packages / SV modules+interfaces / VHDL entities: positions, classify-all-or-refuse, cross-ref guard, planner |
 | `tests/integration/test_mangle_vhdl_gen_cli.py` | `gen` (ghdl) name-mangles coexisting VHDL packages end to end |
 | `tests/integration/test_mangle_gen_cli.py` | `gen` name-mangles coexisting packages end to end (per-consumer routing) |
+| `tests/integration/test_mangle_unit_gen_cli.py` | `gen` name-mangles coexisting SV interfaces + VHDL entities end to end |
 | `tests/integration/test_opaque_registry_cli.py` | Opaque (non-SemVer) version published + resolved from a registry, lockfile scheme round-trip |
 | `tests/integration/test_cache.py` | Content-addressed cache: round-trip, dedup, verify-on-read corruption |
 | `tests/integration/test_registry.py` | Local + HTTP registries, graph walker, `install` fetch-into-cache |
@@ -161,7 +162,7 @@ quick-find reference.
 | **Opaque version** | A non-SemVer version token (`D5020100`) — exact-pinned, no ordering (`OpaqueVersion`) |
 | **Compatibility group** | The set a version belongs to for unification (SemVer major / CalVer year / one monotonic group / opaque token) |
 | **Conflict policy** | `[resolution] on-conflict`: `fail_on_conflict` / `use_latest` / `isolate_namespaces` |
-| **Name-mangling** | Renaming a coexisting package (SystemVerilog or VHDL) per version (`bus_pkg` -> `bus_pkg_v1_1_0`) so two versions build together (`mangle.py`) |
+| **Name-mangling** | Renaming a coexisting design unit per version (`bus_pkg` -> `bus_pkg_v1_1_0`, `widget` -> `widget_v1_0_0`) so two versions build together. Covers SV/VHDL packages, SV modules/interfaces, and VHDL entities (`mangle.py`) |
 | **IP-XACT** | IEEE 1685 XML standard for packaging/describing IP |
 
 ## Topics → where to look
@@ -176,7 +177,7 @@ quick-find reference.
 | Constraint syntax (`^`, `~`, ranges) | `src/hdl_ip_packager/version.py` + `docs/architecture.md` §3 |
 | Pre-release matching rule | `src/hdl_ip_packager/version.py` (`VersionConstraint`) |
 | Conflict policy / multi-version coexistence | `docs/modules/resolver.md` + `src/hdl_ip_packager/resolver.py` |
-| Name-mangling (SV + VHDL package coexistence at `gen`) | `docs/modules/mangle.md` + `src/hdl_ip_packager/mangle.py` |
+| Name-mangling (package/module/interface/entity coexistence at `gen`) | `docs/modules/mangle.md` + `src/hdl_ip_packager/mangle.py` |
 | Non-SemVer version schemes (calver / monotonic / opaque) | `docs/modules/versioning.md` (`CalVer` / `MonotonicVersion` / `OpaqueVersion`) + `src/hdl_ip_packager/version.py` |
 | Adding a new CLI command | `src/hdl_ip_packager/cli.py` (`build_parser`) |
 | Adding a new module | `docs/ai_agent_instructions.md` + `docs/README.md` |
