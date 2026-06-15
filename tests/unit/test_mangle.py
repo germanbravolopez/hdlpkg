@@ -244,6 +244,27 @@ class TestPlanner:
         with pytest.raises(BackendError, match="cannot classify"):
             plan_package_mangling(self._module_scenario(body))
 
+    def test_refuses_module_param_map_without_instance(self) -> None:
+        # `bus #(.W(8));` has a param map but no instance name -> not a matched instantiation
+        # shape; the `#` must trigger a refusal, not be mistaken for an inert value.
+        body = "module fifo;\n  bus #(.W(8));\nendmodule\n"
+        with pytest.raises(BackendError, match="cannot classify"):
+            plan_package_mangling(self._module_scenario(body))
+
+    def test_refuses_name_colliding_under_two_kinds(self) -> None:
+        # One name colliding as both a module (ref a:x) and an interface (ref b:y) cannot be
+        # mangled with a single kind -> refuse rather than mis-rewrite one set of positions.
+        mod = '[package]\nvendor="acme"\nlibrary="a"\nname="x"\nversion="{v}"\n'
+        ifc = '[package]\nvendor="acme"\nlibrary="b"\nname="y"\nversion="{v}"\n'
+        cores = [
+            _core(mod.format(v="1.0.0"), {"m.sv": "module foo; endmodule\n"}),
+            _core(mod.format(v="2.0.0"), {"m.sv": "module foo; endmodule\n"}),
+            _core(ifc.format(v="1.0.0"), {"i.sv": "interface foo; endinterface\n"}),
+            _core(ifc.format(v="2.0.0"), {"i.sv": "interface foo; endinterface\n"}),
+        ]
+        with pytest.raises(BackendError, match="collides as both"):
+            plan_package_mangling(cores)
+
     def _interface_scenario(self, consumer_body: str) -> list[GenCore]:
         ifc = "interface bus; endinterface\n"
         return [
@@ -270,6 +291,14 @@ class TestPlanner:
     def test_refuses_unclassifiable_interface_occurrence(self) -> None:
         # An interface name as a type-parameter default is an unmodeled type context.
         body = "module fifo #(type T = bus) (); endmodule\n"
+        with pytest.raises(BackendError, match="cannot classify"):
+            plan_package_mangling(self._interface_scenario(body))
+
+    def test_member_access_is_not_mistaken_for_a_modport_select(self) -> None:
+        # `bus.flag <= x` is a member access on a coincidentally same-named variable, NOT a
+        # modport-type select (`bus.master mp`), so it must not be silently rewritten -- the
+        # ambiguous occurrence is refused instead of corrupting `bus.flag`.
+        body = "module fifo;\n  logic bus_flag;\n  assign bus_flag = bus.flag;\nendmodule\n"
         with pytest.raises(BackendError, match="cannot classify"):
             plan_package_mangling(self._interface_scenario(body))
 

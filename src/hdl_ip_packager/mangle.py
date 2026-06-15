@@ -388,8 +388,19 @@ def _is_sv_interface_position(sig: Sequence[tuple[int, str, str]], position: int
     following = sig[position + 1] if position + 1 < len(sig) else None
     if following is None:
         return False
-    if following[2] == ".":  # modport select `<n>.<modport>`
-        return True
+    if following[2] == ".":
+        # Modport select used as a port/variable type: `<n>.<modport> <name>`. Require the
+        # modport identifier AND a following identifier so a coincidental member access
+        # `var.field <op>` (a same-named variable, not the interface) is NOT rewritten --
+        # the classifier refuses that ambiguous case rather than corrupting it.
+        modport = sig[position + 2] if position + 2 < len(sig) else None
+        after = sig[position + 3] if position + 3 < len(sig) else None
+        return (
+            modport is not None
+            and modport[1] == "ident"
+            and after is not None
+            and after[1] == "ident"
+        )
     return following[1] == "ident"  # instantiation `<n> u (…)` or type `<n> sig` / `virtual <n> v`
 
 
@@ -560,6 +571,17 @@ def plan_package_mangling(cores: Sequence[GenCore]) -> ManglePlan:
             )
             colliding = sorted(name for name, count in counts.items() if count >= 2)
             for name in colliding:
+                if name in owner_of:
+                    # The same name already collides under another kind or ref -- a single
+                    # mangled name carries one kind, so we could only rewrite one set of
+                    # positions and would leave the other dangling. Refuse rather than
+                    # silently mis-rewrite.
+                    raise BackendError(
+                        f"Cannot coexist versions of {name!r}: it collides as both "
+                        f"{kind_of[name]} and {kind} (across versions/cores), which the "
+                        f"mangler cannot disambiguate. Rename one, or resolve to a single "
+                        f"version."
+                    )
                 owner_of[name] = ref
                 kind_of[name] = kind
             if kind == _MODULE:
@@ -705,8 +727,10 @@ def _reject_unclassifiable_sv_modules(cores: Sequence[GenCore], names: set[str])
                 if prev == ".":
                     continue  # hierarchical member -> inert
                 following = sig[position + 1] if position + 1 < len(sig) else None
-                if following is None or following[1] != "ident":
+                if following is None or (following[1] != "ident" and following[2] != "#"):
                     continue  # used as a plain value/operand -> inert
+                # `<name> <ident>` or `<name> #(...)` that did not match the instantiation
+                # shape -- might be an instantiation form we do not model; refuse.
                 raise BackendError(
                     f"Cannot coexist versions of module {text!r}: it appears in "
                     f"{source.key[1]!r} in a position the mangler cannot classify as a "
