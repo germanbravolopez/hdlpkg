@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hdl-ip-packager"
-version = "0.10.0"
+version = "0.11.0"
 description = "An IP packager and dependency manager for HDL (Verilog/VHDL/SystemVerilog) design reuse."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -38,6 +38,7 @@ dev = [
     "mypy>=1.11",              # static type checker
     "pre-commit>=3.7",         # runs ruff + mypy as git hooks (.pre-commit-config.yaml)
     "pyyaml>=6.0",             # used by the mkdocs.yml + pre-commit config integrity tests
+    "lxml>=5.0",               # validates export-ipxact output against the vendored 1685-2014 XSD
 ]
 
 # Everything needed to build the documentation site. Install with:

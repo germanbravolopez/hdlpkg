@@ -190,19 +190,25 @@ and a shared `fetch()` that stores a core's packed `.ipkg` in the content-addres
   ECR/ACR). A core's `ip.toml` is the artifact config blob and its `.ipkg` is the single
   layer, tagged with the version; the package maps to repository
   `{prefix}/{vendor}/{library}/{name}`. `oci://` uses HTTPS, `oci+http://` plaintext.
+- **`GitRegistry`** — a **Git repository of cores** as a registry (`git+ssh://…`,
+  `git+https://…`, `git+file://…`, optional `@<ref>`). It clones/fetches the repo into a
+  cache (`~/.hdlpkg/git`, override `HDLPKG_GIT_CACHE`), checks out the ref (default: the
+  remote's default branch), and mirrors `LocalDirectoryRegistry` over the working tree.
+  `source_for` returns `git+<url>@<commit-sha>`, so the lockfile binds each core to an
+  immutable commit. Auth is the user's own git config (ssh keys / credential helpers).
 
 **`registry_from_location(location, credentials=…)`** is the single entry point the CLI
 uses: it dispatches a location string to the right backend by URL scheme (bare path /
-`path:` → local, `http(s)://` → HTTP, `oci://` / `oci+http://` → OCI) and wires in the
-stored token, so the rest of the CLI is backend-agnostic and the on-disk lockfile/protocol
-surface is stable. The network backends are **private by design**: a per-host bearer token
-from [credentials.py](../src/hdl_ip_packager/credentials.py) (set by `hdlpkg login`)
-authenticates a self-hosted registry, so teams share IP inside a company network without
-publishing publicly. A core's "artifact" is its deterministic `.ipkg` (see Packaging
-below), so its SHA-256 is the same content address the cache keys on and the lockfile pins.
+`path:` → local, `http(s)://` → HTTP, `oci://` / `oci+http://` → OCI, `git+…://` → Git) and
+wires in the stored token, so the rest of the CLI is backend-agnostic and the on-disk
+lockfile/protocol surface is stable. The network backends are **private by design**: a
+per-host bearer token from [credentials.py](../src/hdl_ip_packager/credentials.py) (set by
+`hdlpkg login`) authenticates a self-hosted registry, so teams share IP inside a company
+network without publishing publicly (the Git backend instead relies on the user's git
+credentials). A core's "artifact" is its deterministic `.ipkg` (see Packaging below), so its
+SHA-256 is the same content address the cache keys on and the lockfile pins.
 
-A **Git-backed channel** remains a tracked open issue (it needs `git` + a live remote to
-build and test honestly). OCI authentication supports both a **direct bearer** (a
+OCI authentication supports both a **direct bearer** (a
 username-less credential, for self-hosted/static-token registries) and the **OCI
 token-exchange** flow (`OciRegistry` answers a `401` + `WWW-Authenticate: Bearer
 realm=...` by exchanging HTTP Basic credentials -- or going anonymous -- at the realm
@@ -246,22 +252,28 @@ specifics stay out of the manifest/resolver/packaging layers.
 ### Name-mangling *(implemented for SystemVerilog + VHDL packages — [mangle.py](../src/hdl_ip_packager/mangle.py))*
 When `isolate_namespaces` keeps two versions of one package, they collide in HDL's one
 global namespace. Under `gen` the pure `mangle.py` rewrites each version's **package**
-name to a unique one (`bus_pkg` → `bus_pkg__v1_1_0`) and rewrites every consumer's
+name to a unique one (`bus_pkg` → `bus_pkg_v1_1_0`) and rewrites every consumer's
 references to the version it resolved to. Each language has a comment/string-aware
 scanner that touches only unambiguous package positions — SystemVerilog
 (`package`/`endpackage`/`import`/`::`) and VHDL, case-insensitively
 (`package`/`use work.<name>`) — so a coincidental signal name or a name in a
 comment/string is never changed, no parser needed. The CLI materializes the rewritten
 tree into `<output>/src/` and builds over it (`build_eda_design(allow_multiversion=True)`).
-*Module*/interface (SV) and *entity* (VHDL) coexistence is refused (ambiguous
-instantiation position needs a real HDL frontend).
+*Module*/interface (SV) and *entity* (VHDL) coexistence is **refused by design**: an
+SV module instantiation (`foo u_foo (...)`) has no leading keyword and cannot be told
+apart from other constructs without a full HDL parser, so the refusal (with a
+why-and-remedy `BackendError`) is the correct behavior until that frontend lands.
+(A VHDL-entity-only subset using the unambiguous `entity work.X` form is feasible
+parser-free but was consciously deferred — see the tracker.)
 
 ### IP-XACT export *(implemented — [ipxact.py](../src/hdl_ip_packager/ipxact.py))*
 `export-ipxact` renders a manifest as an IEEE **1685-2014** component XML via the
 pure `to_ipxact`: VLNV identity, a `model` of one view + componentInstantiation per
-target, and the `fileSets`. The manifest's fileset `type` values are already the
-IP-XACT `fileType` vocabulary, so they map straight through. Output is well-formed
-and deterministic (stdlib `ElementTree`); XSD validation is a tracked follow-up.
+target, and the `fileSets`. Standard fileset `type` values map straight through to the
+IP-XACT `fileType` enumeration; a custom/tool-specific type uses the IP-XACT
+`<fileType user="…">user</fileType>` escape. Output is deterministic (stdlib
+`ElementTree`) and **validated against the official Accellera 1685-2014 XSD** by a test
+(the schema set is vendored under `tests/schema/`, `lxml` validates).
 
 ### Supply-chain *(SBOM implemented — [sbom.py](../src/hdl_ip_packager/sbom.py); signing planned)*
 Checksums first (the packed-content SHA-256 already pins every artifact across the

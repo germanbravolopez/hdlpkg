@@ -28,3 +28,7 @@
 *.ico    binary
 *.zip    binary
 *.gz     binary
+
+# Vendored Accellera IP-XACT XSD: keep byte-for-byte verbatim (CRLF as published);
+# its license forbids modification, so never normalize line endings.
+tests/schema/** -text

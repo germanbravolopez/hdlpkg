@@ -18,27 +18,22 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`0.10.0`** cut — an **additive, docs-only** release over `0.9.0`: a generated
-`hdlpkg(1)` man page, now shipped in the wheel (`share/man/man1`) and sdist. It changes no
-on-disk format, CLI surface, or registry protocol, so it **continues** the `0.9.0` re-soak
-toward `1.0.0` rather than resetting it. Background on the soak (unchanged by this release):
-`0.9.0` was the stable pre-1.0 release that **reset the `1.0.0-rc.1`
-soak**. The `1.0.0-rc.1` candidate (a PyPI pre-release) was meant to freeze the formats, but
-the third-party trial surfaced a real `ip.toml` gap — `[filesets]` could only list explicit
-files, unworkable for a large generated/vendored tree — so `files` entries now also accept
-**globs and directories**, and `hdlpkg init` grew `--scheme` for non-SemVer version codes.
-Both fold into the pre-1.0 contract, so per the soak rule the candidate is re-cut as `0.9.0`
-(formats explicitly **not** frozen yet) rather than promoted to `1.0.0`; `1.0.0-rc.1` is left
-behind as a superseded prerelease. `0.9.0` carries everything that landed since `0.8.0`: the
-**versioning contract** — Cargo-style unification, a `[resolution] on-conflict` policy
-(`fail_on_conflict` default / `use_latest` / `isolate_namespaces`) with multi-version
-coexistence (and `gen` refusing two versions), the `[package].scheme` key
-(`semver`/`calver`/`monotonic`/`opaque`, set by `init --scheme`); **the distribution
-protocol** — local + HTTP + OCI registry backends behind one `registry_from_location`
-abstraction, with `hdlpkg login` auth (direct bearer **and** the OCI token-exchange, reusing
-`docker login`); and **glob/directory filesets**. **Next**: re-soak toward `1.0.0` — a clean
-third-party publish/consume against `0.9.0` with no further format change is the signal to
-freeze; promotion to `1.0.0` remains the human-gated stability sign-off. See the Release plan.
+**Version**: **`0.11.0`** cut — an **additive, internal** release over `0.10.0` that bundles
+everything from the `0.10.0` third-party trial and the work after it, with **no `ip.toml` /
+`ip.lock` / CLI / registry-protocol break**: the two trial blockers — a default-User-Agent
+rejected by Cloudflare's WAF ([#12](https://github.com/germanbravolopez/hdl-ip-packager/issues/12),
+now sends `hdlpkg/<version>`) and `gen` unable to build from installed/cached/published deps
+([#13](https://github.com/germanbravolopez/hdl-ip-packager/issues/13), via `gen --registry` /
+`--cache-dir` and offline `gen --locked`); a **Git-backed registry** (`git+...` locations with
+commit provenance in the lock); **IP-XACT export now validated against the official 1685-2014
+XSD** (which caught and fixed a non-enum `fileType` bug); a **VHDL package-mangling fix** so
+name-mangled coexistence designs analyze in GHDL, not just Verilator (single `_v` separator, no
+consecutive underscores); and the **decision to keep refusing module/entity coexistence** with a
+sharpened error. The new `git+` locations and the `gen --registry`/`--cache-dir` flags are purely
+additive. Everything that came before (the versioning contract, the distribution protocol with
+local/HTTP/OCI registries + `hdlpkg login`, glob/directory filesets, the man page) carries
+forward. **Next**: `1.0.0` — the **human-gated stability sign-off** (formats/CLI/registry have
+held across the whole trial; see the Release plan's 1.0 gate).
 
 **Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
 pass; fully typed, linted, and tested (470 passing tests, ~95% coverage):
@@ -147,7 +142,13 @@ If the formats are still moving when M8 lands, release it as `0.7.0`, not `1.0.0
 
 ## Blocking Issues (must fix before the next release)
 
-_None._
+_None._ Both blockers the **0.10.0 third-party trial** surfaced (against a JFrog
+Artifactory behind a Cloudflare tunnel) are fixed and in **Completed Milestones**: the
+Cloudflare User-Agent rejection ([#12](https://github.com/germanbravolopez/hdl-ip-packager/issues/12))
+and `gen` being unable to consume installed/cached/published deps
+([#13](https://github.com/germanbravolopez/hdl-ip-packager/issues/13)). Both were
+additive/internal (no `ip.toml`/`ip.lock` format change). The soak now has no open
+blockers; a clean re-verify is the gate to promote to `1.0.0` (human-gated sign-off).
 
 ---
 
@@ -155,13 +156,11 @@ _None._
 
 | Issue | File | Notes |
 |-------|------|-------|
-| Full compile/elaborate/simulate of the consumer demo's SV + VHDL outputs | consumer demo (`verify.py`, `demo.py`, `.github/workflows/verify.yml`), `backends/` | **Strengthen the end-to-end proof.** Today the consumer demo (and the in-repo `gen` tests) only assert that `gen` *emits* the right tool-flow inputs (`.vc`/`run_ghdl.sh`/mangled sources); nothing actually **builds** them. Add a real toolchain pass that compiles, elaborates, and simulates the generated designs — `verilator`/`icarus` for the SystemVerilog SoCs (`soc/`, `soc_conflict/`) and `ghdl` for the VHDL one (`soc_vhdl/`) — so we prove the generated flows genuinely elaborate (and that the package name-mangling produces designs that *build*, not just text that looks right). Needs the HDL toolchains installed on the runner (e.g. `ghdl`, `verilator`/`iverilog` via apt or a setup action), so it is a separate, possibly opt-in CI lane from the pure-Python `verify` matrix. This feeds the 1.0 **third-party consume** confidence but does not itself gate the release. |
 | Encrypted IP distribution (IEEE 1735) | `packaging.py`, `registry.py`, `manifest.py`, `cli.py` | **Future feature.** Let a producer distribute a core whose HDL source is **encrypted**, so a consumer can resolve/install/`gen` against it (the tool can drive a tool flow) without the source ever being readable on disk. Two distinct layers, decide which to build: **(a) Standard HDL IP encryption (IEEE 1735 / `pragma protect`)** — the cross-vendor norm. Each source file carries an encrypted envelope (a symmetric session key wrapped under each *tool vendor's* public key + AES/RSA-encrypted payload, IEEE 1735 v1/v2 with "rights" digests). The EDA tool decrypts at compile time; the packager's job is to **carry, not break** these envelopes — pack/`extract`/SBOM must treat an encrypted file as opaque, the deterministic-pack digest still pins ciphertext, and `gen` must not assume it can read the source. The tool would *not* implement the crypto itself (vendor keys live in the EDA tools); at most it could shell out to `vivado -encrypt`/`vlog +protect` to *produce* envelopes. **(b) At-rest/transport encryption of the `.ipkg`** — encrypt the whole artifact in the registry/cache for confidential distribution (e.g. age/GPG or an OCI-layer key), decrypted on `pull` with a consumer key. This is independent of HDL-tool semantics and simpler, but does **not** give the per-tool, compile-time protection (a) does. Open questions: where keys/recipients are declared (a `[package]`/`[encryption]` manifest key vs. out-of-band), how it interacts with content-addressing (the digest must pin what is *stored*), how the SBOM marks a component encrypted, and how `validate`/`info` behave when source is unreadable. Needs a real EDA tool (or an interop fixture) to test (a) honestly — defer like the Git/OCI/Sigstore work. |
-| Git-backed registry (+ source provenance) | `registry.py`, `lockfile.py`, `cli.py` | **Surfaced by the 1.0.0-rc.1 third-party trial** (a customer storing IP source in Bitbucket asked to install IPs from git, and how to trace a VLNV/version back to exact source). **Decided shape: a Git-backed *registry channel*** — point `--registry` at a git URL (e.g. `git+ssh://bitbucket.org/org/ip-registry.git`), discover cores from tags/refs, mirror the `LocalDirectoryRegistry`/`HttpRegistry`/`OciRegistry` shape behind `registry_from_location` (a new `git+...` scheme). **Dependencies stay VLNV-based, so this is purely additive — no `ip.toml` format change.** It also closes the traceability gap the trial raised: the lockfile `source` records `git+<url>@<commit-sha>`, binding the VLNV/version to an immutable commit (today `ip.lock` already pins each dep to a SHA-256 **content** digest with verify-on-read, and `pack --sbom` lists component digests — this adds the *git provenance* on top). Needs the `git` CLI + a remote to build and test honestly. **Ships post-`1.0.0` as a backward-compatible `1.1.0`; does not touch the rc or reset the soak.** A *per-dependency* git source (`"org:lib:ip" = { git = ..., rev = ... }`) is a possible later backward-compatible extension if a customer needs it, but is intentionally **not** the first cut (it would change the manifest format). |
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git backend. Checksums + SBOM already ship; this adds authenticity on top. |
-| `gen` straight from a registry | `cli.py`, `registry.py` | `resolve`/`install`/`tree --registry` now consume **local, HTTP, and OCI** registries directly (the producer->consumer loop is closed over the network). Remaining: a fetch-then-extract path so `gen` can build straight from a registry — it still needs loose sources via `--search` (point it at extracted/`pull`ed trees). |
-| Validate IP-XACT against the official XSD | `ipxact.py`, tests | M7 emits well-formed, structurally-conventional 1685-2014 XML but does not validate against the Accellera XSD. Add an (optional, dev-only) schema-validation test (e.g. `xmlschema`) so structural drift is caught; consider IP-XACT 2022 and richer mapping (bus interfaces, parameters). |
-| Multi-version coexistence for *modules*/*entities* (beyond packages) | `mangle.py`, `cli.py` | **Package** coexistence is done for both SystemVerilog and VHDL (`gen` name-mangles under `isolate_namespaces`). What remains: two versions of a SystemVerilog *module*/interface or a VHDL *entity*. Unlike a package reference (`::` / `use work.`), an *instantiation* position (`foo bar (...)` in SV, `label : entity work.foo` / component instantiation in VHDL) cannot be disambiguated from other constructs without a real parser, so it is refused today. Needs an HDL-aware frontend (cf. the parked "source-unit tokenizing" backlog item). |
+| Richer IP-XACT mapping (bus interfaces, parameters) + IP-XACT 2022 | `ipxact.py`, tests | Export now **validates against the official 1685-2014 XSD** (see Completed Milestones). Remaining, optional: map more of the standard (bus interfaces, parameters, memory maps) and consider an IP-XACT **2022** (1685-2022) output mode. Not needed for the current Vivado-ingest use case. |
+| Git-backed registry — ref-resolution and parsing hardening | `registry.py` | Follow-ups from the 0.11.0 release review of the new `GitRegistry` (all need a real git server, which the integration tests can't exercise on the CFA-restricted Windows box, so they are filed not fixed): (1) **`_resolve` prefers a remote branch over a tag of the same name** — `git+...@v1.0.0` resolves to `origin/v1.0.0` (branch tip, which can move) before the `v1.0.0` tag, weakening the immutable-provenance promise when both exist; prefer the tag, or disambiguate. (2) **`_parse_git_location` mis-splits an scp-style URL with an `@ref`** — `git+git@host:repo.git@v1.0` (no `/` before the repo) splits at the first `@`; document `git+ssh://` as the supported form, or special-case scp syntax. (3) **A bare scp URL (`git@host:repo.git`, no `git+`) silently falls through to `LocalRegistry`** and fails with a confusing "not in the local registry" error; detect it and hint `git+ssh://`. (4) **`gen --locked` against a `git+` location still re-fetches** (`_sync` always fetches when a clone exists) so the "works offline after install" claim is only true for the cache path; thread the pinned `@sha` to short-circuit the fetch when the commit is already present. None are integrity bugs (the `gen --locked` digest check now fails closed regardless). |
+| Multi-version coexistence for *modules*/*entities* (beyond packages) | `mangle.py`, `cli.py` | **Decision (June 2026): keep refusing, do not build a half-solution.** Package coexistence is done for SV and VHDL (`gen` name-mangles under `isolate_namespaces`); two versions of a SV *module*/interface or a VHDL *entity* are still **refused** — and that refusal is now the *intended* behavior, with a sharpened error that explains why and what to do (`_reject_unmangleable`). Feasibility analysis behind the decision: a package reference (`::` / `use work.`) sits in an unambiguous position, so it can be token-rewritten safely. An **SV module instantiation** (`foo u_foo (...)`) has no leading keyword and is indistinguishable from other constructs by token scan — it genuinely needs a full HDL parser (the parked "source-unit tokenizing" backlog item); rewriting it heuristically could silently corrupt a design. A **VHDL entity** is partly feasible parser-free: the direct-instantiation form (`label : entity work.foo`) is unambiguous like `use work.`, so entity/architecture/`end` labels + `entity work.X` could be rewritten, refusing when the entity is reached via an ambiguous *component* instantiation. That VHDL subset is a viable future increment, but was **consciously deferred** here (it would not cover the SV case and adds a refuse-or-rewrite branch). Revisit when the parser frontend lands (then both languages, fully) or if the VHDL-only subset becomes worth shipping on its own. |
 
 ---
 
@@ -176,6 +175,132 @@ _None._
 ---
 
 ## Completed Milestones
+
+### Release 0.11.0 — June 2026
+- [x] **Cut `0.11.0`**, an additive/internal release bundling the `0.10.0`-trial fixes and the
+  work after it — no `ip.toml`/`ip.lock`/CLI/registry-protocol break (so it continues the soak
+  toward the human-gated `1.0.0`): User-Agent fix (#12), `gen` from installed/cached/published
+  deps (#13), the Git-backed registry (`git+...`), IP-XACT 1685-2014 XSD validation (+ `fileType`
+  fix), the VHDL package-mangling GHDL fix, and the module/entity-coexistence decision. Bumped
+  `pyproject.toml` + `src/hdl_ip_packager/__init__.py` to `0.11.0`. The release `/code-review`
+  caught and fixed two issues on the branch: **`gen --locked` now fails closed on checksum drift**
+  (it fetched from a registry without comparing the digest to the lock, unlike `install --locked`),
+  and the package mangler now **refuses a mangled-name collision** (two opaque versions differing
+  only by a separator run could flatten to one HDL-safe name). Git-registry ref-resolution
+  follow-ups were filed in Open Non-Blocking. Next: `1.0.0` sign-off.
+
+### Module/entity coexistence — decision to keep refusing + sharpened error — June 2026
+- [x] **Decided not to build module/entity multi-version coexistence; kept the refusal,
+  made it intentional and well-explained.** Evaluated extending the name-mangler beyond
+  packages to SV *modules*/interfaces and VHDL *entities*. Conclusion: an SV module
+  instantiation (`foo u_foo (...)`) cannot be disambiguated from other constructs by the
+  token-based mangler — it genuinely needs a full HDL parser (the parked "source-unit
+  tokenizing" item), and a heuristic rewrite could silently corrupt a design. A VHDL-entity
+  subset using the unambiguous `entity work.X` form is feasible parser-free but was
+  consciously deferred (it would not cover SV). Sharpened the `_reject_unmangleable`
+  `BackendError` in [`mangle.py`](../src/hdl_ip_packager/mangle.py) to say *why* (instantiation
+  is ambiguous without a parser) and *what to do* (resolve to one version, or expose the shared
+  logic as a package); added a test asserting the why-and-remedy guidance. The item stays in
+  Open Non-Blocking with the full feasibility analysis; revisit when a parser frontend lands.
+  No format/CLI/behavior change beyond the clearer message.
+
+### Consumer-demo toolchain build lane (Verilator + GHDL) + VHDL mangling fix — June 2026
+- [x] **The consumer demo now compiles and elaborates the designs `gen` emits with the
+  real toolchains — not just asserts the flow files look right.** A new `build_hdl.py`
+  harness in the [consumer demo](https://github.com/germanbravolopez/hdlpkg-consumer-demo)
+  regenerates each flow and feeds it to the **real** toolchain — **Verilator** for the
+  SystemVerilog SoCs (`soc/`, `soc_conflict/`), **GHDL** for the VHDL one (`soc_vhdl/`) —
+  skipping a target whose tool is absent (so it is a no-op locally) and failing under
+  `--require` for the dedicated, Ubuntu-only `build` CI lane that installs the toolchains.
+  `verilator --binary` compiles + elaborates + links each SV design (the SoCs are
+  `$finish`-less structural stubs, so the harness stops at the linked model rather than
+  running it forever); the GHDL flow `gen` emits includes the run, and the event-less VHDL
+  design returns at time zero. `test_build_hdl.py` covers the harness's pure logic in the
+  toolchain-free matrix.
+- [x] **The build lane immediately earned its keep — it caught a real tool bug.** The VHDL
+  package name-mangler emitted `vbus__v1_1_0` (double underscore), which is valid
+  SystemVerilog but **invalid VHDL** (consecutive underscores are illegal in an identifier),
+  so the name-mangled coexistence designs compiled in SV but **would not analyze in GHDL** —
+  a defect the text-only `gen` assertions could never have surfaced. Fixed `mangled_name`
+  ([`mangle.py`](../src/hdl_ip_packager/mangle.py)) to use a single `_v` separator and collapse
+  any run of underscores, so the result is a legal identifier in **both** languages
+  (`bus_pkg`/`vbus` -> `bus_pkg_v1_1_0` / `vbus_v1_1_0`); a package name maps to one mangled
+  name shared by all consumers, so a uniform, both-legal scheme is required. Added a regression
+  test asserting the result never contains `__` and never starts/ends with `_`; updated the SV
+  and VHDL planner/integration assertions. The demo also carried a fixture bug the lane found —
+  a FIFO signal named `cell` (a Verilog-2001 config reserved word) — renamed to `slot`.
+  This lane feeds 1.0 third-party-consume confidence but does not itself gate the release.
+
+### IP-XACT export validated against the official 1685-2014 XSD — June 2026
+- [x] **`export-ipxact` output is now proven schema-valid against the official Accellera
+  IEEE 1685-2014 XSD**, not just well-formed. The complete schema set (23 files) is vendored
+  verbatim under `tests/schema/ipxact-1685-2014/` (a test fixture only — not in the wheel;
+  see its `NOTICE.md` — Accellera's license permits verbatim redistribution), and
+  `tests/unit/test_ipxact_xsd.py` validates the example cores + custom `fileType` cases with
+  `lxml` (added to the `dev` extra), plus a negative test proving the validator rejects
+  non-conformant XML. The example cores already validated — but the check **caught a real
+  bug**: a fileset `type` outside the 1685-2014 `fileType` enumeration (a custom type, or
+  `vhdlSource-2008`, which the manifest accepts and the recent glob/generator-IP feature
+  encourages) was emitted as a raw value, which is invalid IP-XACT. Fixed `to_ipxact` to map
+  any non-enum type to the IP-XACT escape `<fileType user="<type>">user</fileType>` (new
+  `_FILE_TYPE_ENUM` + `_file_type`). Additive/internal — no `ip.toml`/`ip.lock`/CLI change.
+  Files: `ipxact.py`, `tests/unit/test_ipxact_xsd.py`, `tests/schema/…`, `pyproject.toml`.
+  (Richer mapping + IP-XACT 2022 remain a separate Open Non-Blocking item.)
+
+### Git-backed registry with commit provenance — June 2026
+- [x] **A Git repository of cores is now a registry**, via a new `git+...://` location
+  (e.g. `git+ssh://bitbucket.org/org/ip-registry.git`, optional `@<ref>` for a branch/tag/
+  SHA). `registry_from_location` dispatches `git+` schemes to a new `GitRegistry` that
+  clones/fetches the repo into a cache (`~/.hdlpkg/git`, overridable with
+  `HDLPKG_GIT_CACHE`), checks out the requested ref (default: the remote's default branch),
+  and **mirrors `LocalDirectoryRegistry`** over the working tree — so discovery/manifest/
+  artifact reuse the proven local-scan path. Closes the traceability gap the trial raised:
+  `source_for` returns `git+<url>@<commit-sha>`, so the lockfile binds each pinned core to
+  an immutable commit (on top of the existing SHA-256 content digest). Authentication is
+  delegated to the user's own git config (ssh keys / credential helpers);
+  `GIT_TERMINAL_PROMPT=0` keeps a missing credential from hanging. **Purely additive** —
+  deps stay VLNV-based, **no `ip.toml`/`ip.lock` format change** (the lockfile `source` is
+  already a free-form string). Files: `registry.py` (`GitRegistry`, `_parse_git_location`
+  with `git@host` vs `@ref` disambiguation, `default_git_cache_root`), `__init__.py`, the
+  `_REGISTRY_HELP` string + regenerated `man/hdlpkg.1`, `tests/integration/`
+  `test_git_registry_cli.py` (a real local bare repo: resolve provenance, pull, ref
+  checkout, unknown-ref error — skips where Controlled Folder Access blocks git in `%TEMP%`,
+  runs in CI), `tests/unit/test_registry_location.py` (ref parsing). A *per-dependency* git
+  source (`{ git = …, rev = … }`) remains intentionally out of scope — it would change the
+  manifest format. Targeted for the upcoming `0.11.0`.
+
+### Trial fix: `gen` consumes installed/cached and published dependencies (#13) — June 2026
+- [x] **`hdlpkg gen` can now build against dependencies that exist only as `.ipkg` blobs**
+  — in a published registry or the installed cache — not just loose `--search` source
+  trees. Fixes the trial blocker where `install` populated the cache but `gen` could not
+  use it: `_cmd_gen` built each dependency `CoreSource` from `registry.core_dir(vlnv)`,
+  which only `LocalDirectoryRegistry` implements. Added `gen --registry LOCATION` and
+  `--cache-dir DIR`, and a `_dependency_source` helper that picks, in order: (1) a **locked
+  artifact already in the cache** by its lockfile digest — so `install --locked` then
+  `gen --locked` works **fully offline**; (2) a loose `--search` tree, used in place
+  (unchanged); else (3) **fetch** the `.ipkg` from the selected registry into the cache and
+  **extract** it into a digest-keyed dir (`<cache>/src/<digest>/`, reused). Downstream
+  (`_materialize_filesets`, `_gen_core`, the pure `edam` assembly) only read `source.root`,
+  so they work unchanged on extracted trees. A missing-and-unreachable locked dep fails with
+  an actionable "run `hdlpkg install … --locked`" message. Files: `cli.py` (the helpers
+  reuse `extract_ipkg` + the content-addressed cache, mirroring `pull`),
+  `tests/integration/test_gen_registry_cli.py` (registry-fetch, offline install→gen, and the
+  error path), regenerated `man/hdlpkg.1`. Additive — no `ip.toml`/`ip.lock` format change;
+  closes the Open Non-Blocking "gen straight from a registry" item.
+
+### Trial fix: send a non-default User-Agent on every registry request (#12) — June 2026
+- [x] **Registry HTTP/OCI requests now carry `User-Agent: hdlpkg/<version>`**, fixing a
+  trial blocker: the customer's **JFrog Artifactory behind Cloudflare** rejected `urllib`'s
+  default `Python-urllib/3.x` UA (Browser Integrity Check → 403), breaking
+  publish/pull/login while `oci+http://localhost` worked. Added a module-level `_USER_AGENT`
+  injected at all four request sites — `HttpRegistry._headers` (`_get`/`_put`),
+  `OciRegistry._headers` (`_send`), and the Basic-auth request in `_exchange_token`. The UA
+  reads the package `__version__`; to make that importable from `registry.py` (which loads
+  during `__init__`), `__version__` moved **above** the submodule imports in `__init__.py`,
+  removing a latent circular-import hazard. Files: `registry.py`, `__init__.py`,
+  `tests/unit/test_registry_user_agent.py` (fakes the transport; asserts every request —
+  HTTP GET/PUT, OCI send, token-exchange — carries a non-default UA). Internal/robustness
+  only — no `ip.toml`/`ip.lock`/CLI/registry-protocol change; does not affect the soak.
 
 ### Release 0.10.0 — June 2026
 - [x] **Cut `0.10.0`**, an additive docs release: ships the generated `hdlpkg(1)` man page

@@ -11,6 +11,10 @@ for what is implemented versus planned.
 
 from __future__ import annotations
 
+# Defined before the submodule imports below so a submodule loaded during this
+# package's initialization (e.g. ``registry``) can read it without a circular import.
+__version__ = "0.11.0"
+
 from .backends import (
     Backend,
     CoreSource,
@@ -71,6 +75,7 @@ from .manifest import (
 )
 from .packaging import artifact_filename, extract_ipkg, manifest_from_ipkg, pack_core
 from .registry import (
+    GitRegistry,
     HttpRegistry,
     LocalDirectoryRegistry,
     LocalRegistry,
@@ -98,8 +103,6 @@ from .version import (
 )
 from .vlnv import PackageRef, Vlnv
 
-__version__ = "0.10.0"
-
 __all__ = [
     "CYCLONEDX_SPEC_VERSION",
     "DEFAULT_VERSION_SCHEME",
@@ -123,6 +126,7 @@ __all__ = [
     "Fileset",
     "GenCore",
     "GenSourceFile",
+    "GitRegistry",
     "HdlPackagerError",
     "HttpRegistry",
     "InvalidConstraintError",

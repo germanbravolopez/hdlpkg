@@ -25,6 +25,7 @@ tests/
 │   ├── test_treeview.py        render_dependency_tree: ordering + diamond marking
 │   ├── test_mangle.py          SV + VHDL package mangler: safe rewrite + planner refusals
 │   ├── test_ipxact.py          to_ipxact: IEEE 1685-2014 component XML
+│   ├── test_ipxact_xsd.py      to_ipxact validated against the official 1685-2014 XSD (lxml)
 │   ├── test_credentials.py     CredentialStore: host keying, TOML round-trip, load/save
 │   ├── test_registry_location.py  registry_from_location: scheme dispatch + credential wiring
 │   ├── test_login_cli.py       hdlpkg login/logout: token storage + error paths
@@ -50,6 +51,10 @@ tests/
     ├── test_ipxact_cli.py       hdlpkg export-ipxact over examples
     └── test_sbom_cli.py         hdlpkg pack --sbom over examples
 ```
+
+`schema/ipxact-1685-2014/` holds the official Accellera IP-XACT XSD (vendored verbatim,
+see its `NOTICE.md`) that `test_ipxact_xsd.py` validates against; it is a test fixture,
+not shipped in the wheel.
 
 There are intentionally **no `__init__.py`** files: the suite runs under pytest's
 `importlib` import mode (configured in `pyproject.toml`), so test modules are

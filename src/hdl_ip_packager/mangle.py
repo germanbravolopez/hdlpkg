@@ -3,8 +3,8 @@
 When the resolver keeps two versions of one package (the ``isolate_namespaces``
 conflict policy), they collide at elaboration: a ``package`` name lives in one global
 namespace, so two ``package bus_pkg`` declarations clash. This module rewrites each
-version's package name to a version-unique one (``bus_pkg`` -> ``bus_pkg__v1_1_0`` /
-``bus_pkg__v2_0_0``) and rewrites every consumer's references to the version *that
+version's package name to a version-unique one (``bus_pkg`` -> ``bus_pkg_v1_1_0`` /
+``bus_pkg_v2_0_0``) and rewrites every consumer's references to the version *that
 consumer resolved to*, so both can build.
 
 Both **SystemVerilog/Verilog** and **VHDL** packages are handled, each with its own
@@ -101,11 +101,15 @@ def _vhdl_tokens(source: str) -> list[tuple[str, str]]:
 def mangled_name(name: str, version: AnyVersion) -> str:
     """Return *name* suffixed with a version-unique, HDL-safe tag.
 
-    ``mangled_name("bus_pkg", Version(1, 1, 0))`` -> ``"bus_pkg__v1_1_0"``. The result
-    is a valid identifier in both SystemVerilog and VHDL.
+    ``mangled_name("bus_pkg", Version(1, 1, 0))`` -> ``"bus_pkg_v1_1_0"``. The result
+    must be a valid identifier in **both** SystemVerilog and VHDL, because a package
+    name maps to a single mangled name shared by every consumer regardless of
+    language. VHDL forbids consecutive underscores (and a leading/trailing one), so
+    the suffix uses a single ``_v`` separator and any run of underscores is collapsed
+    -- a single ``_`` is the only delimiter legal in both languages.
     """
     suffix = re.sub(r"[^0-9A-Za-z]", "_", str(version))
-    return f"{name}__v{suffix}"
+    return re.sub(r"_+", "_", f"{name}_v{suffix}").strip("_")
 
 
 def _tokens(source: str) -> list[tuple[str, str]]:
@@ -346,10 +350,39 @@ def plan_package_mangling(cores: Sequence[GenCore]) -> ManglePlan:
         rename_map = _rename_map_for(core, owner_of, declares, conflicted, renamed)
         for source in core.files:
             rewritten[source.key] = source.rewrite(rename_map)
+    _reject_colliding_mangled_names(owner_of, declares, conflicted, renamed)
     return ManglePlan(
         rewritten=rewritten,
         renamed={name: tuple(sorted(mangled)) for name, mangled in renamed.items()},
     )
+
+
+def _reject_colliding_mangled_names(
+    owner_of: Mapping[str, PackageRef],
+    declares: Mapping[str, set[str]],
+    conflicted: Mapping[PackageRef, Sequence[GenCore]],
+    renamed: Mapping[str, set[str]],
+) -> None:
+    """Refuse if two versions of a package mangle to the *same* identifier.
+
+    ``mangled_name`` collapses underscore runs to stay VHDL-legal, so a pathological
+    version string (e.g. an opaque tag with adjacent separators like ``1..0`` vs ``1.0``)
+    could map two distinct versions to one name. That would silently reintroduce the very
+    collision mangling exists to prevent, so fail closed instead of emitting broken HDL.
+    """
+    for name, ref in owner_of.items():
+        versions = {
+            str(core.manifest.vlnv.version)
+            for core in conflicted[ref]
+            if name in declares[str(core.manifest.vlnv)]
+        }
+        if len(renamed[name]) < len(versions):
+            raise BackendError(
+                f"Cannot coexist versions of package {name!r}: their mangled names collide "
+                f"({sorted(renamed[name])}) -- the version strings differ only by separators "
+                f"that the HDL-safe name flattens. Use distinct version strings, or resolve "
+                f"to a single version."
+            )
 
 
 def _reject_unmangleable(ref: PackageRef, group: Sequence[GenCore]) -> None:
@@ -369,8 +402,13 @@ def _reject_unmangleable(ref: PackageRef, group: Sequence[GenCore]) -> None:
     if clashing:
         raise BackendError(
             f"Cannot coexist two versions of {ref}: they declare colliding module/entity "
-            f"name(s) {clashing}, and automatic name-mangling is only implemented for "
-            f"packages. Resolve to a single version or split the build."
+            f"name(s) {clashing}. Automatic name-mangling is implemented for packages only "
+            f"-- a package reference ('::' / 'use work.') sits in an unambiguous position, "
+            f"but a module/component instantiation ('foo u_foo (...)') cannot be told apart "
+            f"from other constructs without a full HDL parser, so rewriting it could silently "
+            f"corrupt the design. Resolve to a single version ([resolution] on-conflict = "
+            f"'use_latest', or tighten the constraint), or expose the shared logic as a "
+            f"package (which is name-mangled)."
         )
 
 

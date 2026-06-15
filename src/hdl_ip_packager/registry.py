@@ -36,13 +36,17 @@ from __future__ import annotations
 
 import abc
 import base64
+import hashlib
 import json
+import os
 import re
+import subprocess
 import urllib.error
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
+from . import __version__
 from .cache import ContentAddressedCache
 from .credentials import Credential, CredentialStore, registry_host
 from .exceptions import HdlPackagerError, RegistryError
@@ -53,6 +57,7 @@ from .version import OpaqueVersion, Version
 from .vlnv import PackageRef, Vlnv
 
 __all__ = [
+    "GitRegistry",
     "HttpRegistry",
     "LocalDirectoryRegistry",
     "LocalRegistry",
@@ -65,6 +70,13 @@ __all__ = [
 
 _IPKG_NAME = f"core{IPKG_SUFFIX}"
 _YANKED_MARKER = ".yanked"
+
+
+# A non-default ``User-Agent`` for every outbound request. ``urllib``'s default
+# (``Python-urllib/3.x``) is rejected by common WAFs -- a JFrog Artifactory behind
+# Cloudflare's Browser Integrity Check returns 403, which broke publish/pull/login in
+# the trial. (``__version__`` is defined ahead of this module's import in ``__init__``.)
+_USER_AGENT = f"hdlpkg/{__version__}"
 
 
 class Registry(abc.ABC):
@@ -196,7 +208,10 @@ class HttpRegistry(Registry):
         self.token = token
 
     def _headers(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.token}"} if self.token else {}
+        headers = {"User-Agent": _USER_AGENT}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        return headers
 
     def _get(self, url: str) -> bytes:
         request = urllib.request.Request(url, headers=self._headers())
@@ -396,7 +411,7 @@ class OciRegistry(Registry):
     def _headers(
         self, accept: str | None = None, content_type: str | None = None
     ) -> dict[str, str]:
-        headers: dict[str, str] = {}
+        headers: dict[str, str] = {"User-Agent": _USER_AGENT}
         bearer = self._bearer()
         if bearer:
             headers["Authorization"] = f"Bearer {bearer}"
@@ -448,7 +463,7 @@ class OciRegistry(Registry):
         realm = challenge["realm"]
         params = {k: challenge[k] for k in ("service", "scope") if challenge.get(k)}
         url = f"{realm}?{urlencode(params)}" if params else realm
-        headers: dict[str, str] = {}
+        headers: dict[str, str] = {"User-Agent": _USER_AGENT}
         if self.credential:
             raw = f"{self.credential.username or ''}:{self.credential.secret}".encode()
             headers["Authorization"] = "Basic " + base64.b64encode(raw).decode("ascii")
@@ -560,16 +575,121 @@ class OciRegistry(Registry):
         return f"oci:{self.host}/{self._repo(vlnv.ref)}:{vlnv.version}"
 
 
+def default_git_cache_root() -> Path:
+    """Where Git-backed registry clones are kept (separate from the artifact cache).
+
+    Overridable with ``HDLPKG_GIT_CACHE`` (so a clone never lands in the user's real home
+    during tests/CI).
+    """
+    override = os.environ.get("HDLPKG_GIT_CACHE")
+    return Path(override) if override else Path.home() / ".hdlpkg" / "git"
+
+
+def _parse_git_location(location: str) -> tuple[str, str | None]:
+    """Split a ``git+<url>[@<ref>]`` location into the git URL and an optional ref.
+
+    The ``git+`` prefix is stripped to recover the real URL. An optional ``@<ref>`` (a
+    branch, tag, or commit) is taken from the *final* path segment only, so an ``ssh``
+    user (``git@host``) earlier in the URL is never mistaken for a ref.
+    """
+    url = location[len("git+") :]
+    head, _, tail = url.rpartition("/")
+    name, at, ref = tail.partition("@")
+    if at:
+        return f"{head}/{name}", ref
+    return url, None
+
+
+class GitRegistry(Registry):
+    """A registry backed by a Git repository of cores (a new ``git+...`` location).
+
+    The repo is cloned (or updated) into a local cache and checked out at the requested
+    ref (default: the remote's default branch); discovery then mirrors
+    :class:`LocalDirectoryRegistry` over the working tree. The lockfile ``source`` binds
+    each pinned core to the exact commit (``git+<url>@<sha>``), so a VLNV/version is
+    traceable to immutable source. Authentication is delegated to the user's own git
+    configuration. The ``git`` CLI must be installed.
+    """
+
+    def __init__(self, location: str, *, cache_root: Path | None = None) -> None:
+        self.location = location
+        self.url, self.ref = _parse_git_location(location)
+        work = self._sync(cache_root or default_git_cache_root())
+        self.commit = self._git("rev-parse", "HEAD", cwd=work)
+        self._inner = LocalDirectoryRegistry([work])
+
+    def _git(self, *args: str, cwd: Path | None = None) -> str:
+        """Run a git command, returning trimmed stdout; raise :class:`RegistryError`."""
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}  # never block on a credential prompt
+        try:
+            result = subprocess.run(
+                ["git", *args],
+                cwd=cwd,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+        except OSError as exc:  # git not installed
+            raise RegistryError(f"git is required for a git+ registry: {exc}") from exc
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip()
+            raise RegistryError(f"git {' '.join(args)} failed for {self.url}: {detail}")
+        return result.stdout.strip()
+
+    def _sync(self, cache_root: Path) -> Path:
+        """Clone (or fetch) the repo into the cache and check out the target commit."""
+        cache_root.mkdir(parents=True, exist_ok=True)
+        work = cache_root / hashlib.sha256(self.location.encode()).hexdigest()[:16]
+        if (work / ".git").is_dir():
+            self._git("fetch", "--tags", "--force", "--prune", "origin", cwd=work)
+        else:
+            self._git("clone", "--quiet", self.url, str(work))
+        target = self.ref or self._default_branch(work)
+        self._git("checkout", "--quiet", "--force", self._resolve(work, target), cwd=work)
+        return work
+
+    def _default_branch(self, work: Path) -> str:
+        """The remote's default branch name (e.g. ``main``)."""
+        return self._git("symbolic-ref", "--short", "refs/remotes/origin/HEAD", cwd=work).rsplit(
+            "/", 1
+        )[-1]
+
+    def _resolve(self, work: Path, ref: str) -> str:
+        """Resolve *ref* to a commit SHA, preferring the remote branch over a tag/SHA."""
+        for candidate in (f"origin/{ref}", ref):
+            try:
+                return self._git("rev-parse", "--verify", f"{candidate}^{{commit}}", cwd=work)
+            except RegistryError:
+                continue  # not this kind of ref; try the next interpretation
+        raise RegistryError(f"git ref {ref!r} not found in {self.url}")
+
+    def versions(self, ref: PackageRef) -> list[Vlnv]:
+        return self._inner.versions(ref)
+
+    def manifest(self, vlnv: Vlnv) -> Manifest:
+        return self._inner.manifest(vlnv)
+
+    def artifact_bytes(self, vlnv: Vlnv) -> bytes:
+        return self._inner.artifact_bytes(vlnv)
+
+    def source_for(self, vlnv: Vlnv) -> str:
+        """Provenance binding the core to an immutable commit: ``git+<url>@<sha>``."""
+        self._inner._path(vlnv)  # raise if the core is not in this registry
+        return f"git+{self.url}@{self.commit}"
+
+
 def registry_from_location(
     location: str, *, credentials: CredentialStore | None = None
 ) -> Registry:
     """Build the right registry backend for *location*, dispatched by URL scheme.
 
     ``http(s)://`` -> :class:`HttpRegistry`, ``oci://`` / ``oci+http://`` ->
-    :class:`OciRegistry`, and a bare path / ``path:<dir>`` / ``file://<dir>`` ->
-    :class:`LocalRegistry`. For a network location the credential for its host is read
-    from *credentials* (if given): HTTP uses the secret as a direct bearer; OCI uses the
-    full credential (so a username+secret drives the token exchange). Raises
+    :class:`OciRegistry`, ``git+...://`` -> :class:`GitRegistry`, and a bare path /
+    ``path:<dir>`` / ``file://<dir>`` -> :class:`LocalRegistry`. For a network location the
+    credential for its host is read from *credentials* (if given): HTTP uses the secret as a
+    direct bearer; OCI uses the full credential (so a username+secret drives the token
+    exchange); Git authenticates through the user's own git configuration (ssh keys /
+    credential helpers), so the credential store is not consulted. Raises
     :class:`RegistryError` on an unknown scheme. This is the one place the CLI selects a backend.
     """
     head, separator, rest = location.partition("://")
@@ -579,6 +699,8 @@ def registry_from_location(
         if colon and prefix.lower() == "path":
             return LocalRegistry(tail)
         return LocalRegistry(location)  # bare path (incl. a Windows drive like C:\...)
+    if scheme.startswith("git+"):
+        return GitRegistry(location)
     if scheme == "file":
         return LocalRegistry(rest)
     credential = credentials.credential_for(registry_host(location)) if credentials else None

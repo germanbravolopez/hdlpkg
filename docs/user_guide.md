@@ -264,11 +264,15 @@ publish/consume commands work against three backends, chosen by the location str
 | a path, e.g. `./registry` | a local directory registry |
 | `https://ip.corp.local/acme` | an HTTP registry (any `GET`/`PUT`-capable server) |
 | `oci://harbor.corp.local/ip` | an **OCI** registry (Harbor, Artifactory, Nexus, GitLab, Zot, ECR/ACR) — `oci+http://` for a plaintext/dev one |
+| `git+ssh://bitbucket.org/org/ip-registry.git` | a **Git** repository of cores (read-only); add `@<branch\|tag\|sha>` to pin a ref |
 
 Network registries are **private by default**: you authenticate once with `hdlpkg
 login`, and `resolve` / `install` / `publish` then use the stored credential
 automatically. Nothing is exposed publicly — the registry is whatever server you point
-at (typically one your company self-hosts).
+at (typically one your company self-hosts). A **Git** registry instead uses your own git
+credentials (ssh keys / credential helpers), and the lockfile records each core's exact
+commit (`git+<url>@<sha>`) for traceability; it is read-only (consume with `resolve` /
+`install` / `pull`, publish with the other backends).
 
 **Producer — publish a core** (from the machine that has the source):
 
@@ -358,8 +362,14 @@ the same base works first; if Docker works, `hdlpkg` will.
   → `install` (fetch + verify into the cache) → `gen <target>` to build.
 - **Reproducible / CI builds**: commit `ip.lock`, then build with `install --locked`
   and `gen --locked <target>` — these use the *exact* pinned versions and never
-  re-resolve, so the build is byte-for-byte the same everywhere. `hdlpkg resolve`
-  is the one command that updates the lock to newer compatible versions.
+  re-resolve, so the build is byte-for-byte the same everywhere. After
+  `install --locked` populates the cache, `gen --locked` builds **fully offline** —
+  no `--search` or `--registry` needed, since dependencies are materialized from the
+  cache by their lockfile digest. `hdlpkg resolve` is the one command that updates the
+  lock to newer compatible versions.
+- **Build straight from a registry**: `gen <target> --registry <location>` fetches each
+  dependency's `.ipkg` into the cache and uses it — so you can generate against published
+  cores without checking out their source trees.
 - **Publish a core**: `validate` → `pack` → `publish --registry …` (append-only;
   `yank` to retire a bad version).
 - **Consume from a published registry**: `resolve`/`install`/`tree --registry <dir>`

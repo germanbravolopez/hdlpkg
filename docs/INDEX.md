@@ -97,9 +97,13 @@ quick-find reference.
 | `tests/unit/test_edam.py` | `build_eda_design`: fileset selection, topo order, dedup, target errors |
 | `tests/unit/test_backends.py` | Verilator `.vc` / Vivado `.tcl` rendering + `get_backend` registry |
 | `tests/integration/test_gen_cli.py` | `hdlpkg gen` over the examples (resolve → assemble → render → write) |
+| `tests/integration/test_gen_registry_cli.py` | `hdlpkg gen` consuming deps from a registry (`--registry`) and offline from the installed cache (`gen --locked`) |
+| `tests/integration/test_git_registry_cli.py` | Git-backed registry (`git+...`): resolve provenance, pull, ref checkout (against a local bare repo) |
+| `tests/unit/test_registry_user_agent.py` | Every HTTP/OCI request carries a non-default `User-Agent` (the Cloudflare-WAF fix) |
 | `tests/unit/test_treeview.py` | `render_dependency_tree`: ordering, version annotation, diamond `(*)` marking |
 | `tests/integration/test_tree_cli.py` | `hdlpkg tree` over the examples |
 | `tests/unit/test_ipxact.py` | `to_ipxact`: VLNV, fileSets/fileType, model views, determinism |
+| `tests/unit/test_ipxact_xsd.py` | Validates `to_ipxact` output against the official Accellera 1685-2014 XSD (vendored under `tests/schema/`) via `lxml` |
 | `tests/integration/test_ipxact_cli.py` | `hdlpkg export-ipxact` writes a parseable component XML |
 | `tests/unit/test_sbom.py` | `build_cyclonedx`: components, dependency edges, determinism |
 | `tests/integration/test_sbom_cli.py` | `hdlpkg pack --sbom` writes a CycloneDX SBOM with resolved deps |
@@ -157,7 +161,7 @@ quick-find reference.
 | **Opaque version** | A non-SemVer version token (`D5020100`) — exact-pinned, no ordering (`OpaqueVersion`) |
 | **Compatibility group** | The set a version belongs to for unification (SemVer major / CalVer year / one monotonic group / opaque token) |
 | **Conflict policy** | `[resolution] on-conflict`: `fail_on_conflict` / `use_latest` / `isolate_namespaces` |
-| **Name-mangling** | Renaming a coexisting package (SystemVerilog or VHDL) per version (`bus_pkg` -> `bus_pkg__v1_1_0`) so two versions build together (`mangle.py`) |
+| **Name-mangling** | Renaming a coexisting package (SystemVerilog or VHDL) per version (`bus_pkg` -> `bus_pkg_v1_1_0`) so two versions build together (`mangle.py`) |
 | **IP-XACT** | IEEE 1685 XML standard for packaging/describing IP |
 
 ## Topics → where to look

@@ -8,13 +8,12 @@ already (see ``vlnv.py``); here we emit a component document from a manifest.
 
 :func:`to_ipxact` is **pure**: it maps a :class:`~hdl_ip_packager.manifest.Manifest`
 to a deterministic XML string (no I/O), so the CLI ``export-ipxact`` command is a
-thin write wrapper. The output targets the **1685-2014** schema and is well-formed
-and structurally conventional (VLNV, then a ``model`` of one view +
-componentInstantiation per ``[targets.*]``, then the ``fileSets``); validating it
-against the official XSD is tracked as a follow-up. Conveniently, the manifest
-fileset ``type`` vocabulary (``systemVerilogSource``/``verilogSource``/
-``vhdlSource``) is already the IP-XACT ``fileType`` vocabulary, so it passes
-straight through.
+thin write wrapper. The output targets the **1685-2014** schema (VLNV, then a ``model``
+of one view + componentInstantiation per ``[targets.*]``, then the ``fileSets``) and
+**validates against the official Accellera XSD** (enforced by a test). The manifest
+fileset ``type`` vocabulary (``systemVerilogSource``/``verilogSource``/``vhdlSource``)
+is already the IP-XACT ``fileType`` enumeration so it passes straight through; a custom
+or tool-specific type is emitted as the IP-XACT ``user`` form (see :func:`_file_type`).
 """
 
 from __future__ import annotations
@@ -28,6 +27,52 @@ __all__ = ["IPXACT_NAMESPACE", "to_ipxact"]
 IPXACT_NAMESPACE = "http://www.accellera.org/XMLSchema/IPXACT/1685-2014"
 _XSI_NAMESPACE = "http://www.w3.org/2001/XMLSchema-instance"
 
+# The IEEE 1685-2014 ``ipxact:fileType`` enumeration (from the official schema's
+# fileType.xsd). A type outside this set is not valid as a plain value -- IP-XACT
+# expresses it as ``<fileType user="...">user</fileType>`` instead (see _file_type).
+_FILE_TYPE_ENUM = frozenset(
+    {
+        "unknown",
+        "cSource",
+        "cppSource",
+        "asmSource",
+        "vhdlSource",
+        "vhdlSource-87",
+        "vhdlSource-93",
+        "verilogSource",
+        "verilogSource-95",
+        "verilogSource-2001",
+        "swObject",
+        "swObjectLibrary",
+        "vhdlBinaryLibrary",
+        "verilogBinaryLibrary",
+        "unelaboratedHdl",
+        "executableHdl",
+        "systemVerilogSource",
+        "systemVerilogSource-3.0",
+        "systemVerilogSource-3.1",
+        "systemCSource",
+        "systemCSource-2.0",
+        "systemCSource-2.0.1",
+        "systemCSource-2.1",
+        "systemCSource-2.2",
+        "veraSource",
+        "eSource",
+        "perlSource",
+        "tclSource",
+        "OVASource",
+        "SVASource",
+        "pslSource",
+        "systemVerilogSource-3.1a",
+        "SDC",
+        "vhdlAmsSource",
+        "verilogAmsSource",
+        "systemCAmsSource",
+        "libertySource",
+        "user",
+    }
+)
+
 
 def _sub(parent: ET.Element, tag: str, text: str | None = None) -> ET.Element:
     """Append a namespaced ``ipxact:<tag>`` child, optionally with text."""
@@ -35,6 +80,19 @@ def _sub(parent: ET.Element, tag: str, text: str | None = None) -> ET.Element:
     if text is not None:
         element.text = text
     return element
+
+
+def _file_type(parent: ET.Element, file_type: str) -> None:
+    """Append an ``ipxact:fileType`` for *file_type*, conformant to the 1685-2014 enum.
+
+    A standard type is emitted verbatim; any other (a custom or tool-specific type, e.g.
+    from a generator/glob fileset) becomes ``<fileType user="<type>">user</fileType>``,
+    the IP-XACT escape for a non-enumerated type.
+    """
+    if file_type in _FILE_TYPE_ENUM:
+        _sub(parent, "fileType", file_type)
+    else:
+        _sub(parent, "fileType", "user").set("user", file_type)
 
 
 def to_ipxact(manifest: Manifest) -> str:
@@ -82,7 +140,7 @@ def to_ipxact(manifest: Manifest) -> str:
             for path in fileset.files:
                 file_element = _sub(fs_element, "file")
                 _sub(file_element, "name", path)
-                _sub(file_element, "fileType", fileset.type)
+                _file_type(file_element, fileset.type)
 
     if manifest.description:
         _sub(component, "description", manifest.description)

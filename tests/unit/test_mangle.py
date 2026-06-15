@@ -37,9 +37,19 @@ class TestScanners:
         src = "module top; endmodule\ninterface bus_if; endinterface\n"
         assert set(declared_modules(src)) == {"top", "bus_if"}
 
-    def test_mangled_name_is_sv_safe(self) -> None:
-        assert mangled_name("bus_pkg", Version.parse("1.1.0")) == "bus_pkg__v1_1_0"
-        assert mangled_name("p", Version.parse("2.0.0-rc.1")) == "p__v2_0_0_rc_1"
+    def test_mangled_name_is_sv_and_vhdl_safe(self) -> None:
+        assert mangled_name("bus_pkg", Version.parse("1.1.0")) == "bus_pkg_v1_1_0"
+        assert mangled_name("p", Version.parse("2.0.0-rc.1")) == "p_v2_0_0_rc_1"
+
+    def test_mangled_name_never_has_consecutive_underscores(self) -> None:
+        # VHDL forbids consecutive underscores in an identifier; a name that itself
+        # ends in '_' (or any input that would butt underscores together) must still
+        # produce a legal identifier, not 'foo__v1_0_0'.
+        for name in ("foo", "foo_", "bus_pkg"):
+            for spec in ("1.0.0", "2.0.0-rc.1", "1.0.0+build.5"):
+                result = mangled_name(name, Version.parse(spec))
+                assert "__" not in result, result
+                assert not result.startswith("_") and not result.endswith("_"), result
 
 
 _RENAMES = {"bus_pkg": "bus_pkg__v1"}
@@ -133,13 +143,13 @@ class TestPlanner:
 
     def test_mangles_each_version_and_routes_consumers(self) -> None:
         plan = plan_package_mangling(self._scenario())
-        assert plan.renamed == {"bus": ("bus__v1_1_0", "bus__v2_0_0")}
+        assert plan.renamed == {"bus": ("bus_v1_1_0", "bus_v2_0_0")}
         # each package version keeps its own mangled name
-        assert "package bus__v1_1_0;" in plan.rewritten[("acme:common:bus:1.1.0", "bus.sv")]
-        assert "package bus__v2_0_0;" in plan.rewritten[("acme:common:bus:2.0.0", "bus.sv")]
+        assert "package bus_v1_1_0;" in plan.rewritten[("acme:common:bus:1.1.0", "bus.sv")]
+        assert "package bus_v2_0_0;" in plan.rewritten[("acme:common:bus:2.0.0", "bus.sv")]
         # each consumer is routed to the version it resolved to
-        assert "import bus__v1_1_0::*;" in plan.rewritten[("acme:ip:fifo:1.0.0", "fifo.sv")]
-        assert "import bus__v2_0_0::*;" in plan.rewritten[("acme:ip:legacy:1.0.0", "legacy.sv")]
+        assert "import bus_v1_1_0::*;" in plan.rewritten[("acme:ip:fifo:1.0.0", "fifo.sv")]
+        assert "import bus_v2_0_0::*;" in plan.rewritten[("acme:ip:legacy:1.0.0", "legacy.sv")]
 
     def test_single_version_design_is_untouched(self) -> None:
         cores = [
@@ -153,6 +163,20 @@ class TestPlanner:
         assert plan.renamed == {}
         assert "import bus::*;" in plan.rewritten[("acme:ip:fifo:1.0.0", "fifo.sv")]
 
+    def test_refuses_when_two_versions_mangle_to_the_same_name(self) -> None:
+        # Two opaque versions differing only by a separator run flatten to one HDL-safe
+        # name (1.0 / 1..0 -> bus_v1_0); the planner must refuse, not silently collide.
+        opaque = (
+            '[package]\nvendor="acme"\nlibrary="common"\nname="bus"\n'
+            'scheme = "opaque"\nversion = "{v}"\n'
+        )
+        cores = [
+            _core(opaque.format(v="1.0"), {"bus.sv": "package bus;\nendpackage\n"}),
+            _core(opaque.format(v="1..0"), {"bus.sv": "package bus;\nendpackage\n"}),
+        ]
+        with pytest.raises(BackendError, match="mangled names collide"):
+            plan_package_mangling(cores)
+
     def test_refuses_colliding_modules(self) -> None:
         cores = [
             _core(_BUS.format(v="1.0.0"), {"m.sv": "module bus; endmodule\n"}),
@@ -160,6 +184,20 @@ class TestPlanner:
         ]
         with pytest.raises(BackendError, match="colliding module/entity"):
             plan_package_mangling(cores)
+
+    def test_module_refusal_explains_why_and_the_remedy(self) -> None:
+        # The refusal must say why (instantiation is ambiguous without a parser) and
+        # what to do (resolve to one version, or expose a package).
+        cores = [
+            _core(_BUS.format(v="1.0.0"), {"m.sv": "module bus; endmodule\n"}),
+            _core(_BUS.format(v="2.0.0"), {"m.sv": "module bus; endmodule\n"}),
+        ]
+        with pytest.raises(BackendError) as excinfo:
+            plan_package_mangling(cores)
+        message = str(excinfo.value)
+        assert "without a full HDL parser" in message
+        assert "use_latest" in message
+        assert "package" in message
 
     def test_refuses_unknown_language(self) -> None:
         cores = [
@@ -190,11 +228,11 @@ class TestVhdlPlanner:
 
     def test_mangles_vhdl_packages_and_routes_consumers(self) -> None:
         plan = plan_package_mangling(self._scenario())
-        assert plan.renamed == {"bus": ("bus__v1_1_0", "bus__v2_0_0")}
-        assert "package bus__v1_1_0 is" in plan.rewritten[("acme:common:bus:1.1.0", "bus.vhd")]
-        assert "package bus__v2_0_0 is" in plan.rewritten[("acme:common:bus:2.0.0", "bus.vhd")]
-        assert "use work.bus__v1_1_0.all;" in plan.rewritten[("acme:ip:fifo:1.0.0", "fifo.vhd")]
-        assert "use work.bus__v2_0_0.all;" in plan.rewritten[("acme:ip:legacy:1.0.0", "legacy.vhd")]
+        assert plan.renamed == {"bus": ("bus_v1_1_0", "bus_v2_0_0")}
+        assert "package bus_v1_1_0 is" in plan.rewritten[("acme:common:bus:1.1.0", "bus.vhd")]
+        assert "package bus_v2_0_0 is" in plan.rewritten[("acme:common:bus:2.0.0", "bus.vhd")]
+        assert "use work.bus_v1_1_0.all;" in plan.rewritten[("acme:ip:fifo:1.0.0", "fifo.vhd")]
+        assert "use work.bus_v2_0_0.all;" in plan.rewritten[("acme:ip:legacy:1.0.0", "legacy.vhd")]
 
     def test_refuses_colliding_vhdl_entities(self) -> None:
         ent = "entity bus is end entity bus;\n"

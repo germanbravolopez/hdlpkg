@@ -10,6 +10,7 @@ from hdl_ip_packager.registry import (
     HttpRegistry,
     LocalRegistry,
     OciRegistry,
+    _parse_git_location,
     parse_bearer_challenge,
     registry_from_location,
 )
@@ -76,3 +77,18 @@ def test_credentials_are_wired_into_network_backends() -> None:
 def test_unknown_scheme_raises() -> None:
     with pytest.raises(RegistryError, match="Unsupported registry location scheme"):
         registry_from_location("ftp://reg.corp/x")
+
+
+@pytest.mark.parametrize(
+    ("location", "url", "ref"),
+    [
+        ("git+https://host/org/repo.git", "https://host/org/repo.git", None),
+        ("git+https://host/org/repo.git@v1.2.0", "https://host/org/repo.git", "v1.2.0"),
+        # An ssh user (git@host) before the path must not be read as a ref.
+        ("git+ssh://git@host/org/repo.git", "ssh://git@host/org/repo.git", None),
+        ("git+ssh://git@host/org/repo.git@main", "ssh://git@host/org/repo.git", "main"),
+        ("git+file:///tmp/reg.git", "file:///tmp/reg.git", None),
+    ],
+)
+def test_parse_git_location_splits_url_and_ref(location: str, url: str, ref: str | None) -> None:
+    assert _parse_git_location(location) == (url, ref)

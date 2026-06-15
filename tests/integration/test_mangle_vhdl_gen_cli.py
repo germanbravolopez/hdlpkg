@@ -76,10 +76,10 @@ def test_gen_mangles_coexisting_vhdl_packages(
     vfifo = (src / "acme_ip_vfifo_1.0.0" / "rtl" / "src.vhd").read_text()
     vlegacy = (src / "acme_ip_vlegacy_1.0.0" / "rtl" / "src.vhd").read_text()
 
-    assert "package vbus__v1_1_0 is" in bus_v1
-    assert "package vbus__v2_0_0 is" in bus_v2
-    assert "use work.vbus__v1_1_0.all;" in vfifo  # vfifo (^1) -> 1.1.0
-    assert "use work.vbus__v2_0_0.all;" in vlegacy  # vlegacy (^2) -> 2.0.0
+    assert "package vbus_v1_1_0 is" in bus_v1
+    assert "package vbus_v2_0_0 is" in bus_v2
+    assert "use work.vbus_v1_1_0.all;" in vfifo  # vfifo (^1) -> 1.1.0
+    assert "use work.vbus_v2_0_0.all;" in vlegacy  # vlegacy (^2) -> 2.0.0
 
     # The GHDL run script references the mangled copies under src/.
     script = (out / "run_ghdl.sh").read_text()
