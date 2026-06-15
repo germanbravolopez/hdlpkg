@@ -177,34 +177,79 @@ class TestPlanner:
         with pytest.raises(BackendError, match="mangled names collide"):
             plan_package_mangling(cores)
 
-    def test_refuses_colliding_modules(self) -> None:
-        cores = [
-            _core(_BUS.format(v="1.0.0"), {"m.sv": "module bus; endmodule\n"}),
-            _core(_BUS.format(v="2.0.0"), {"m.sv": "module bus; endmodule\n"}),
+    def _module_scenario(self, consumer_body: str) -> list[GenCore]:
+        # Two versions of a `module bus` collide; one consumer (resolving to ^1.0.0)
+        # instantiates it via *consumer_body*.
+        return [
+            _core(_BUS.format(v="1.0.0"), {"bus.sv": "module bus; endmodule\n"}),
+            _core(_BUS.format(v="2.0.0"), {"bus.sv": "module bus; endmodule\n"}),
+            _core(_CONSUMER.format(n="fifo", c="^1.0.0"), {"fifo.sv": consumer_body}),
         ]
-        with pytest.raises(BackendError, match="colliding module/entity"):
-            plan_package_mangling(cores)
 
-    def test_module_refusal_explains_why_and_the_remedy(self) -> None:
-        # The refusal must say why (instantiation is ambiguous without a parser) and
-        # what to do (resolve to one version, or expose a package).
+    def test_mangles_coexisting_modules_and_routes_instantiations(self) -> None:
         cores = [
-            _core(_BUS.format(v="1.0.0"), {"m.sv": "module bus; endmodule\n"}),
-            _core(_BUS.format(v="2.0.0"), {"m.sv": "module bus; endmodule\n"}),
+            _core(_BUS.format(v="1.0.0"), {"bus.sv": "module bus; endmodule\n"}),
+            _core(_BUS.format(v="2.0.0"), {"bus.sv": "module bus; endmodule\n"}),
+            _core(
+                _CONSUMER.format(n="fifo", c="^1.0.0"),
+                {"fifo.sv": "module fifo; bus u_bus (); endmodule\n"},
+            ),
+            _core(
+                _CONSUMER.format(n="legacy", c="^2.0.0"),
+                {"legacy.sv": "module legacy; bus u_bus (); endmodule\n"},
+            ),
         ]
-        with pytest.raises(BackendError) as excinfo:
-            plan_package_mangling(cores)
-        message = str(excinfo.value)
-        assert "without a full HDL parser" in message
-        assert "use_latest" in message
-        assert "package" in message
+        plan = plan_package_mangling(cores)
+        assert plan.renamed == {"bus": ("bus_v1_0_0", "bus_v2_0_0")}
+        assert "module bus_v1_0_0;" in plan.rewritten[("acme:common:bus:1.0.0", "bus.sv")]
+        assert "module bus_v2_0_0;" in plan.rewritten[("acme:common:bus:2.0.0", "bus.sv")]
+        # each consumer's instantiation routed to the version it resolved to
+        assert "bus_v1_0_0 u_bus ()" in plan.rewritten[("acme:ip:fifo:1.0.0", "fifo.sv")]
+        assert "bus_v2_0_0 u_bus ()" in plan.rewritten[("acme:ip:legacy:1.0.0", "legacy.sv")]
+
+    def test_mangles_instantiation_variants_and_generate(self) -> None:
+        body = (
+            "module fifo;\n"
+            "  bus u0 ();\n"  # plain
+            "  bus #(.W(8)) u1 ();\n"  # parameter map
+            "  bus u2 [3:0] ();\n"  # instance array
+            "  bus a (), b ();\n"  # multiple instances
+            "  generate for (genvar i=0;i<2;i=i+1) begin : g bus g0 (); end endgenerate\n"
+            "endmodule\n"
+        )
+        out = plan_package_mangling(self._module_scenario(body)).rewritten[
+            ("acme:ip:fifo:1.0.0", "fifo.sv")
+        ]
+        assert "bus_v1_0_0 u0 ()" in out
+        assert "bus_v1_0_0 #(.W(8)) u1 ()" in out
+        assert "bus_v1_0_0 u2 [3:0] ()" in out
+        assert "bus_v1_0_0 a (), b ()" in out
+        assert "begin : g bus_v1_0_0 g0 ()" in out  # generate-nested instance
+        assert "bus " not in out.replace("bus_v1_0_0", "")  # no bare 'bus' left
+
+    def test_leaves_inert_module_name_occurrences(self) -> None:
+        # A coincidental value/member use of the name is inert (not rewritten, not refused).
+        body = "module fifo;\n  logic bus;\n  assign bus = top.bus;\n  bus u ();\nendmodule\n"
+        out = plan_package_mangling(self._module_scenario(body)).rewritten[
+            ("acme:ip:fifo:1.0.0", "fifo.sv")
+        ]
+        assert "logic bus;" in out  # signal decl untouched
+        assert "assign bus = top.bus;" in out  # value + hierarchical member untouched
+        assert "bus_v1_0_0 u ()" in out  # the real instantiation rewritten
+
+    def test_refuses_unclassifiable_module_occurrence(self) -> None:
+        # `bus inst;` (a would-be variable of module type) is neither a declaration, an
+        # instantiation, nor inert -> refuse rather than risk a dangling reference.
+        body = "module fifo;\n  bus inst;\nendmodule\n"
+        with pytest.raises(BackendError, match="cannot classify"):
+            plan_package_mangling(self._module_scenario(body))
 
     def test_refuses_unknown_language(self) -> None:
         cores = [
             _core(_BUS.format(v="1.0.0"), {"bus.x": "anything\n"}, language="chiselsource"),
             _core(_BUS.format(v="2.0.0"), {"bus.x": "anything\n"}, language="chiselsource"),
         ]
-        with pytest.raises(BackendError, match="language the package mangler does not handle"):
+        with pytest.raises(BackendError, match="language the mangler does not handle"):
             plan_package_mangling(cores)
 
 
@@ -240,5 +285,5 @@ class TestVhdlPlanner:
             _core(_BUS.format(v="1.0.0"), {"e.vhd": ent}, language="vhdl"),
             _core(_BUS.format(v="2.0.0"), {"e.vhd": ent}, language="vhdl"),
         ]
-        with pytest.raises(BackendError, match="colliding module/entity"):
+        with pytest.raises(BackendError, match="colliding entity name"):
             plan_package_mangling(cores)
