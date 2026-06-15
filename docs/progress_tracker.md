@@ -18,25 +18,23 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`0.11.0`** cut — an **additive, internal** release over `0.10.0` that bundles
-everything from the `0.10.0` third-party trial and the work after it, with **no `ip.toml` /
-`ip.lock` / CLI / registry-protocol break**: the two trial blockers — a default-User-Agent
-rejected by Cloudflare's WAF ([#12](https://github.com/germanbravolopez/hdl-ip-packager/issues/12),
-now sends `hdlpkg/<version>`) and `gen` unable to build from installed/cached/published deps
-([#13](https://github.com/germanbravolopez/hdl-ip-packager/issues/13), via `gen --registry` /
-`--cache-dir` and offline `gen --locked`); a **Git-backed registry** (`git+...` locations with
-commit provenance in the lock); **IP-XACT export now validated against the official 1685-2014
-XSD** (which caught and fixed a non-enum `fileType` bug); a **VHDL package-mangling fix** so
-name-mangled coexistence designs analyze in GHDL, not just Verilator (single `_v` separator, no
-consecutive underscores); and the **decision to keep refusing module/entity coexistence** with a
-sharpened error. The new `git+` locations and the `gen --registry`/`--cache-dir` flags are purely
-additive. Everything that came before (the versioning contract, the distribution protocol with
-local/HTTP/OCI registries + `hdlpkg login`, glob/directory filesets, the man page) carries
-forward. **Next**: `1.0.0` — the **human-gated stability sign-off** (formats/CLI/registry have
-held across the whole trial; see the Release plan's 1.0 gate).
+**Version**: **`0.12.0`** cut — an **additive, internal** release over `0.11.0` (no
+`ip.toml`/`ip.lock`/CLI/registry-protocol break): `gen` now **name-mangles coexisting
+modules, interfaces, and entities**, not just packages, under `[resolution] on-conflict =
+"isolate_namespaces"`. The pure `mangle.py` gained kind-aware rewrite dispatch and
+declaration + instantiation position rules per unit kind — SV modules/programs (incl.
+parameter maps, instance arrays, multiple instances, and **generate-nested** instances), SV
+interfaces (also as a port/`virtual` type and modport select), and VHDL entities (direct +
+component instantiation, generate-nested) — with a **classify-all-or-refuse** safety model
+for SV and a cross-ref guard. No new dependency (approach A). Everything before it carries
+forward. **Next**: `0.13.0` — Git-registry hardening (the ref-resolution/parsing follow-ups,
+exercised end to end via `hdlpkg-livetest`) + richer IP-XACT mapping (bus interfaces,
+parameters) and an IP-XACT 2022 output mode. The project stays **pre-1.0** (formats keep the
+licence to change), validated continuously via `hdlpkg-livetest`; `1.0.0` is a deliberate
+freeze for later. See the Release plan.
 
-**Stage**: Feature-complete for the roadmap (M1–M8) plus the pre-1.0 completeness
-pass; fully typed, linted, and tested (470 passing tests, ~95% coverage):
+**Stage**: Feature-complete for the roadmap (M1–M8) and iterating through the backlog as
+`0.x` capability releases; fully typed, linted, and tested (509 passing tests, ~95% coverage):
 - **Versioning** — SemVer 2.0.0 `Version` + `VersionConstraint` (caret/tilde/range
   grammar, pre-release precedence).
 - **Identity** — `PackageRef` and `Vlnv` (`vendor:library:name:version`).
@@ -75,16 +73,16 @@ pass; fully typed, linted, and tested (470 passing tests, ~95% coverage):
 - **Tooling** — pytest (markers + coverage gate + foldable summary), ruff, mypy
   strict on `src/`, CI workflow, and a cross-platform test-summary renderer.
 
-**Next**: all roadmap milestones (M1–M8) are delivered, the versioning contract that was
-gating the format freeze is settled (ordered non-SemVer schemes + SV/VHDL package
-name-mangling), and the **registry/OCI protocol is now implemented** — local, HTTP, and OCI
-backends behind one abstraction, with `hdlpkg login` auth for private self-hosted sharing.
-The OCI **token-exchange** auth flow now also ships (managed Harbor/cloud registries work,
-plus `docker login` reuse). The remaining work toward `1.0.0` is the narrow stability gate
-(see the Release plan) — a third-party publish/consume and a `1.0.0-rc.1` soak — plus
-still-deferred external-service work (Git-backed registry, Sigstore signing) and the
-residual coexistence case (two *module*/*entity* versions — needs an HDL-aware frontend;
-package coexistence is done for both SystemVerilog and VHDL).
+**Next**: all roadmap milestones (M1–M8) are delivered and the registry/OCI protocol is
+implemented — local, HTTP, OCI, **and Git** backends behind one `registry_from_location`
+abstraction, with `hdlpkg login` auth (direct bearer + OCI token-exchange + `docker login`
+reuse). Development now continues as a series of ordered `0.x` capability releases working
+through the **Open Non-Blocking Issues**: next up (`0.12.0`) an HDL-aware frontend (parser) +
+module/entity multi-version coexistence; then (`0.13.0`) Git-registry hardening — exercised
+end to end via `hdlpkg-livetest` — and richer IP-XACT (bus interfaces, parameters) + IP-XACT
+2022; then supply-chain (Sigstore signing) and confidential-IP (IEEE 1735) work. The project
+stays **pre-1.0** — the formats keep the licence to change — with `1.0.0` reserved as a
+deliberate freeze once the design has settled.
 
 ---
 
@@ -94,49 +92,55 @@ package coexistence is done for both SystemVerilog and VHDL).
 > item is in [architecture.md](./architecture.md); the rationale is in
 > [research/state_of_the_art.md](./research/state_of_the_art.md).
 
-_All roadmap milestones (M1–M8) are delivered._ The remaining path to `1.0.0` is the
-stability gate in the Release plan (frozen formats, stable CLI/registry protocol, a
-third-party publish/consume, an `rc` soak) — not new features. Sigstore (cosign)
-signing, the unbuilt half of M8, is tracked under Open Non-Blocking Issues (it needs
-OIDC/Fulcio/Rekor infrastructure to build and test honestly).
+_All roadmap milestones (M1–M8) are delivered._ Development now continues as ordered `0.x`
+capability releases that work through the **Open Non-Blocking Issues** below — the HDL-aware
+frontend + module/entity coexistence, Git-registry hardening, richer IP-XACT, Sigstore
+signing, and encrypted-IP carry. The project stays pre-1.0 so the formats keep the licence to
+iterate; `1.0.0` is a deliberate freeze for later (see the Release plan), not a tracked
+near-term gate.
 
 ---
 
 ## Release plan
 
-The packager is pre-1.0, so it uses `0.MINOR.PATCH`:
-- **MINOR** (`0.1 -> 0.2`) = a capability milestone; pre-1.0 it may also carry
-  breaking `ip.toml` / `ip.lock` / CLI changes (the 0.x licence to iterate).
-- **PATCH** (`0.2.0 -> 0.2.1`) = bug / doc fixes; no new capability, no format break.
-- **`X.Y.Z-rc.N`** pre-release tags for anything risky (precedence is handled by
-  `version.py`; `release.yml` already accepts these tags).
+The packager is **pre-1.0 and stays there for now**: it ships a steady stream of
+`0.MINOR.PATCH` capability releases that work through the open issues, keeping the SemVer
+`0.x` licence to change `ip.toml` / `ip.lock` / the CLI when a feature needs it.
+- **MINOR** (`0.11 -> 0.12`) = a capability release; may carry `ip.toml` / `ip.lock` / CLI
+  changes (the `0.x` licence to iterate).
+- **PATCH** (`0.12.0 -> 0.12.1`) = bug / doc fixes; no new capability, no format break.
+- **`X.Y.Z-rc.N`** pre-release tags stay available for anything risky (`version.py` handles
+  precedence; `release.yml` accepts them), but are **not** used to gate a long candidate
+  period — see validation below.
 
-The compatibility contract SemVer tracks here is the **on-disk formats users commit
-to their repos** (`ip.toml`, `ip.lock`) plus the `hdlpkg` CLI surface — more than
-the Python API. Cut a release at each point a user can do something new end to end;
-milestones that are not independently useful are grouped into one release.
+The compatibility contract SemVer tracks here is the **on-disk formats users commit to their
+repos** (`ip.toml`, `ip.lock`) plus the `hdlpkg` CLI surface — more than the Python API. Cut a
+release at each point a user can do something new end to end.
 
-| Version | After | User-facing capability it unlocks |
-|---------|-------|-----------------------------------|
-| **0.1.0** | Foundation (done) | Author + validate: `init` / `info` / `validate`; publishes the v0 `ip.toml` schema. First tagged release / release-pipeline shakedown. |
-| **0.2.0** | M1 + M2 | Resolve a dependency graph to a deterministic `ip.lock` (the core value prop). |
-| **0.3.0** | M3 + M4 | Fetch cores: content-addressed cache + local/Git/HTTP/OCI registries. |
-| **0.4.0** | M5 | `pack` / `publish` / `pull` — the full producer/consumer loop. |
-| **0.5.0** | M6 | Tool-flow generation (EDAM -> Verilator/Vivado). |
-| **0.6.0** | M7 | IP-XACT (IEEE 1685) export for tool interop. |
-| **1.0.0** | M8 + soak | Supply-chain (signing + SBOM) **and** the stability commitment below. |
+**Validation is continuous, not a one-shot release candidate.** The
+[`hdlpkg-livetest`](https://github.com/germanbravolopez/hdlpkg-livetest) project and the
+`hdlpkg-consumer-demo` exercise install / publish / consume (and the real-toolchain build
+lane) against live registries on every meaningful change, so confidence accrues release by
+release rather than through a single frozen candidate.
 
-Patch releases ship between these as fixes land. Each milestone above ends with its
-release tag when it completes (see "Releasing" in the [README](../README.md)).
+Shipped so far (details in **Completed Milestones**): `0.1.0`–`0.6.0` delivered M1–M7;
+`0.7.0`/`0.8.0` the supply-chain + pre-1.0 completeness; `0.9.0` the versioning contract +
+local/HTTP/OCI registries + auth; `0.10.0` the man page; `0.11.0` the Git registry,
+registry-driven `gen`, and IP-XACT XSD validation.
 
-**1.0.0 is a promise, not "all features done."** Gate it on:
-- `ip.toml` and `ip.lock` formats frozen, or a migration path exists;
-- the CLI command/flag surface stable;
-- the registry/OCI protocol stable;
-- at least one core published and consumed by a third party;
-- a `1.0.0-rc.1` soak with no format changes.
+Planned next (ordered; each a `0.x.0`):
 
-If the formats are still moving when M8 lands, release it as `0.7.0`, not `1.0.0`.
+| Version | Focus | What it adds |
+|---------|-------|--------------|
+| **0.12.0** | HDL-aware frontend | Source-unit tokenizing + a real HDL parser, and module/entity multi-version coexistence built on it (beyond package mangling). The heaviest item on the roadmap — may split across two releases. |
+| **0.13.0** | Git registry + IP-XACT depth | Harden the Git backend (the ref-resolution/parsing follow-ups) and exercise `git+` registries end to end via `hdlpkg-livetest`; richer IP-XACT mapping (bus interfaces, parameters) + an IP-XACT 2022 output mode. |
+| **0.14.0+** | Supply-chain + confidentiality | Sigstore (cosign) signing of `.ipkg` + SBOM; encrypted-IP carry (IEEE 1735); remaining backlog as it matures. |
+| **1.0.0** | The stability freeze — later | A deliberate commitment that `ip.toml` / `ip.lock` / CLI / registry protocol stop moving, made once they have held stable across several `0.x` releases and real `hdlpkg-livetest` + adopter use. Not a date, not gated by a long candidate period. |
+
+`1.0.0` is a promise that the formats and interfaces freeze — taken when the design has
+settled, after the parser/coexistence and IP-XACT work above land and the formats prove
+stable in practice. Until then the project stays `0.x` so it can still improve the formats
+without breaking a stability promise.
 
 ---
 
@@ -147,8 +151,8 @@ Artifactory behind a Cloudflare tunnel) are fixed and in **Completed Milestones*
 Cloudflare User-Agent rejection ([#12](https://github.com/germanbravolopez/hdl-ip-packager/issues/12))
 and `gen` being unable to consume installed/cached/published deps
 ([#13](https://github.com/germanbravolopez/hdl-ip-packager/issues/13)). Both were
-additive/internal (no `ip.toml`/`ip.lock` format change). The soak now has no open
-blockers; a clean re-verify is the gate to promote to `1.0.0` (human-gated sign-off).
+additive/internal (no `ip.toml`/`ip.lock` format change). There are no open blockers for
+the next `0.x` release.
 
 ---
 
@@ -159,8 +163,8 @@ blockers; a clean re-verify is the gate to promote to `1.0.0` (human-gated sign-
 | Encrypted IP distribution (IEEE 1735) | `packaging.py`, `registry.py`, `manifest.py`, `cli.py` | **Future feature.** Let a producer distribute a core whose HDL source is **encrypted**, so a consumer can resolve/install/`gen` against it (the tool can drive a tool flow) without the source ever being readable on disk. Two distinct layers, decide which to build: **(a) Standard HDL IP encryption (IEEE 1735 / `pragma protect`)** — the cross-vendor norm. Each source file carries an encrypted envelope (a symmetric session key wrapped under each *tool vendor's* public key + AES/RSA-encrypted payload, IEEE 1735 v1/v2 with "rights" digests). The EDA tool decrypts at compile time; the packager's job is to **carry, not break** these envelopes — pack/`extract`/SBOM must treat an encrypted file as opaque, the deterministic-pack digest still pins ciphertext, and `gen` must not assume it can read the source. The tool would *not* implement the crypto itself (vendor keys live in the EDA tools); at most it could shell out to `vivado -encrypt`/`vlog +protect` to *produce* envelopes. **(b) At-rest/transport encryption of the `.ipkg`** — encrypt the whole artifact in the registry/cache for confidential distribution (e.g. age/GPG or an OCI-layer key), decrypted on `pull` with a consumer key. This is independent of HDL-tool semantics and simpler, but does **not** give the per-tool, compile-time protection (a) does. Open questions: where keys/recipients are declared (a `[package]`/`[encryption]` manifest key vs. out-of-band), how it interacts with content-addressing (the digest must pin what is *stored*), how the SBOM marks a component encrypted, and how `validate`/`info` behave when source is unreadable. Needs a real EDA tool (or an interop fixture) to test (a) honestly — defer like the Git/OCI/Sigstore work. |
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git backend. Checksums + SBOM already ship; this adds authenticity on top. |
 | Richer IP-XACT mapping (bus interfaces, parameters) + IP-XACT 2022 | `ipxact.py`, tests | Export now **validates against the official 1685-2014 XSD** (see Completed Milestones). Remaining, optional: map more of the standard (bus interfaces, parameters, memory maps) and consider an IP-XACT **2022** (1685-2022) output mode. Not needed for the current Vivado-ingest use case. |
+| Name-mangling — named-library references + classifier cleanup | `mangle.py` | Follow-ups filed from the 0.12.0 release review (not release blockers). (1) **Named-library references to a coexisting unit are left untouched**: a `use mylib.bus` / `entity mylib.foo` reference to a colliding package/entity is not rewritten while its declaration is, so a design that references a coexisting unit via a named library (not `work`) would dangle. Unreachable in the current single-`work`-library `gen` flow (everything is analyzed into `work`), and the same long-standing limitation applies to packages; the safe fix is to *refuse* on a named-lib reference to a colliding unit (parity with the SV classifiers). (2) **Cleanup**: `_reject_unclassifiable_sv_modules` / `_reject_unclassifiable_sv_interfaces` and the per-kind declaration scanners share structure — collapse into one parameterized helper so the scan scaffold cannot drift between kinds. |
 | Git-backed registry — ref-resolution and parsing hardening | `registry.py` | Follow-ups from the 0.11.0 release review of the new `GitRegistry` (all need a real git server, which the integration tests can't exercise on the CFA-restricted Windows box, so they are filed not fixed): (1) **`_resolve` prefers a remote branch over a tag of the same name** — `git+...@v1.0.0` resolves to `origin/v1.0.0` (branch tip, which can move) before the `v1.0.0` tag, weakening the immutable-provenance promise when both exist; prefer the tag, or disambiguate. (2) **`_parse_git_location` mis-splits an scp-style URL with an `@ref`** — `git+git@host:repo.git@v1.0` (no `/` before the repo) splits at the first `@`; document `git+ssh://` as the supported form, or special-case scp syntax. (3) **A bare scp URL (`git@host:repo.git`, no `git+`) silently falls through to `LocalRegistry`** and fails with a confusing "not in the local registry" error; detect it and hint `git+ssh://`. (4) **`gen --locked` against a `git+` location still re-fetches** (`_sync` always fetches when a clone exists) so the "works offline after install" claim is only true for the cache path; thread the pinned `@sha` to short-circuit the fetch when the commit is already present. None are integrity bugs (the `gen --locked` digest check now fails closed regardless). |
-| Multi-version coexistence for *modules*/*entities* (beyond packages) | `mangle.py`, `cli.py` | **Decision (June 2026): keep refusing, do not build a half-solution.** Package coexistence is done for SV and VHDL (`gen` name-mangles under `isolate_namespaces`); two versions of a SV *module*/interface or a VHDL *entity* are still **refused** — and that refusal is now the *intended* behavior, with a sharpened error that explains why and what to do (`_reject_unmangleable`). Feasibility analysis behind the decision: a package reference (`::` / `use work.`) sits in an unambiguous position, so it can be token-rewritten safely. An **SV module instantiation** (`foo u_foo (...)`) has no leading keyword and is indistinguishable from other constructs by token scan — it genuinely needs a full HDL parser (the parked "source-unit tokenizing" backlog item); rewriting it heuristically could silently corrupt a design. A **VHDL entity** is partly feasible parser-free: the direct-instantiation form (`label : entity work.foo`) is unambiguous like `use work.`, so entity/architecture/`end` labels + `entity work.X` could be rewritten, refusing when the entity is reached via an ambiguous *component* instantiation. That VHDL subset is a viable future increment, but was **consciously deferred** here (it would not cover the SV case and adds a refuse-or-rewrite branch). Revisit when the parser frontend lands (then both languages, fully) or if the VHDL-only subset becomes worth shipping on its own. |
 
 ---
 
@@ -175,6 +179,67 @@ blockers; a clean re-verify is the gate to promote to `1.0.0` (human-gated sign-
 ---
 
 ## Completed Milestones
+
+### Release 0.12.0 — June 2026
+- [x] **Cut `0.12.0`**, an additive/internal release (no `ip.toml`/`ip.lock`/CLI/registry break):
+  `gen` now name-mangles coexisting **modules, interfaces, and entities** (not just packages) under
+  `isolate_namespaces`, including generate-nested instantiations, via the in-house scoped rewriter
+  (approach A, zero new deps). Bumped `pyproject.toml` + `src/hdl_ip_packager/__init__.py` to
+  `0.12.0` and regenerated the man page. Proven by the unit/integration suites and the consumer
+  demo's `soc_modver` example built in real Verilator on CI. Next: `0.13.0` (Git-registry hardening
+  + richer IP-XACT).
+
+### Module/interface/entity multi-version coexistence — June 2026
+- [x] **`gen` now name-mangles coexisting *modules*, *interfaces*, and *entities*, not just
+  packages** (under `[resolution] on-conflict = "isolate_namespaces"`). Extended the pure
+  `mangle.py` (approach A — in-house, zero new dependencies) with kind-aware rewrite dispatch
+  and declaration + reference position rules per unit kind: **SV modules/programs**
+  (instantiation incl. `#(…)` parameter maps, instance arrays, multiple instances, and
+  **generate-nested** instances), **SV interfaces** (also as a port/`virtual` type and modport
+  select), and **VHDL entities** (`entity`/`architecture`/`component` declarations, direct
+  `entity work.X` and component instantiation, generate-nested). Safety: **classify-all-or-refuse**
+  for SV modules/interfaces (rename only when every occurrence of a name is provably a
+  declaration, instantiation/reference, or inert — otherwise refuse, never a partial rewrite),
+  plus a **cross-ref guard** (refuse a colliding name also declared by an unrelated core). No
+  `ip.toml`/`ip.lock`/CLI/format change — purely the `gen` mangling pass; the `isolate_namespaces`
+  messaging was updated accordingly. Landed in staged commits (kind-aware refactor → SV modules →
+  VHDL entities → SV interfaces → messaging+integration → demo). Proven end to end by
+  `tests/unit/test_mangle.py`, `tests/integration/test_mangle_unit_gen_cli.py`, and the consumer
+  demo's new `soc_modver` example (two `widget` module versions + a generate-nested instance)
+  built in **real Verilator on CI**. Design record:
+  [docs/design/module-entity-coexistence.md](design/module-entity-coexistence.md). Remaining
+  refusals (documented limitations): macro-pasted instantiations, an SV interface in an unmodeled
+  type context (e.g. a type-parameter default), and named-library VHDL references. This clears the
+  last roadmap-coexistence gap and the "source-unit tokenizing" need for this use case.
+
+### 0.12.0 design accepted: module/entity multi-version coexistence — June 2026
+- [x] **Design for extending name-mangling beyond packages to SV modules/interfaces/programs
+  and VHDL entities is accepted and written up** in
+  [docs/design/module-entity-coexistence.md](design/module-entity-coexistence.md). Approach
+  **A** (in-house scoped rewriter, zero new dependencies) — recognize declaration +
+  instantiation/reference positions for the *known colliding names only*, extending the
+  existing comment/string-aware token machinery rather than adding a real HDL parser. Key
+  decisions: **generate-nested instantiations are in scope** (both languages — common in real
+  designs; they reduce to the same flat-token instantiation shape), SV **interfaces** included
+  (with their extra type/`virtual`/modport reference positions), and a **classify-all-or-refuse**
+  safety model (rename only when every occurrence of a name is provably a declaration,
+  instantiation/reference, or inert — otherwise refuse, never corrupt). Implementation lands as
+  small staged commits (planner core → SV modules → VHDL entities → SV interfaces → integration
+  → demo build-lane proof → docs), each gates-green, toward the `0.12.0` release.
+
+### Release-plan change: continuous 0.x iteration, no 1.0 soak — June 2026
+- [x] **Dropped the one-shot `1.0.0-rc.1` soak / human-gated 1.0 sign-off in favor of
+  continuous `0.x` iteration.** Rationale: the heaviest remaining work — a real HDL parser +
+  module/entity coexistence, and richer IP-XACT — can still move the `ip.toml`/`ip.lock`/CLI
+  shapes, so freezing the formats at `1.0.0` now would be premature. The project instead ships
+  ordered `0.x` capability releases through the Open Non-Blocking backlog (`0.12.0` parser +
+  coexistence, `0.13.0` Git-registry hardening + richer IP-XACT, then supply-chain /
+  confidential IP), keeping the SemVer `0.x` licence to change formats. Validation moves from a
+  single frozen candidate to **continuous** exercise via the `hdlpkg-livetest` project and the
+  consumer demo. `1.0.0` becomes a deliberate freeze for later, not a tracked near-term gate.
+  Removed the soak/1.0-gate language from the Release plan, Current Status, Roadmap, Blocking
+  Issues, the `/release` skill, the README, and the marketing deck; the superseded
+  `1.0.0-rc.1` prerelease was yanked from PyPI and its tag/GitHub pre-release removed.
 
 ### Release 0.11.0 — June 2026
 - [x] **Cut `0.11.0`**, an additive/internal release bundling the `0.10.0`-trial fixes and the

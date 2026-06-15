@@ -270,8 +270,8 @@ def _apply_policy(
             chosen[ref] = sorted(manifests, key=lambda m: m.vlnv.version)
             warnings.append(
                 f"{ref}: keeping incompatible versions {versions} side by side "
-                f"(isolate_namespaces); 'gen' name-mangles coexisting SystemVerilog/VHDL packages "
-                f"(module/entity coexistence is still refused)."
+                f"(isolate_namespaces); 'gen' name-mangles the coexisting SystemVerilog/VHDL "
+                f"packages, modules, interfaces, and entities so both elaborate."
             )
     return chosen, warnings
 

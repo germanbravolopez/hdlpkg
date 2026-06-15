@@ -766,7 +766,7 @@ def _gen_core(source: CoreSource) -> GenCore:
 def _mangle_sources(
     out_dir: Path, root_source: CoreSource, dependencies: list[CoreSource]
 ) -> tuple[CoreSource, list[CoreSource], ManglePlan]:
-    """Mangle coexisting package versions into ``<out_dir>/src`` and re-root the cores.
+    """Mangle coexisting unit versions into ``<out_dir>/src`` and re-root the cores.
 
     Raises ``BackendError`` (via the planner) if the conflict cannot be mangled safely.
     """
@@ -792,16 +792,17 @@ def _safe_dirname(value: str) -> str:
 
 
 def _print_mangle_report(plan: ManglePlan) -> None:
-    """Surface the package renames the mangler applied (to stderr)."""
+    """Surface the design-unit renames the mangler applied (to stderr)."""
     if not plan.renamed:
         return
     print(
-        "warning: two versions of a package coexist (isolate_namespaces); the generated "
-        "HDL sources were name-mangled so they can build together:",
+        "warning: incompatible versions coexist (isolate_namespaces); the generated HDL "
+        "sources were name-mangled (packages, modules, interfaces, entities) so they can "
+        "build together:",
         file=sys.stderr,
     )
     for name, mangled in sorted(plan.renamed.items()):
-        print(f"  package {name} -> {', '.join(mangled)}", file=sys.stderr)
+        print(f"  {name} -> {', '.join(mangled)}", file=sys.stderr)
 
 
 def _cmd_tree(args: argparse.Namespace) -> int:

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 # Defined before the submodule imports below so a submodule loaded during this
 # package's initialization (e.g. ``registry``) can read it without a circular import.
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 from .backends import (
     Backend,
@@ -57,6 +57,8 @@ from .mangle import (
     ManglePlan,
     declared_modules,
     declared_packages,
+    declared_sv_interfaces,
+    declared_sv_modules,
     declared_vhdl_entities,
     declared_vhdl_packages,
     mangled_name,
@@ -163,6 +165,8 @@ __all__ = [
     "compatibility_group",
     "declared_modules",
     "declared_packages",
+    "declared_sv_interfaces",
+    "declared_sv_modules",
     "declared_vhdl_entities",
     "declared_vhdl_packages",
     "default_cache_root",
