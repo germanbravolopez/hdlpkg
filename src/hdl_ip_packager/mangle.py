@@ -350,10 +350,39 @@ def plan_package_mangling(cores: Sequence[GenCore]) -> ManglePlan:
         rename_map = _rename_map_for(core, owner_of, declares, conflicted, renamed)
         for source in core.files:
             rewritten[source.key] = source.rewrite(rename_map)
+    _reject_colliding_mangled_names(owner_of, declares, conflicted, renamed)
     return ManglePlan(
         rewritten=rewritten,
         renamed={name: tuple(sorted(mangled)) for name, mangled in renamed.items()},
     )
+
+
+def _reject_colliding_mangled_names(
+    owner_of: Mapping[str, PackageRef],
+    declares: Mapping[str, set[str]],
+    conflicted: Mapping[PackageRef, Sequence[GenCore]],
+    renamed: Mapping[str, set[str]],
+) -> None:
+    """Refuse if two versions of a package mangle to the *same* identifier.
+
+    ``mangled_name`` collapses underscore runs to stay VHDL-legal, so a pathological
+    version string (e.g. an opaque tag with adjacent separators like ``1..0`` vs ``1.0``)
+    could map two distinct versions to one name. That would silently reintroduce the very
+    collision mangling exists to prevent, so fail closed instead of emitting broken HDL.
+    """
+    for name, ref in owner_of.items():
+        versions = {
+            str(core.manifest.vlnv.version)
+            for core in conflicted[ref]
+            if name in declares[str(core.manifest.vlnv)]
+        }
+        if len(renamed[name]) < len(versions):
+            raise BackendError(
+                f"Cannot coexist versions of package {name!r}: their mangled names collide "
+                f"({sorted(renamed[name])}) -- the version strings differ only by separators "
+                f"that the HDL-safe name flattens. Use distinct version strings, or resolve "
+                f"to a single version."
+            )
 
 
 def _reject_unmangleable(ref: PackageRef, group: Sequence[GenCore]) -> None:

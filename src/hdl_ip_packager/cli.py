@@ -713,6 +713,10 @@ def _dependency_source(
     if isinstance(registry, LocalDirectoryRegistry):
         return CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
     digest = registry.fetch(vlnv, cache)
+    if checksum and digest != checksum:
+        # gen --locked must fail closed on drift, exactly like install --locked's
+        # lock.verify: a registry serving different bytes than the lock pins is rejected.
+        raise LockfileError(f"Checksum mismatch for {vlnv}: locked {checksum}, got {digest}.")
     return _extract_dependency(cache.get(digest), digest, cache_root)
 
 

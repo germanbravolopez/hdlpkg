@@ -163,6 +163,20 @@ class TestPlanner:
         assert plan.renamed == {}
         assert "import bus::*;" in plan.rewritten[("acme:ip:fifo:1.0.0", "fifo.sv")]
 
+    def test_refuses_when_two_versions_mangle_to_the_same_name(self) -> None:
+        # Two opaque versions differing only by a separator run flatten to one HDL-safe
+        # name (1.0 / 1..0 -> bus_v1_0); the planner must refuse, not silently collide.
+        opaque = (
+            '[package]\nvendor="acme"\nlibrary="common"\nname="bus"\n'
+            'scheme = "opaque"\nversion = "{v}"\n'
+        )
+        cores = [
+            _core(opaque.format(v="1.0"), {"bus.sv": "package bus;\nendpackage\n"}),
+            _core(opaque.format(v="1..0"), {"bus.sv": "package bus;\nendpackage\n"}),
+        ]
+        with pytest.raises(BackendError, match="mangled names collide"):
+            plan_package_mangling(cores)
+
     def test_refuses_colliding_modules(self) -> None:
         cores = [
             _core(_BUS.format(v="1.0.0"), {"m.sv": "module bus; endmodule\n"}),

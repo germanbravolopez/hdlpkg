@@ -10,6 +10,7 @@ locked dependency is neither cached nor reachable.
 
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
@@ -102,6 +103,37 @@ def test_install_locked_then_gen_locked_works_offline(
     )
     assert rc == 0
     assert "sync_fifo.sv" in (tmp_path / "out" / "uart.vc").read_text(encoding="utf-8")
+
+
+def test_gen_locked_fails_closed_on_checksum_drift(
+    store: Path, uart_project: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # gen --locked must verify the fetched digest against the lock, like install --locked.
+    assert cli.main(["resolve", str(uart_project), "--registry", str(store)]) == 0
+    lock = uart_project.parent / "ip.lock"
+    tampered = re.sub(
+        r'checksum = "sha256:[0-9a-f]+"',
+        f'checksum = "sha256:{"0" * 64}"',
+        lock.read_text(encoding="utf-8"),
+    )
+    lock.write_text(tampered, encoding="utf-8")
+    capsys.readouterr()
+    rc = cli.main(
+        [
+            "gen",
+            "sim",
+            str(uart_project),
+            "--registry",
+            str(store),
+            "--cache-dir",
+            str(tmp_path / "cache"),
+            "--locked",
+            "--output",
+            str(tmp_path / "out"),
+        ]
+    )
+    assert rc == 1
+    assert "mismatch" in capsys.readouterr().err.lower()
 
 
 def test_gen_locked_without_cache_or_registry_gives_actionable_error(
