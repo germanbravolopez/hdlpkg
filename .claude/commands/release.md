@@ -133,18 +133,15 @@ gh pr create --base main --title "Release X.Y.Z: <summary>" --body "<summary>"
 
 A release merge is the **last** point at which a regression can be caught before it
 ships to PyPI under a tagged, **immutable** version (a published version can never be
-re-used). Before merging, **review the PR yourself** at high effort — not the default
-level. A release diff is usually wider than a single feature PR (the branch may
-bundle several milestones), so the broader-coverage tier is appropriate even though
-it may surface lower-confidence findings:
+re-used). Before merging, **review the PR yourself** at medium effort:
 
 ```
-/code-review high
+/code-review medium
 ```
 
 This reviews the current `release/X.Y.Z` branch diff against `main`. `/code-review
-high <PR#>` targets the PR explicitly; `ultra` runs the deeper cloud multi-agent
-variant if a particular release ever warrants it. Runs locally.
+medium <PR#>` targets the PR explicitly; bump to `high` for an unusually large or
+risky release, or `ultra` for the deeper cloud multi-agent variant. Runs locally.
 
 **Resolve every finding before merging** — this is a hard gate:
 
