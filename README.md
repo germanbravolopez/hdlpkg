@@ -9,6 +9,11 @@ A package manager and dependency resolver for **HDL IP cores** — bringing the
 ergonomics of `pip` / `npm` / `cargo` / `docker pull` to Verilog, VHDL, and
 SystemVerilog design reuse. Built in **Python 3.11+**.
 
+> **Renamed (0.13.0): `hdl-ip-packager` → `hdlpkg`.** Install with `pip install hdlpkg`
+> and `import hdlpkg`. The old `pip install hdl-ip-packager` still works (it now depends
+> on `hdlpkg`); `import hdl_ip_packager` no longer exists. The `hdlpkg` command and the
+> `ip.toml` / `ip.lock` formats are unchanged.
+
 > **Project status: pre-alpha / foundation.** The versioning, identity (VLNV),
 > and manifest layers are implemented and tested; resolution, packaging, and
 > registries are designed and stubbed. See
