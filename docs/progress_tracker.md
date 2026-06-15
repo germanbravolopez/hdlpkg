@@ -186,14 +186,18 @@ blockers; a clean re-verify is the gate to promote to `1.0.0` (human-gated sign-
 ## Completed Milestones
 
 ### Consumer-demo toolchain build lane (Verilator + GHDL) + VHDL mangling fix — June 2026
-- [x] **The consumer demo now compiles, elaborates, and *simulates* the designs `gen`
-  emits — not just asserts the flow files look right.** A new `build_hdl.py` harness in the
-  [consumer demo](https://github.com/germanbravolopez/hdlpkg-consumer-demo) regenerates each
-  flow and feeds it to the **real** toolchain — **Verilator** for the SystemVerilog SoCs
-  (`soc/`, `soc_conflict/`), **GHDL** for the VHDL one (`soc_vhdl/`) — skipping a target whose
-  tool is absent (so it is a no-op locally) and failing under `--require` for the dedicated,
-  Ubuntu-only `build` CI lane that installs the toolchains. `test_build_hdl.py` covers the
-  harness's pure logic in the toolchain-free matrix.
+- [x] **The consumer demo now compiles and elaborates the designs `gen` emits with the
+  real toolchains — not just asserts the flow files look right.** A new `build_hdl.py`
+  harness in the [consumer demo](https://github.com/germanbravolopez/hdlpkg-consumer-demo)
+  regenerates each flow and feeds it to the **real** toolchain — **Verilator** for the
+  SystemVerilog SoCs (`soc/`, `soc_conflict/`), **GHDL** for the VHDL one (`soc_vhdl/`) —
+  skipping a target whose tool is absent (so it is a no-op locally) and failing under
+  `--require` for the dedicated, Ubuntu-only `build` CI lane that installs the toolchains.
+  `verilator --binary` compiles + elaborates + links each SV design (the SoCs are
+  `$finish`-less structural stubs, so the harness stops at the linked model rather than
+  running it forever); the GHDL flow `gen` emits includes the run, and the event-less VHDL
+  design returns at time zero. `test_build_hdl.py` covers the harness's pure logic in the
+  toolchain-free matrix.
 - [x] **The build lane immediately earned its keep — it caught a real tool bug.** The VHDL
   package name-mangler emitted `vbus__v1_1_0` (double underscore), which is valid
   SystemVerilog but **invalid VHDL** (consecutive underscores are illegal in an identifier),
