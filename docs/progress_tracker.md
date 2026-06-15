@@ -18,20 +18,16 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`0.12.0`** cut — an **additive, internal** release over `0.11.0` (no
-`ip.toml`/`ip.lock`/CLI/registry-protocol break): `gen` now **name-mangles coexisting
-modules, interfaces, and entities**, not just packages, under `[resolution] on-conflict =
-"isolate_namespaces"`. The pure `mangle.py` gained kind-aware rewrite dispatch and
-declaration + instantiation position rules per unit kind — SV modules/programs (incl.
-parameter maps, instance arrays, multiple instances, and **generate-nested** instances), SV
-interfaces (also as a port/`virtual` type and modport select), and VHDL entities (direct +
-component instantiation, generate-nested) — with a **classify-all-or-refuse** safety model
-for SV and a cross-ref guard. No new dependency (approach A). Everything before it carries
-forward. **Next**: `0.13.0` is the **`hdl-ip-packager` -> `hdlpkg` rename** (the import package
-and PyPI distribution take the name the CLI already uses; no `ip.toml`/`ip.lock`/CLI change —
-see [docs/design/rename-to-hdlpkg.md](design/rename-to-hdlpkg.md)). The git/IP-XACT work then
-ships as `0.14.0` (Git-registry hardening + richer IP-XACT mapping + an IP-XACT 2022 output
-mode; see [docs/design/0.13.0-git-and-ipxact.md](design/0.13.0-git-and-ipxact.md)). The project
+**Version**: **`0.13.0`** cut — the **`hdl-ip-packager` -> `hdlpkg` rename**. The import
+package (`hdl_ip_packager` -> `hdlpkg`, the `src/hdlpkg/` dir) and the PyPI distribution
+(`hdl-ip-packager` -> `hdlpkg`) now take the name the CLI has always used; the GitHub repo is
+renamed too. **No `ip.toml`/`ip.lock`/CLI change** (the `hdlpkg` command and on-disk formats
+are unchanged — only `import hdlpkg` and `pip install hdlpkg` differ). A `hdl-ip-packager`
+deprecation shim keeps the old `pip install` resolving to `hdlpkg`; `import hdl_ip_packager`
+is a clean break (pre-1.0). See [docs/design/rename-to-hdlpkg.md](design/rename-to-hdlpkg.md).
+The prior release (`0.12.0`, as `hdl-ip-packager`) added module/interface/entity coexistence.
+**Next**: `0.14.0` — Git-registry hardening + richer IP-XACT mapping + an IP-XACT 2022 output
+mode (see [docs/design/0.13.0-git-and-ipxact.md](design/0.13.0-git-and-ipxact.md)). The project
 stays **pre-1.0** (formats keep the licence to change), validated continuously via
 `hdlpkg-livetest`; `1.0.0` is a deliberate freeze for later. See the Release plan.
 
@@ -181,6 +177,17 @@ the next `0.x` release.
 ---
 
 ## Completed Milestones
+
+### Release 0.13.0 — the hdl-ip-packager -> hdlpkg rename — June 2026
+- [x] **Cut `0.13.0`**: renamed the import package `hdl_ip_packager` -> `hdlpkg` (moved
+  `src/hdl_ip_packager/` -> `src/hdlpkg/`) and the PyPI distribution `hdl-ip-packager` ->
+  `hdlpkg`, taking the name the CLI already used; renamed the GitHub repo and updated the
+  sibling repos (`hdlpkg-consumer-demo`, `hdlpkg-livetest`). **No `ip.toml`/`ip.lock`/CLI or
+  format change** — only `import hdlpkg` / `pip install hdlpkg` differ. Clean break on the
+  import name (no `hdl_ip_packager` alias); a `hdl-ip-packager` deprecation shim keeps the old
+  `pip install` resolving to `hdlpkg`. Bumped `pyproject.toml` + `src/hdlpkg/__init__.py` to
+  `0.13.0`; regenerated the man page. Plan: [docs/design/rename-to-hdlpkg.md](design/rename-to-hdlpkg.md).
+  Next: `0.14.0` (Git-registry hardening + richer IP-XACT).
 
 ### Release 0.12.0 — June 2026
 - [x] **Cut `0.12.0`**, an additive/internal release (no `ip.toml`/`ip.lock`/CLI/registry break):

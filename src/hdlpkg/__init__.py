@@ -13,7 +13,7 @@ from __future__ import annotations
 
 # Defined before the submodule imports below so a submodule loaded during this
 # package's initialization (e.g. ``registry``) can read it without a circular import.
-__version__ = "0.12.0"
+__version__ = "0.13.0"
 
 from .backends import (
     Backend,
