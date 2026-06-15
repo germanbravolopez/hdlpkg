@@ -18,6 +18,8 @@ docs/
 ├── progress_tracker.md           (status + ordered roadmap; read before working)
 ├── modules/                      (the user manual: one page per module + the CLI)
 │   └── README.md                 (module-reference index)
+├── design/                       (design proposals for in-flight work)
+│   └── module-entity-coexistence.md  (0.12.0: module/entity multi-version coexistence)
 └── research/
     └── state_of_the_art.md       (survey of package managers + HDL tools; design rationale)
 ```
@@ -40,6 +42,7 @@ When a new module lands, add its page there and register it in that index and in
 | [architecture.md](./architecture.md) | How it is built and how it grows | 12 min |
 | [progress_tracker.md](./progress_tracker.md) | What is done, the roadmap, open issues | 5 min |
 | [research/state_of_the_art.md](./research/state_of_the_art.md) | Why the design is what it is | 15 min |
+| [design/module-entity-coexistence.md](./design/module-entity-coexistence.md) | Accepted design for 0.12.0: extending name-mangling to SV modules/interfaces + VHDL entities | 8 min |
 | [INDEX.md](./INDEX.md) | Find any file, concept, or topic | As needed |
 
 ## Related (outside docs/)
