@@ -259,8 +259,12 @@ scanner that touches only unambiguous package positions — SystemVerilog
 (`package`/`use work.<name>`) — so a coincidental signal name or a name in a
 comment/string is never changed, no parser needed. The CLI materializes the rewritten
 tree into `<output>/src/` and builds over it (`build_eda_design(allow_multiversion=True)`).
-*Module*/interface (SV) and *entity* (VHDL) coexistence is refused (ambiguous
-instantiation position needs a real HDL frontend).
+*Module*/interface (SV) and *entity* (VHDL) coexistence is **refused by design**: an
+SV module instantiation (`foo u_foo (...)`) has no leading keyword and cannot be told
+apart from other constructs without a full HDL parser, so the refusal (with a
+why-and-remedy `BackendError`) is the correct behavior until that frontend lands.
+(A VHDL-entity-only subset using the unambiguous `entity work.X` form is feasible
+parser-free but was consciously deferred — see the tracker.)
 
 ### IP-XACT export *(implemented — [ipxact.py](../src/hdl_ip_packager/ipxact.py))*
 `export-ipxact` renders a manifest as an IEEE **1685-2014** component XML via the

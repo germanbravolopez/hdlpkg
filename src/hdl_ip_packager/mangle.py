@@ -373,8 +373,13 @@ def _reject_unmangleable(ref: PackageRef, group: Sequence[GenCore]) -> None:
     if clashing:
         raise BackendError(
             f"Cannot coexist two versions of {ref}: they declare colliding module/entity "
-            f"name(s) {clashing}, and automatic name-mangling is only implemented for "
-            f"packages. Resolve to a single version or split the build."
+            f"name(s) {clashing}. Automatic name-mangling is implemented for packages only "
+            f"-- a package reference ('::' / 'use work.') sits in an unambiguous position, "
+            f"but a module/component instantiation ('foo u_foo (...)') cannot be told apart "
+            f"from other constructs without a full HDL parser, so rewriting it could silently "
+            f"corrupt the design. Resolve to a single version ([resolution] on-conflict = "
+            f"'use_latest', or tighten the constraint), or expose the shared logic as a "
+            f"package (which is name-mangled)."
         )
 
 

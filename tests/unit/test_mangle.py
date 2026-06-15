@@ -171,6 +171,20 @@ class TestPlanner:
         with pytest.raises(BackendError, match="colliding module/entity"):
             plan_package_mangling(cores)
 
+    def test_module_refusal_explains_why_and_the_remedy(self) -> None:
+        # The refusal must say why (instantiation is ambiguous without a parser) and
+        # what to do (resolve to one version, or expose a package).
+        cores = [
+            _core(_BUS.format(v="1.0.0"), {"m.sv": "module bus; endmodule\n"}),
+            _core(_BUS.format(v="2.0.0"), {"m.sv": "module bus; endmodule\n"}),
+        ]
+        with pytest.raises(BackendError) as excinfo:
+            plan_package_mangling(cores)
+        message = str(excinfo.value)
+        assert "without a full HDL parser" in message
+        assert "use_latest" in message
+        assert "package" in message
+
     def test_refuses_unknown_language(self) -> None:
         cores = [
             _core(_BUS.format(v="1.0.0"), {"bus.x": "anything\n"}, language="chiselsource"),
