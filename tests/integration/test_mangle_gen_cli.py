@@ -77,10 +77,10 @@ def test_gen_mangles_coexisting_packages(
     fifo = (src / "acme_ip_fifo_1.0.0" / "rtl" / "src.sv").read_text()
     legacy = (src / "acme_ip_legacy_1.0.0" / "rtl" / "src.sv").read_text()
 
-    assert "package bus_pkg__v1_1_0;" in bus_v1
-    assert "package bus_pkg__v2_0_0;" in bus_v2
-    assert "import bus_pkg__v1_1_0::*;" in fifo  # fifo (^1) -> 1.1.0
-    assert "import bus_pkg__v2_0_0::*;" in legacy  # legacy (^2) -> 2.0.0
+    assert "package bus_pkg_v1_1_0;" in bus_v1
+    assert "package bus_pkg_v2_0_0;" in bus_v2
+    assert "import bus_pkg_v1_1_0::*;" in fifo  # fifo (^1) -> 1.1.0
+    assert "import bus_pkg_v2_0_0::*;" in legacy  # legacy (^2) -> 2.0.0
 
     # The generated .vc references the mangled copies under src/, and the original
     # source on disk is left untouched.

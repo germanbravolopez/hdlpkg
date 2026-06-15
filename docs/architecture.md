@@ -252,7 +252,7 @@ specifics stay out of the manifest/resolver/packaging layers.
 ### Name-mangling *(implemented for SystemVerilog + VHDL packages — [mangle.py](../src/hdl_ip_packager/mangle.py))*
 When `isolate_namespaces` keeps two versions of one package, they collide in HDL's one
 global namespace. Under `gen` the pure `mangle.py` rewrites each version's **package**
-name to a unique one (`bus_pkg` → `bus_pkg__v1_1_0`) and rewrites every consumer's
+name to a unique one (`bus_pkg` → `bus_pkg_v1_1_0`) and rewrites every consumer's
 references to the version it resolved to. Each language has a comment/string-aware
 scanner that touches only unambiguous package positions — SystemVerilog
 (`package`/`endpackage`/`import`/`::`) and VHDL, case-insensitively

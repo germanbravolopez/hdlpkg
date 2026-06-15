@@ -3,8 +3,8 @@
 When the resolver keeps two versions of one package (the ``isolate_namespaces``
 conflict policy), they collide at elaboration: a ``package`` name lives in one global
 namespace, so two ``package bus_pkg`` declarations clash. This module rewrites each
-version's package name to a version-unique one (``bus_pkg`` -> ``bus_pkg__v1_1_0`` /
-``bus_pkg__v2_0_0``) and rewrites every consumer's references to the version *that
+version's package name to a version-unique one (``bus_pkg`` -> ``bus_pkg_v1_1_0`` /
+``bus_pkg_v2_0_0``) and rewrites every consumer's references to the version *that
 consumer resolved to*, so both can build.
 
 Both **SystemVerilog/Verilog** and **VHDL** packages are handled, each with its own
@@ -101,11 +101,15 @@ def _vhdl_tokens(source: str) -> list[tuple[str, str]]:
 def mangled_name(name: str, version: AnyVersion) -> str:
     """Return *name* suffixed with a version-unique, HDL-safe tag.
 
-    ``mangled_name("bus_pkg", Version(1, 1, 0))`` -> ``"bus_pkg__v1_1_0"``. The result
-    is a valid identifier in both SystemVerilog and VHDL.
+    ``mangled_name("bus_pkg", Version(1, 1, 0))`` -> ``"bus_pkg_v1_1_0"``. The result
+    must be a valid identifier in **both** SystemVerilog and VHDL, because a package
+    name maps to a single mangled name shared by every consumer regardless of
+    language. VHDL forbids consecutive underscores (and a leading/trailing one), so
+    the suffix uses a single ``_v`` separator and any run of underscores is collapsed
+    -- a single ``_`` is the only delimiter legal in both languages.
     """
     suffix = re.sub(r"[^0-9A-Za-z]", "_", str(version))
-    return f"{name}__v{suffix}"
+    return re.sub(r"_+", "_", f"{name}_v{suffix}").strip("_")
 
 
 def _tokens(source: str) -> list[tuple[str, str]]:

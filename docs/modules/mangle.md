@@ -12,7 +12,7 @@ it operates on source text passed in, so the file work stays in the [CLI](cli.md
 The [resolver](resolver.md)'s `isolate_namespaces` policy keeps incompatible versions
 of a package, but SystemVerilog puts every `package` name in **one global namespace**,
 so two `package bus_pkg;` declarations collide at elaboration. Mangling renames each
-version (`bus_pkg` → `bus_pkg__v1_1_0` / `bus_pkg__v2_0_0`) and rewrites every
+version (`bus_pkg` → `bus_pkg_v1_1_0` / `bus_pkg_v2_0_0`) and rewrites every
 consumer's references to the version *it resolved to*, so both build together. This is
 the "physical" half of multi-version coexistence (the "bookkeeping" half is the
 resolver/lock/tree).
@@ -44,7 +44,7 @@ untouched.
 
 | Function | Description |
 |----------|-------------|
-| `mangled_name(name, version) -> str` | `("bus_pkg", 1.1.0)` → `"bus_pkg__v1_1_0"` (HDL-safe). |
+| `mangled_name(name, version) -> str` | `("bus_pkg", 1.1.0)` → `"bus_pkg_v1_1_0"` (HDL-safe). |
 | `declared_packages` / `declared_vhdl_packages` | The package names declared in an SV / VHDL source. |
 | `declared_modules` / `declared_vhdl_entities` | The SV module/interface / VHDL entity names (refusal check). |
 | `rewrite_sv_packages` / `rewrite_vhdl_packages` | Rewrite package declarations + references per *renames* (VHDL keys are lowercased). |
@@ -63,6 +63,6 @@ tree into `<output>/src/`, and builds the design over it
 from hdl_ip_packager import rewrite_sv_packages
 
 src = "module fifo; import bus_pkg::*; logic [DATA_WIDTH-1:0] c; endmodule"
-print(rewrite_sv_packages(src, {"bus_pkg": "bus_pkg__v1_1_0"}))
-# module fifo; import bus_pkg__v1_1_0::*; logic [DATA_WIDTH-1:0] c; endmodule
+print(rewrite_sv_packages(src, {"bus_pkg": "bus_pkg_v1_1_0"}))
+# module fifo; import bus_pkg_v1_1_0::*; logic [DATA_WIDTH-1:0] c; endmodule
 ```

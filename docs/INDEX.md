@@ -161,7 +161,7 @@ quick-find reference.
 | **Opaque version** | A non-SemVer version token (`D5020100`) — exact-pinned, no ordering (`OpaqueVersion`) |
 | **Compatibility group** | The set a version belongs to for unification (SemVer major / CalVer year / one monotonic group / opaque token) |
 | **Conflict policy** | `[resolution] on-conflict`: `fail_on_conflict` / `use_latest` / `isolate_namespaces` |
-| **Name-mangling** | Renaming a coexisting package (SystemVerilog or VHDL) per version (`bus_pkg` -> `bus_pkg__v1_1_0`) so two versions build together (`mangle.py`) |
+| **Name-mangling** | Renaming a coexisting package (SystemVerilog or VHDL) per version (`bus_pkg` -> `bus_pkg_v1_1_0`) so two versions build together (`mangle.py`) |
 | **IP-XACT** | IEEE 1685 XML standard for packaging/describing IP |
 
 ## Topics → where to look

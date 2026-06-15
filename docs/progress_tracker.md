@@ -166,7 +166,6 @@ blockers; a clean re-verify is the gate to promote to `1.0.0` (human-gated sign-
 
 | Issue | File | Notes |
 |-------|------|-------|
-| Full compile/elaborate/simulate of the consumer demo's SV + VHDL outputs | consumer demo (`verify.py`, `demo.py`, `.github/workflows/verify.yml`), `backends/` | **Strengthen the end-to-end proof.** Today the consumer demo (and the in-repo `gen` tests) only assert that `gen` *emits* the right tool-flow inputs (`.vc`/`run_ghdl.sh`/mangled sources); nothing actually **builds** them. Add a real toolchain pass that compiles, elaborates, and simulates the generated designs — `verilator`/`icarus` for the SystemVerilog SoCs (`soc/`, `soc_conflict/`) and `ghdl` for the VHDL one (`soc_vhdl/`) — so we prove the generated flows genuinely elaborate (and that the package name-mangling produces designs that *build*, not just text that looks right). Needs the HDL toolchains installed on the runner (e.g. `ghdl`, `verilator`/`iverilog` via apt or a setup action), so it is a separate, possibly opt-in CI lane from the pure-Python `verify` matrix. This feeds the 1.0 **third-party consume** confidence but does not itself gate the release. |
 | Encrypted IP distribution (IEEE 1735) | `packaging.py`, `registry.py`, `manifest.py`, `cli.py` | **Future feature.** Let a producer distribute a core whose HDL source is **encrypted**, so a consumer can resolve/install/`gen` against it (the tool can drive a tool flow) without the source ever being readable on disk. Two distinct layers, decide which to build: **(a) Standard HDL IP encryption (IEEE 1735 / `pragma protect`)** — the cross-vendor norm. Each source file carries an encrypted envelope (a symmetric session key wrapped under each *tool vendor's* public key + AES/RSA-encrypted payload, IEEE 1735 v1/v2 with "rights" digests). The EDA tool decrypts at compile time; the packager's job is to **carry, not break** these envelopes — pack/`extract`/SBOM must treat an encrypted file as opaque, the deterministic-pack digest still pins ciphertext, and `gen` must not assume it can read the source. The tool would *not* implement the crypto itself (vendor keys live in the EDA tools); at most it could shell out to `vivado -encrypt`/`vlog +protect` to *produce* envelopes. **(b) At-rest/transport encryption of the `.ipkg`** — encrypt the whole artifact in the registry/cache for confidential distribution (e.g. age/GPG or an OCI-layer key), decrypted on `pull` with a consumer key. This is independent of HDL-tool semantics and simpler, but does **not** give the per-tool, compile-time protection (a) does. Open questions: where keys/recipients are declared (a `[package]`/`[encryption]` manifest key vs. out-of-band), how it interacts with content-addressing (the digest must pin what is *stored*), how the SBOM marks a component encrypted, and how `validate`/`info` behave when source is unreadable. Needs a real EDA tool (or an interop fixture) to test (a) honestly — defer like the Git/OCI/Sigstore work. |
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git backend. Checksums + SBOM already ship; this adds authenticity on top. |
 | Richer IP-XACT mapping (bus interfaces, parameters) + IP-XACT 2022 | `ipxact.py`, tests | Export now **validates against the official 1685-2014 XSD** (see Completed Milestones). Remaining, optional: map more of the standard (bus interfaces, parameters, memory maps) and consider an IP-XACT **2022** (1685-2022) output mode. Not needed for the current Vivado-ingest use case. |
@@ -185,6 +184,29 @@ blockers; a clean re-verify is the gate to promote to `1.0.0` (human-gated sign-
 ---
 
 ## Completed Milestones
+
+### Consumer-demo toolchain build lane (Verilator + GHDL) + VHDL mangling fix — June 2026
+- [x] **The consumer demo now compiles, elaborates, and *simulates* the designs `gen`
+  emits — not just asserts the flow files look right.** A new `build_hdl.py` harness in the
+  [consumer demo](https://github.com/germanbravolopez/hdlpkg-consumer-demo) regenerates each
+  flow and feeds it to the **real** toolchain — **Verilator** for the SystemVerilog SoCs
+  (`soc/`, `soc_conflict/`), **GHDL** for the VHDL one (`soc_vhdl/`) — skipping a target whose
+  tool is absent (so it is a no-op locally) and failing under `--require` for the dedicated,
+  Ubuntu-only `build` CI lane that installs the toolchains. `test_build_hdl.py` covers the
+  harness's pure logic in the toolchain-free matrix.
+- [x] **The build lane immediately earned its keep — it caught a real tool bug.** The VHDL
+  package name-mangler emitted `vbus__v1_1_0` (double underscore), which is valid
+  SystemVerilog but **invalid VHDL** (consecutive underscores are illegal in an identifier),
+  so the name-mangled coexistence designs compiled in SV but **would not analyze in GHDL** —
+  a defect the text-only `gen` assertions could never have surfaced. Fixed `mangled_name`
+  ([`mangle.py`](../src/hdl_ip_packager/mangle.py)) to use a single `_v` separator and collapse
+  any run of underscores, so the result is a legal identifier in **both** languages
+  (`bus_pkg`/`vbus` -> `bus_pkg_v1_1_0` / `vbus_v1_1_0`); a package name maps to one mangled
+  name shared by all consumers, so a uniform, both-legal scheme is required. Added a regression
+  test asserting the result never contains `__` and never starts/ends with `_`; updated the SV
+  and VHDL planner/integration assertions. The demo also carried a fixture bug the lane found —
+  a FIFO signal named `cell` (a Verilog-2001 config reserved word) — renamed to `slot`.
+  This lane feeds 1.0 third-party-consume confidence but does not itself gate the release.
 
 ### IP-XACT export validated against the official 1685-2014 XSD — June 2026
 - [x] **`export-ipxact` output is now proven schema-valid against the official Accellera
