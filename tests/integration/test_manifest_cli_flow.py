@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager import cli
-from hdl_ip_packager.manifest import MANIFEST_FILENAME, Manifest
+from hdlpkg import cli
+from hdlpkg.manifest import MANIFEST_FILENAME, Manifest
 
 pytestmark = pytest.mark.integration
 

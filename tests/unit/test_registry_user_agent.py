@@ -13,8 +13,8 @@ import json
 
 import pytest
 
-from hdl_ip_packager import registry as reg
-from hdl_ip_packager.registry import _USER_AGENT, HttpRegistry, OciRegistry
+from hdlpkg import registry as reg
+from hdlpkg.registry import _USER_AGENT, HttpRegistry, OciRegistry
 
 pytestmark = pytest.mark.unit
 

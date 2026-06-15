@@ -24,7 +24,7 @@ it). A core's "artifact" is its deterministic ``.ipkg`` (see ``packaging.py``), 
 SHA-256 is the same content address the cache keys on and the lockfile pins.
 
 The network backends are **private by design**: a token from
-``hdl_ip_packager.credentials`` (set by ``hdlpkg login``) authenticates a self-hosted
+``hdlpkg.credentials`` (set by ``hdlpkg login``) authenticates a self-hosted
 registry, so teams can share IP inside a company network without publishing publicly.
 :func:`registry_from_location` is the one entry point the CLI uses -- it dispatches a
 location string to the right backend by URL scheme (a bare path / ``path:`` -> local,

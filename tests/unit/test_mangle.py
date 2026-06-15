@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager.exceptions import BackendError
-from hdl_ip_packager.mangle import (
+from hdlpkg.exceptions import BackendError
+from hdlpkg.mangle import (
     GenCore,
     GenSourceFile,
     declared_modules,
@@ -22,8 +22,8 @@ from hdl_ip_packager.mangle import (
     rewrite_sv_packages,
     rewrite_vhdl_packages,
 )
-from hdl_ip_packager.manifest import Manifest
-from hdl_ip_packager.version import Version
+from hdlpkg.manifest import Manifest
+from hdlpkg.version import Version
 
 pytestmark = pytest.mark.unit
 

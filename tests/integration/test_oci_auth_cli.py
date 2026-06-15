@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from hdl_ip_packager import cli
+from hdlpkg import cli
 
 pytestmark = pytest.mark.integration
 

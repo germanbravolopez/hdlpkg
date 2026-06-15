@@ -3,8 +3,8 @@
 Build and read the distributable `.ipkg` artifact — the single-file form of an IP
 core used for distribution.
 
-- **Source**: [src/hdl_ip_packager/packaging.py](../../src/hdl_ip_packager/packaging.py)
-- **Import**: `from hdl_ip_packager import pack_core, extract_ipkg, manifest_from_ipkg, artifact_filename`
+- **Source**: [src/hdlpkg/packaging.py](../../src/hdlpkg/packaging.py)
+- **Import**: `from hdlpkg import pack_core, extract_ipkg, manifest_from_ipkg, artifact_filename`
 
 ## What an `.ipkg` is
 
@@ -46,7 +46,7 @@ a corrupt archive, or an unsafe member while extracting.
 ## Example
 
 ```python
-from hdl_ip_packager import Manifest, pack_core, manifest_from_ipkg, sha256_digest
+from hdlpkg import Manifest, pack_core, manifest_from_ipkg, sha256_digest
 
 m = Manifest.from_path("examples/fifo/ip.toml")
 data = pack_core(m, "examples/fifo")

@@ -4,8 +4,8 @@ Generate a Software Bill of Materials in CycloneDX format, recording exactly wha
 released artifact contains — the core plus its resolved dependencies — for provenance
 and licence audit. Pure module.
 
-- **Source**: [src/hdl_ip_packager/sbom.py](../../src/hdl_ip_packager/sbom.py)
-- **Import**: `from hdl_ip_packager import build_cyclonedx, CYCLONEDX_SPEC_VERSION`
+- **Source**: [src/hdlpkg/sbom.py](../../src/hdlpkg/sbom.py)
+- **Import**: `from hdlpkg import build_cyclonedx, CYCLONEDX_SPEC_VERSION`
 
 ## API
 
@@ -43,7 +43,7 @@ infrastructure to do honestly.
 ## Example
 
 ```python
-from hdl_ip_packager import Manifest, build_cyclonedx
+from hdlpkg import Manifest, build_cyclonedx
 
 root = Manifest.from_path("examples/uart/ip.toml")
 fifo = Manifest.from_path("examples/fifo/ip.toml")

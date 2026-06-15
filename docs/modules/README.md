@@ -1,6 +1,6 @@
 # Module reference (user manual)
 
-Per-module reference for the `hdl_ip_packager` library and the `hdlpkg` CLI. Each
+Per-module reference for the `hdlpkg` library and the `hdlpkg` CLI. Each
 page covers one module's purpose, public API, behavior, errors, and a worked example.
 New to the tool? Start with the [User guide](../user_guide.md); for the design
 rationale and how the modules fit together, see [architecture.md](../architecture.md).
@@ -49,4 +49,4 @@ the edges (the CLI and registry/cache). The pages below follow that flow:
 | [CLI (`hdlpkg`)](cli.md) | Full command reference for every `hdlpkg` subcommand |
 
 > The public API is re-exported from the top-level package, so
-> `from hdl_ip_packager import Manifest, resolve, pack_core, …` works directly.
+> `from hdlpkg import Manifest, resolve, pack_core, …` works directly.

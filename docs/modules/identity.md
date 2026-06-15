@@ -2,8 +2,8 @@
 
 How an IP core is named. Pure module (parsing/formatting only).
 
-- **Source**: [src/hdl_ip_packager/vlnv.py](../../src/hdl_ip_packager/vlnv.py)
-- **Import**: `from hdl_ip_packager import PackageRef, Vlnv`
+- **Source**: [src/hdlpkg/vlnv.py](../../src/hdlpkg/vlnv.py)
+- **Import**: `from hdlpkg import PackageRef, Vlnv`
 
 ## Purpose
 
@@ -58,7 +58,7 @@ VLNV string with no scheme, try SemVer first and fall back to opaque.
 ## Example
 
 ```python
-from hdl_ip_packager import PackageRef, Vlnv
+from hdlpkg import PackageRef, Vlnv
 
 ref = PackageRef.parse("acme:comm:uart")
 vlnv = ref.with_version("1.2.0")

@@ -4,8 +4,8 @@ Stored credentials for authenticating to **private** registries, so a team can p
 to and consume from a self-hosted HTTP or [OCI](registry.md) registry without the cores
 ever being public.
 
-- **Source**: [src/hdl_ip_packager/credentials.py](../../src/hdl_ip_packager/credentials.py)
-- **Import**: `from hdl_ip_packager import Credential, CredentialStore, load_credentials, save_credentials, registry_host, load_docker_config`
+- **Source**: [src/hdlpkg/credentials.py](../../src/hdlpkg/credentials.py)
+- **Import**: `from hdlpkg import Credential, CredentialStore, load_credentials, save_credentials, registry_host, load_docker_config`
 
 ## Model
 
@@ -65,7 +65,7 @@ network registry location with no host.
 ## Example
 
 ```python
-from hdl_ip_packager import Credential, load_credentials, save_credentials, registry_host
+from hdlpkg import Credential, load_credentials, save_credentials, registry_host
 
 host = registry_host("oci://harbor.corp/ip/acme")          # "harbor.corp"
 # a robot account for a managed registry (token-exchange via HTTP Basic):

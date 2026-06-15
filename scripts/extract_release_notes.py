@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 #: PyPI project slug (the distribution name, with the dashes PyPI normalizes to).
-_PYPI_PROJECT = "hdl-ip-packager"
+_PYPI_PROJECT = "hdlpkg"
 
 #: A markdown heading at the section level used for release entries, or shallower.
 _HEADING = re.compile(r"^#{2,3}\s")

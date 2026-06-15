@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager.credentials import CredentialStore
-from hdl_ip_packager.exceptions import RegistryError
-from hdl_ip_packager.registry import (
+from hdlpkg.credentials import CredentialStore
+from hdlpkg.exceptions import RegistryError
+from hdlpkg.registry import (
     HttpRegistry,
     LocalRegistry,
     OciRegistry,

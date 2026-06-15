@@ -1,12 +1,12 @@
-"""Unit tests for hdl_ip_packager.manifest (ip.toml parsing + validation)."""
+"""Unit tests for hdlpkg.manifest (ip.toml parsing + validation)."""
 
 from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager.exceptions import ManifestError
-from hdl_ip_packager.manifest import Manifest
-from hdl_ip_packager.version import Version
+from hdlpkg.exceptions import ManifestError
+from hdlpkg.manifest import Manifest
+from hdlpkg.version import Version
 
 pytestmark = pytest.mark.unit
 

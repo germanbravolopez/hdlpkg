@@ -1,7 +1,7 @@
 """Render a resolved dependency graph as an ASCII tree (behind ``hdlpkg tree``).
 
 Pure presentation: :func:`render_dependency_tree` takes the root manifest, the
-resolver's selected :class:`~hdl_ip_packager.vlnv.Vlnv`\\ (s) per package, and the
+resolver's selected :class:`~hdlpkg.vlnv.Vlnv`\\ (s) per package, and the
 resolved manifests (so it can recurse into each dependency's own dependencies),
 and returns the printable string. No I/O -- the CLI supplies the resolved data.
 

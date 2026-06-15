@@ -31,7 +31,7 @@ from pathlib import Path
 # Importable both as ``scripts/gen_manpage.py`` and via the installed package.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from hdl_ip_packager import __version__, cli
+from hdlpkg import __version__, cli
 
 DEFAULT_OUTPUT = Path(__file__).resolve().parent.parent / "man" / "hdlpkg.1"
 

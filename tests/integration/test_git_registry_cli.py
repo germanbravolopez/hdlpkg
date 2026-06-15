@@ -16,10 +16,10 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager import cli
-from hdl_ip_packager.exceptions import RegistryError
-from hdl_ip_packager.registry import GitRegistry
-from hdl_ip_packager.vlnv import PackageRef
+from hdlpkg import cli
+from hdlpkg.exceptions import RegistryError
+from hdlpkg.registry import GitRegistry
+from hdlpkg.vlnv import PackageRef
 
 pytestmark = [
     pytest.mark.integration,

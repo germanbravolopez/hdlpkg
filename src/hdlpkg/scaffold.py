@@ -6,7 +6,7 @@ command: it performs no I/O, so the CLI layer owns prompting for the fields and
 writing the file to disk.
 
 The rendered text is deliberately a *valid* manifest -- it round-trips through
-:class:`~hdl_ip_packager.manifest.Manifest`, so a freshly scaffolded core passes
+:class:`~hdlpkg.manifest.Manifest`, so a freshly scaffolded core passes
 ``hdlpkg validate`` immediately and gives the author a working skeleton (one
 fileset, one simulation target) to grow from.
 """

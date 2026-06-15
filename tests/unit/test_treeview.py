@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager.manifest import Manifest
-from hdl_ip_packager.treeview import render_dependency_tree
+from hdlpkg.manifest import Manifest
+from hdlpkg.treeview import render_dependency_tree
 
 pytestmark = pytest.mark.unit
 

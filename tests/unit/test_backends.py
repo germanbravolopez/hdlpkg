@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager.backends import (
+from hdlpkg.backends import (
     EdaDesign,
     EdaFile,
     get_backend,
     supported_toolflows,
 )
-from hdl_ip_packager.backends.ghdl import GhdlBackend
-from hdl_ip_packager.backends.icarus import IcarusBackend
-from hdl_ip_packager.backends.verilator import VerilatorBackend
-from hdl_ip_packager.backends.vivado import VivadoBackend
-from hdl_ip_packager.backends.yosys import YosysBackend
-from hdl_ip_packager.exceptions import BackendError
+from hdlpkg.backends.ghdl import GhdlBackend
+from hdlpkg.backends.icarus import IcarusBackend
+from hdlpkg.backends.verilator import VerilatorBackend
+from hdlpkg.backends.vivado import VivadoBackend
+from hdlpkg.backends.yosys import YosysBackend
+from hdlpkg.exceptions import BackendError
 
 pytestmark = pytest.mark.unit
 

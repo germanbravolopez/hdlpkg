@@ -1,4 +1,4 @@
-"""Enable ``python -m hdl_ip_packager`` as an alias for the ``hdlpkg`` CLI."""
+"""Enable ``python -m hdlpkg`` as an alias for the ``hdlpkg`` CLI."""
 
 from __future__ import annotations
 

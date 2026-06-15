@@ -4,8 +4,8 @@ Export a manifest as an IEEE 1685 (IP-XACT) component XML, so a core authored wi
 this packager can be consumed by the wider EDA tool ecosystem (Vivado in particular).
 Pure module.
 
-- **Source**: [src/hdl_ip_packager/ipxact.py](../../src/hdl_ip_packager/ipxact.py)
-- **Import**: `from hdl_ip_packager import to_ipxact, IPXACT_NAMESPACE`
+- **Source**: [src/hdlpkg/ipxact.py](../../src/hdlpkg/ipxact.py)
+- **Import**: `from hdlpkg import to_ipxact, IPXACT_NAMESPACE`
 
 ## Purpose
 
@@ -43,7 +43,7 @@ validating it against the official Accellera XSD is a tracked follow-up.
 ## Example
 
 ```python
-from hdl_ip_packager import Manifest, to_ipxact
+from hdlpkg import Manifest, to_ipxact
 
 xml = to_ipxact(Manifest.from_path("examples/uart/ip.toml"))
 assert xml.startswith('<?xml version="1.0"')

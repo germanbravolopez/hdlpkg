@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager.editing import add_dependency
-from hdl_ip_packager.manifest import Manifest
-from hdl_ip_packager.version import VersionConstraint
-from hdl_ip_packager.vlnv import PackageRef
+from hdlpkg.editing import add_dependency
+from hdlpkg.manifest import Manifest
+from hdlpkg.version import VersionConstraint
+from hdlpkg.vlnv import PackageRef
 
 pytestmark = pytest.mark.unit
 

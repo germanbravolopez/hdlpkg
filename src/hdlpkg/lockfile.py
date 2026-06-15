@@ -3,7 +3,7 @@
 A lockfile is the generated, committed record of a resolve: the exact `Vlnv`
 chosen for every package, plus an integrity `checksum` and the `source` it came
 from. Committing it gives reproducible, verifiable builds -- the Cargo / Orbit /
-Go model. It is the serialized form of a :class:`~hdl_ip_packager.resolver.Resolution`.
+Go model. It is the serialized form of a :class:`~hdlpkg.resolver.Resolution`.
 
 The format is TOML (so it reads like ``ip.toml``), with a schema ``version`` and a
 ``[[package]]`` array sorted by VLNV for a stable, diff-friendly file::

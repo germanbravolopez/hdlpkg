@@ -22,8 +22,8 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from hdl_ip_packager.exceptions import InvalidConstraintError, InvalidVersionError
-from hdl_ip_packager.version import Version, VersionConstraint
+from hdlpkg.exceptions import InvalidConstraintError, InvalidVersionError
+from hdlpkg.version import Version, VersionConstraint
 
 pytestmark = pytest.mark.unit
 

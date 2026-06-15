@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import pytest
 
-from hdl_ip_packager.exceptions import ResolutionError
-from hdl_ip_packager.manifest import Dependency, Manifest
-from hdl_ip_packager.resolver import Resolution, resolve
-from hdl_ip_packager.version import OpaqueVersion, VersionConstraint, parse_version
-from hdl_ip_packager.vlnv import PackageRef, Vlnv
+from hdlpkg.exceptions import ResolutionError
+from hdlpkg.manifest import Dependency, Manifest
+from hdlpkg.resolver import Resolution, resolve
+from hdlpkg.version import OpaqueVersion, VersionConstraint, parse_version
+from hdlpkg.vlnv import PackageRef, Vlnv
 
 pytestmark = pytest.mark.unit
 

@@ -4,7 +4,7 @@
 add or update a dependency without clobbering the author's formatting and comments
 we do a careful, line-based edit of the ``[dependencies]`` table rather than
 re-rendering the whole manifest. This module is **pure**: it takes and returns TOML
-text; the CLI re-parses the result with :class:`~hdl_ip_packager.manifest.Manifest`
+text; the CLI re-parses the result with :class:`~hdlpkg.manifest.Manifest`
 to guarantee the edit produced a still-valid manifest before writing it.
 
 The dependency key is the quoted ``"vendor:library:name"`` form the manifest already

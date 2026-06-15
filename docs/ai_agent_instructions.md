@@ -13,7 +13,7 @@ ergonomics (think `pip`/`npm`/`cargo`/`docker pull`) to **HDL IP cores**
 (Verilog/VHDL/SystemVerilog). Each core carries an `ip.toml` manifest declaring a
 **VLNV** identity (`vendor:library:name:version`), metadata, source filesets,
 dependencies (as SemVer constraints), and build targets. The library
-(`hdl_ip_packager`) and CLI (`hdlpkg`) provide the **manifest → resolve → lock →
+(`hdlpkg`) and CLI (`hdlpkg`) provide the **manifest → resolve → lock →
 fetch → generate** pipeline. The foundation (versioning, identity, manifest) is
 implemented and tested; resolution, registries, packaging, and tool-flow
 generation are designed and stubbed. Design rationale lives in
@@ -34,7 +34,7 @@ truth for what is done versus planned.
   ```powershell
   python -m pip install -e ".[dev]"
   ```
-- **Run the tool**: `hdlpkg --help`, or `python -m hdl_ip_packager --help` (works
+- **Run the tool**: `hdlpkg --help`, or `python -m hdlpkg --help` (works
   even if the script dir is not on PATH).
 - **Quality gates** (all must pass before merge):
   ```powershell
@@ -81,19 +81,19 @@ The `/tackle-issue` and `/release` commands encode this flow (see
 
 | What you need | Where |
 |---------------|-------|
-| CLI entry point | [src/hdl_ip_packager/cli.py](../src/hdl_ip_packager/cli.py) (`main`) |
-| Public API exports | [src/hdl_ip_packager/__init__.py](../src/hdl_ip_packager/__init__.py) |
-| SemVer + constraints | [src/hdl_ip_packager/version.py](../src/hdl_ip_packager/version.py) |
-| VLNV identity | [src/hdl_ip_packager/vlnv.py](../src/hdl_ip_packager/vlnv.py) |
-| `ip.toml` parsing/validation | [src/hdl_ip_packager/manifest.py](../src/hdl_ip_packager/manifest.py) |
-| Exception hierarchy | [src/hdl_ip_packager/exceptions.py](../src/hdl_ip_packager/exceptions.py) |
-| Resolver | [src/hdl_ip_packager/resolver.py](../src/hdl_ip_packager/resolver.py) |
-| Lockfile (`ip.lock`) | [src/hdl_ip_packager/lockfile.py](../src/hdl_ip_packager/lockfile.py) |
-| Content-addressed cache | [src/hdl_ip_packager/cache.py](../src/hdl_ip_packager/cache.py) |
-| Registry (local/HTTP/writable) | [src/hdl_ip_packager/registry.py](../src/hdl_ip_packager/registry.py) |
-| Packaging (`.ipkg`) | [src/hdl_ip_packager/packaging.py](../src/hdl_ip_packager/packaging.py) |
-| Tool-flow backends (`gen`) | [src/hdl_ip_packager/backends/](../src/hdl_ip_packager/backends/) |
-| IP-XACT / SBOM / tree view | [ipxact.py](../src/hdl_ip_packager/ipxact.py), [sbom.py](../src/hdl_ip_packager/sbom.py), [treeview.py](../src/hdl_ip_packager/treeview.py) |
+| CLI entry point | [src/hdlpkg/cli.py](../src/hdlpkg/cli.py) (`main`) |
+| Public API exports | [src/hdlpkg/__init__.py](../src/hdlpkg/__init__.py) |
+| SemVer + constraints | [src/hdlpkg/version.py](../src/hdlpkg/version.py) |
+| VLNV identity | [src/hdlpkg/vlnv.py](../src/hdlpkg/vlnv.py) |
+| `ip.toml` parsing/validation | [src/hdlpkg/manifest.py](../src/hdlpkg/manifest.py) |
+| Exception hierarchy | [src/hdlpkg/exceptions.py](../src/hdlpkg/exceptions.py) |
+| Resolver | [src/hdlpkg/resolver.py](../src/hdlpkg/resolver.py) |
+| Lockfile (`ip.lock`) | [src/hdlpkg/lockfile.py](../src/hdlpkg/lockfile.py) |
+| Content-addressed cache | [src/hdlpkg/cache.py](../src/hdlpkg/cache.py) |
+| Registry (local/HTTP/writable) | [src/hdlpkg/registry.py](../src/hdlpkg/registry.py) |
+| Packaging (`.ipkg`) | [src/hdlpkg/packaging.py](../src/hdlpkg/packaging.py) |
+| Tool-flow backends (`gen`) | [src/hdlpkg/backends/](../src/hdlpkg/backends/) |
+| IP-XACT / SBOM / tree view | [ipxact.py](../src/hdlpkg/ipxact.py), [sbom.py](../src/hdlpkg/sbom.py), [treeview.py](../src/hdlpkg/treeview.py) |
 | Per-module reference (manual) | [docs/modules/](modules/README.md) |
 | Tests | [tests/](../tests/) — see [tests/README.md](../tests/README.md) |
 | Test summary renderer | [scripts/render_test_summary.py](../scripts/render_test_summary.py) |

@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager import cli
-from hdl_ip_packager.cache import ContentAddressedCache
-from hdl_ip_packager.lockfile import Lockfile, sha256_digest
-from hdl_ip_packager.registry import LocalDirectoryRegistry
-from hdl_ip_packager.vlnv import Vlnv
+from hdlpkg import cli
+from hdlpkg.cache import ContentAddressedCache
+from hdlpkg.lockfile import Lockfile, sha256_digest
+from hdlpkg.registry import LocalDirectoryRegistry
+from hdlpkg.vlnv import Vlnv
 
 pytestmark = pytest.mark.integration
 

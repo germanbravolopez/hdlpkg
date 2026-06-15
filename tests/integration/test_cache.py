@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from hdl_ip_packager.cache import ContentAddressedCache, default_cache_root
-from hdl_ip_packager.exceptions import RegistryError
-from hdl_ip_packager.lockfile import sha256_digest
+from hdlpkg.cache import ContentAddressedCache, default_cache_root
+from hdlpkg.exceptions import RegistryError
+from hdlpkg.lockfile import sha256_digest
 
 pytestmark = pytest.mark.integration
 

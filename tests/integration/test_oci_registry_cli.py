@@ -21,8 +21,8 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from hdl_ip_packager import cli
-from hdl_ip_packager.lockfile import Lockfile
+from hdlpkg import cli
+from hdlpkg.lockfile import Lockfile
 
 pytestmark = pytest.mark.integration
 
@@ -219,10 +219,10 @@ def test_oci_requires_auth(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_oci_backend_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    from hdl_ip_packager.credentials import Credential
-    from hdl_ip_packager.exceptions import RegistryError
-    from hdl_ip_packager.registry import OciRegistry
-    from hdl_ip_packager.vlnv import Vlnv
+    from hdlpkg.credentials import Credential
+    from hdlpkg.exceptions import RegistryError
+    from hdlpkg.registry import OciRegistry
+    from hdlpkg.vlnv import Vlnv
 
     with _serve() as location:
         registry = OciRegistry(location, credential=Credential(_TOKEN))
@@ -236,8 +236,8 @@ def test_oci_backend_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_oci_location_without_host_is_rejected() -> None:
-    from hdl_ip_packager.exceptions import RegistryError
-    from hdl_ip_packager.registry import OciRegistry
+    from hdlpkg.exceptions import RegistryError
+    from hdlpkg.registry import OciRegistry
 
     with pytest.raises(RegistryError, match="no host"):
         OciRegistry("oci:///no-host")

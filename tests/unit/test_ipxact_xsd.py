@@ -13,8 +13,8 @@ from typing import Any
 
 import pytest
 
-from hdl_ip_packager.ipxact import to_ipxact
-from hdl_ip_packager.manifest import Manifest
+from hdlpkg.ipxact import to_ipxact
+from hdlpkg.manifest import Manifest
 
 lxml_etree = pytest.importorskip("lxml.etree", reason="lxml is required to validate XSD")
 
