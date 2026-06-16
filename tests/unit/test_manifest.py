@@ -194,3 +194,37 @@ class TestConflictPolicy:
         toml = _MINIMAL + '[resolution]\non-conflict = "nope"\n'
         with pytest.raises(ManifestError, match=r"Unsupported \[resolution\] on-conflict"):
             Manifest.from_str(toml)
+
+
+class TestIpxactParameters:
+    def test_absent_section_yields_no_parameters(self) -> None:
+        assert Manifest.from_str(_MINIMAL).ipxact_parameters == ()
+
+    def test_scalar_values_become_strings(self) -> None:
+        toml = _MINIMAL + (
+            '[ipxact.parameters]\nWIDTH = 8\nRATE = 1.5\nMODE = "fast"\nENABLE = true\n'
+        )
+        params = {p.name: p.value for p in Manifest.from_str(toml).ipxact_parameters}
+        assert params == {"WIDTH": "8", "RATE": "1.5", "MODE": "fast", "ENABLE": "true"}
+
+    def test_table_form_carries_value_and_description(self) -> None:
+        toml = _MINIMAL + (
+            '[ipxact.parameters]\nDEPTH = { value = 16, description = "FIFO depth" }\n'
+        )
+        (param,) = Manifest.from_str(toml).ipxact_parameters
+        assert (param.name, param.value, param.description) == ("DEPTH", "16", "FIFO depth")
+
+    def test_table_form_requires_value(self) -> None:
+        toml = _MINIMAL + '[ipxact.parameters]\nDEPTH = { description = "x" }\n'
+        with pytest.raises(ManifestError, match="must have a 'value'"):
+            Manifest.from_str(toml)
+
+    def test_unknown_parameter_key_is_rejected(self) -> None:
+        toml = _MINIMAL + '[ipxact.parameters]\nW = { value = 1, units = "bits" }\n'
+        with pytest.raises(ManifestError, match="unsupported key"):
+            Manifest.from_str(toml)
+
+    def test_unknown_ipxact_subsection_is_rejected(self) -> None:
+        toml = _MINIMAL + '[ipxact.ports]\nclk = "in"\n'
+        with pytest.raises(ManifestError, match=r"Unsupported \[ipxact\] subsection"):
+            Manifest.from_str(toml)

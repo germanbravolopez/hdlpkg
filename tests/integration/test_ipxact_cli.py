@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from hdlpkg import cli
-from hdlpkg.ipxact import IPXACT_NAMESPACE
+from hdlpkg.ipxact import IPXACT_NAMESPACE, IPXACT_NAMESPACES
 
 pytestmark = pytest.mark.integration
 
@@ -31,3 +31,12 @@ def test_export_ipxact_writes_a_valid_component(tmp_path: Path, capsys) -> None:
         fs.findtext("ipxact:name", namespaces=NS) for fs in root.findall(".//ipxact:fileSet", NS)
     ]
     assert "rtl" in fileset_names
+
+
+def test_export_ipxact_2022_emits_the_2022_namespace(tmp_path: Path, capsys) -> None:
+    out = tmp_path / "uart-2022.xml"
+    rc = cli.main(["export-ipxact", str(UART_MANIFEST), "--std", "2022", "--output", str(out)])
+    assert rc == 0
+    assert "Exported IP-XACT 2022" in capsys.readouterr().out
+    root = ET.parse(out).getroot()
+    assert root.tag == f"{{{IPXACT_NAMESPACES['2022']}}}component"

@@ -1,4 +1,4 @@
-.TH HDLPKG 1 "" "hdlpkg 0.13.0" "HDL IP Packager Manual"
+.TH HDLPKG 1 "" "hdlpkg 0.14.0" "HDL IP Packager Manual"
 .nh
 .ad l
 .SH NAME
@@ -290,7 +290,7 @@ how to handle an incompatible version conflict, overriding the manifest's [resol
 Export an IP-XACT (IEEE 1685) component description.
 .PP
 .RS 4
-hdlpkg export\-ipxact [\-h] [\-\-output FILE] [path]
+hdlpkg export\-ipxact [\-h] [\-\-output FILE] [\-\-std {2014,2022}] [path]
 .RE
 .PP
 .TP
@@ -299,6 +299,9 @@ path to the manifest
 .TP
 .B \-\-output FILE
 output XML path (default: <vendor>.<library>.<name>.<version>.xml in the cwd)
+.TP
+.B \-\-std STD
+IEEE 1685 revision to emit (default: 2014)
 .SS add
 .ad l
 Add or update a dependency in ip.toml.

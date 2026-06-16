@@ -9,7 +9,9 @@ cache is redirected with ``HDLPKG_GIT_CACHE`` so nothing touches the user's home
 
 from __future__ import annotations
 
+import os
 import shutil
+import stat
 import subprocess
 from collections.abc import Iterator
 from pathlib import Path
@@ -72,9 +74,14 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[_Repo]:
     _git("commit", "--quiet", "-m", "publish fifo", cwd=work)
     _git("tag", "v1", cwd=work)
     tag_commit = _git("rev-parse", "HEAD", cwd=work)
+    # A *tag* named 'shared' at the early commit; a *branch* of the same name will point
+    # at the later HEAD -- the resolver must prefer the immutable tag (A1).
+    _git("tag", "shared", cwd=work)
     _git("commit", "--quiet", "--allow-empty", "-m", "later work", cwd=work)
     head = _git("rev-parse", "HEAD", cwd=work)
+    _git("branch", "shared", cwd=work)  # branch tip = head, distinct from the 'shared' tag
     _git("push", "--quiet", "--tags", "origin", "HEAD", cwd=work)
+    _git("push", "--quiet", "origin", "refs/heads/shared", cwd=work)  # explicit: tag+branch clash
     yield _Repo(f"git+{bare.as_uri()}", head, tag_commit)
 
 
@@ -122,3 +129,30 @@ def test_git_registry_checks_out_requested_ref(repo: _Repo, tmp_path: Path) -> N
 def test_unknown_git_ref_raises(repo: _Repo, tmp_path: Path) -> None:
     with pytest.raises(RegistryError, match="not found"):
         GitRegistry(f"{repo.location}@no-such-ref", cache_root=tmp_path / "x")
+
+
+def test_ref_prefers_tag_over_same_named_branch(repo: _Repo, tmp_path: Path) -> None:
+    # 'shared' exists both as a tag (early commit) and a branch (HEAD); the immutable
+    # tag must win, so provenance binds to what the user pinned (A1).
+    reg = GitRegistry(f"{repo.location}@shared", cache_root=tmp_path / "s")
+    assert reg.commit == repo.tag_commit
+    assert reg.commit != repo.head
+
+
+def test_pinned_sha_resolves_offline_without_fetching(repo: _Repo, tmp_path: Path) -> None:
+    # First sync populates the clone cache (tmp_path is shared with the fixture, so the
+    # bare repo is tmp_path/reg.git).
+    cache = tmp_path / "cache"
+    GitRegistry(f"{repo.location}@{repo.head}", cache_root=cache)
+
+    # Make the remote unreachable: an exact-SHA pin already in the clone must still resolve
+    # with no network fetch (A4 -- the offline-after-install promise). A branch/tag pin
+    # would fail here, proving the fetch was genuinely skipped.
+    def _force_rm(func: object, path: str, _exc: object) -> None:
+        os.chmod(path, stat.S_IWRITE)  # git pack files are read-only on Windows
+        func(path)  # type: ignore[operator]
+
+    shutil.rmtree(tmp_path / "reg.git", onerror=_force_rm)
+    reg = GitRegistry(f"{repo.location}@{repo.head}", cache_root=cache)
+    assert reg.commit == repo.head
+    assert reg.versions(PackageRef("acme", "common", "fifo"))

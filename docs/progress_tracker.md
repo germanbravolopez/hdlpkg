@@ -18,17 +18,18 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`0.13.0`** cut — the **`hdl-ip-packager` -> `hdlpkg` rename**. The import
-package (`hdl_ip_packager` -> `hdlpkg`, the `src/hdlpkg/` dir) and the PyPI distribution
-(`hdl-ip-packager` -> `hdlpkg`) now take the name the CLI has always used; the GitHub repo is
-renamed too. **No `ip.toml`/`ip.lock`/CLI change** (the `hdlpkg` command and on-disk formats
-are unchanged — only `import hdlpkg` and `pip install hdlpkg` differ). A `hdl-ip-packager`
-deprecation shim keeps the old `pip install` resolving to `hdlpkg`; `import hdl_ip_packager`
-is a clean break (pre-1.0). See [docs/design/rename-to-hdlpkg.md](design/rename-to-hdlpkg.md).
-The prior release (`0.12.0`, as `hdl-ip-packager`) added module/interface/entity coexistence.
-**Next**: `0.14.0` — Git-registry hardening + richer IP-XACT mapping + an IP-XACT 2022 output
-mode (see [docs/design/0.13.0-git-and-ipxact.md](design/0.13.0-git-and-ipxact.md)). The project
-stays **pre-1.0** (formats keep the licence to change), validated continuously via
+**Version**: **`0.14.0`** cut — **Git-registry hardening + richer IP-XACT** (see
+[docs/design/0.14.0-git-and-ipxact.md](design/0.14.0-git-and-ipxact.md)). Workstream **A**:
+the four `GitRegistry` fixes (tag-preferred ref resolution, offline `@sha`/`gen --locked`,
+scp-URL rejection), validated end to end in `hdlpkg-livetest` against a real remote.
+Workstream **B**: an IP-XACT **2022** output mode (`export-ipxact --std {2014,2022}`,
+validated against the official 1685-2022 XSD) and **parameter mapping** via an optional,
+ignorable `[ipxact.parameters]` manifest section. **No `ip.toml`/`ip.lock`/CLI break** — the
+`[ipxact.parameters]` table is purely additive (no `schema` bump) and the `--std` flag is
+optional. The prior release (`0.13.0`) was the `hdl-ip-packager` -> `hdlpkg` rename.
+**Next**: `0.15.0`+ — supply-chain (Sigstore signing) + confidential IP (IEEE 1735), and the
+deferred IP-XACT ports/bus-interface mapping, as the backlog matures. The project stays
+**pre-1.0** (formats keep the licence to change), validated continuously via
 `hdlpkg-livetest`; `1.0.0` is a deliberate freeze for later. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) and iterating through the backlog as
@@ -160,9 +161,9 @@ the next `0.x` release.
 |-------|------|-------|
 | Encrypted IP distribution (IEEE 1735) | `packaging.py`, `registry.py`, `manifest.py`, `cli.py` | **Future feature.** Let a producer distribute a core whose HDL source is **encrypted**, so a consumer can resolve/install/`gen` against it (the tool can drive a tool flow) without the source ever being readable on disk. Two distinct layers, decide which to build: **(a) Standard HDL IP encryption (IEEE 1735 / `pragma protect`)** — the cross-vendor norm. Each source file carries an encrypted envelope (a symmetric session key wrapped under each *tool vendor's* public key + AES/RSA-encrypted payload, IEEE 1735 v1/v2 with "rights" digests). The EDA tool decrypts at compile time; the packager's job is to **carry, not break** these envelopes — pack/`extract`/SBOM must treat an encrypted file as opaque, the deterministic-pack digest still pins ciphertext, and `gen` must not assume it can read the source. The tool would *not* implement the crypto itself (vendor keys live in the EDA tools); at most it could shell out to `vivado -encrypt`/`vlog +protect` to *produce* envelopes. **(b) At-rest/transport encryption of the `.ipkg`** — encrypt the whole artifact in the registry/cache for confidential distribution (e.g. age/GPG or an OCI-layer key), decrypted on `pull` with a consumer key. This is independent of HDL-tool semantics and simpler, but does **not** give the per-tool, compile-time protection (a) does. Open questions: where keys/recipients are declared (a `[package]`/`[encryption]` manifest key vs. out-of-band), how it interacts with content-addressing (the digest must pin what is *stored*), how the SBOM marks a component encrypted, and how `validate`/`info` behave when source is unreadable. Needs a real EDA tool (or an interop fixture) to test (a) honestly — defer like the Git/OCI/Sigstore work. |
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git backend. Checksums + SBOM already ship; this adds authenticity on top. |
-| Richer IP-XACT mapping (bus interfaces, parameters) + IP-XACT 2022 | `ipxact.py`, tests | Export now **validates against the official 1685-2014 XSD** (see Completed Milestones). Remaining, optional: map more of the standard (bus interfaces, parameters, memory maps) and consider an IP-XACT **2022** (1685-2022) output mode. Not needed for the current Vivado-ingest use case. |
+| Richer IP-XACT mapping: ports + bus interfaces | `ipxact.py`, `manifest.py`, tests | **Parameters and the IP-XACT 2022 output mode shipped in 0.14.0** (see Completed Milestones): export validates against both the official 1685-2014 **and** 1685-2022 XSDs, and an optional `[ipxact.parameters]` section maps component parameters. Remaining, optional: map **ports** and **bus interfaces** (and memory maps) via the same additive `[ipxact.*]` manifest approach (decision B-opt1) — deferred until a real consumer needs them (not the current Vivado-ingest use case). |
 | Name-mangling — named-library references + classifier cleanup | `mangle.py` | Follow-ups filed from the 0.12.0 release review (not release blockers). (1) **Named-library references to a coexisting unit are left untouched**: a `use mylib.bus` / `entity mylib.foo` reference to a colliding package/entity is not rewritten while its declaration is, so a design that references a coexisting unit via a named library (not `work`) would dangle. Unreachable in the current single-`work`-library `gen` flow (everything is analyzed into `work`), and the same long-standing limitation applies to packages; the safe fix is to *refuse* on a named-lib reference to a colliding unit (parity with the SV classifiers). (2) **Cleanup**: `_reject_unclassifiable_sv_modules` / `_reject_unclassifiable_sv_interfaces` and the per-kind declaration scanners share structure — collapse into one parameterized helper so the scan scaffold cannot drift between kinds. |
-| Git-backed registry — ref-resolution and parsing hardening | `registry.py` | Follow-ups from the 0.11.0 release review of the new `GitRegistry` (all need a real git server, which the integration tests can't exercise on the CFA-restricted Windows box, so they are filed not fixed): (1) **`_resolve` prefers a remote branch over a tag of the same name** — `git+...@v1.0.0` resolves to `origin/v1.0.0` (branch tip, which can move) before the `v1.0.0` tag, weakening the immutable-provenance promise when both exist; prefer the tag, or disambiguate. (2) **`_parse_git_location` mis-splits an scp-style URL with an `@ref`** — `git+git@host:repo.git@v1.0` (no `/` before the repo) splits at the first `@`; document `git+ssh://` as the supported form, or special-case scp syntax. (3) **A bare scp URL (`git@host:repo.git`, no `git+`) silently falls through to `LocalRegistry`** and fails with a confusing "not in the local registry" error; detect it and hint `git+ssh://`. (4) **`gen --locked` against a `git+` location still re-fetches** (`_sync` always fetches when a clone exists) so the "works offline after install" claim is only true for the cache path; thread the pinned `@sha` to short-circuit the fetch when the commit is already present. None are integrity bugs (the `gen --locked` digest check now fails closed regardless). |
+| Git-backed registry — ref-resolution and parsing hardening | `registry.py` | **Fixed (June 2026, 0.14.0 workstream A — see Completed Milestones).** All four 0.11.0-review follow-ups landed: (1) `_resolve` now prefers the immutable **tag** over a same-named remote branch (`refs/tags/<ref>` -> `origin/<ref>` -> raw SHA); (2) scp-style URLs (`git+git@host:repo.git`) are rejected in `_parse_git_location` with a hint to use `git+ssh://`; (3) a bare scp URL (`git@host:repo.git`) is detected in `registry_from_location` and hinted (no longer a confusing `LocalRegistry` miss); (4) `_sync` short-circuits the fetch when the pinned `@<sha>` is already present in the clone (true offline-after-install). Plus two follow-on fixes the offline guarantee needed: the clone cache is keyed by repo URL (so an `@sha` pin reuses a no-ref clone) and `gen --locked` skips building the registry when the cache is complete. Unit-tested for the pure parse/decision logic; the real-git-server cases (tag-vs-branch, offline) run as integration tests (skip on the CFA-restricted Windows box, run in CI) and are **end-to-end validated in `hdlpkg-livetest`** (new `--git` / `--git-remote` modes, passed against a live remote). None were integrity bugs (the `gen --locked` digest check fails closed regardless). |
 
 ---
 
@@ -177,6 +178,87 @@ the next `0.x` release.
 ---
 
 ## Completed Milestones
+
+### Release 0.14.0 — Git-registry hardening + richer IP-XACT — June 2026
+- [x] **Cut `0.14.0`**, bundling the two workstreams of
+  [docs/design/0.14.0-git-and-ipxact.md](design/0.14.0-git-and-ipxact.md): **(A)** Git-registry
+  hardening — tag-preferred ref resolution, the offline `@sha` / `gen --locked` guarantee
+  (clone cache keyed by URL; lazy registry when the cache is complete), and scp-URL rejection
+  — validated end to end in `hdlpkg-livetest` against a real remote; and **(B)** an IP-XACT
+  **2022** output mode (`export-ipxact --std {2014,2022}`, validated against the official
+  1685-2022 XSD, vendored) plus **parameter mapping** via an optional `[ipxact.parameters]`
+  manifest section. **No `ip.toml`/`ip.lock`/CLI break** — `[ipxact.parameters]` is additive
+  and ignorable (no `schema` bump) and `--std` is optional. Bumped `pyproject.toml` +
+  `src/hdlpkg/__init__.py` to `0.14.0`; regenerated the man page. Next: `0.15.0`+
+  (Sigstore signing, confidential IP, deferred IP-XACT ports/bus interfaces).
+
+### 0.14.0 workstream B (part 2) — IP-XACT parameter mapping — June 2026
+- [x] **`export-ipxact` now maps producer-declared parameters**, the richer-mapping half of
+  workstream B (design decision 4: parameters now, ports/bus interfaces deferred). A new
+  optional **`[ipxact.parameters]`** manifest table (`Manifest.ipxact_parameters`, a tuple of
+  the new `IpxactParameter`) accepts a scalar (`WIDTH = 8`, stringified — bools as
+  `true`/`false`) or a `{ value, description }` table; `to_ipxact` emits an
+  `ipxact:parameters` block (name + optional description + value) at the end of the component,
+  XSD-valid in **both** 2014 and 2022. **Purely additive and ignorable** — an older hdlpkg
+  skips the `[ipxact]` table — so **no `schema` bump**; unknown `[ipxact.*]` subsections and
+  unknown per-parameter keys are rejected (no silent drops). Files: `manifest.py`
+  (`IpxactParameter`, `_parse_ipxact`), `ipxact.py`, `__init__.py` (export `IpxactParameter`),
+  `tests/unit/test_manifest.py`, `test_ipxact.py`, `test_ipxact_xsd.py`. This closes the
+  0.14.0 IP-XACT scope; the remaining ports/bus-interface mapping stays an Open Non-Blocking
+  item. **0.14.0 is now feature-complete (workstreams A + B); next: cut the release.**
+
+### 0.14.0 workstream B (part 1) — IP-XACT 2022 output mode — June 2026
+- [x] **`export-ipxact` can now emit IEEE 1685-2022 as well as 1685-2014**, via a new
+  `--std {2014,2022}` flag (default 2014 for back-compat). `to_ipxact(manifest, std=...)`
+  (`ipxact.py`) is parameterized by standard: the VLNV / model views+instantiations /
+  fileSets shape is shared; the only structural delta is **`description` placement** (2022
+  carries it in the `documentNameGroup` right after the version; 2014 trails it after
+  `fileSets`). The `fileType` `user`-escape is unchanged (2022 only *adds* enum types, so a
+  2014-valid type is valid in 2022). The full official **1685-2022 XSD set** (Apache-2.0) is
+  vendored under `tests/schema/ipxact-1685-2022/` (test fixture only, not in the wheel), and
+  `tests/unit/test_ipxact_xsd.py` now validates **both** standards against their official
+  XSDs over the example cores + custom `fileType`/description cases, plus a negative test per
+  standard. Additive/internal — no `ip.toml`/`ip.lock`/format change. Files: `ipxact.py`,
+  `cli.py` (+ regenerated `man/hdlpkg.1`), `tests/unit/test_ipxact.py`,
+  `tests/unit/test_ipxact_xsd.py`, `tests/integration/test_ipxact_cli.py`,
+  `tests/schema/ipxact-1685-2022/`. Next (part 2): richer mapping — an optional `ip.toml`
+  `[ipxact.*]` section exporting **parameters** in both standards.
+
+### 0.14.0 workstream A — Git-registry hardening (the four ref/parse fixes) — June 2026
+- [x] **Fixed all four `GitRegistry` follow-ups** filed from the 0.11.0/0.12.0 reviews
+  (workstream A of [docs/design/0.14.0-git-and-ipxact.md](design/0.14.0-git-and-ipxact.md)),
+  hardening provenance and the offline story without any `ip.toml`/`ip.lock`/CLI change:
+  - **A1 — tag preferred over a same-named branch.** `_resolve` now tries
+    `refs/tags/<ref>` first, then `origin/<ref>`, then a raw SHA, so a pinned
+    `git+<url>@v1.0.0` binds to the **immutable tag** rather than the moving `origin/v1.0.0`
+    branch tip — closing the provenance-drift gap.
+  - **A4 — exact-SHA pins resolve offline.** `_sync` skips the network `git fetch` when the
+    pinned `@<sha>` (the form a lockfile records) is already a commit in the clone
+    (`_commit_present`), so `gen --locked` against a `git+` source genuinely works offline
+    after the first install. A branch/tag pin (or no pin) still fetches.
+  - **A2/A3 — scp-style URLs rejected with a hint.** `_parse_git_location` rejects
+    `git+git@host:repo.git[@ref]` (its first `@` is ambiguous), and `registry_from_location`
+    detects a bare `git@host:repo.git` (which used to fall through to `LocalRegistry` with a
+    confusing "not in the local registry" error) — both point at the supported
+    `git+ssh://host/path/repo.git[@ref]` form. New pure helpers `_is_scp_like` / `_is_full_sha`.
+  - **Two follow-on fixes the live A4 validation required**: (i) the git clone cache is now
+    keyed by the **repo URL** (not the full `@ref` location) so an exact-`@sha` pin reuses
+    the clone a no-ref `install` already made; and (ii) `gen --locked` no longer constructs
+    the registry at all when every locked artifact is already in the content-addressed cache,
+    so a `git+` (or any) source is never re-contacted offline-after-install (`cli.py`:
+    `_cmd_gen` / `_dependency_source` now take a nullable registry).
+  - **Tests**: pure parse/decision logic is unit-tested (`tests/unit/test_registry_location.py`
+    — scp rejection, full-SHA detection); the real-git-server behaviours (tag-vs-branch
+    preference, offline `@sha` re-resolve after the remote is removed) are integration tests
+    (`tests/integration/test_git_registry_cli.py`) that **skip** on the CFA-restricted Windows
+    box but run in CI; the lazy-registry offline-after-install guarantee has a git-free
+    regression test (`tests/integration/test_gen_registry_cli.py`).
+  - **End-to-end validated via `hdlpkg-livetest`** (passed against a live remote): new `--git`
+    (local bare repo, fully offline) and `--git-remote` (a real private GitHub repo,
+    created/reused via `gh`) modes in `run_livetest.py` assert commit provenance, tag>branch
+    (`@shared`), digest stability, and the offline `@sha` + `gen --locked` guarantees.
+  Files: `src/hdlpkg/registry.py`, `src/hdlpkg/cli.py`, the test modules; `hdlpkg-livetest`.
+  Next in 0.14.0: workstream B (IP-XACT 2022 output mode + parameter mapping).
 
 ### Release 0.13.0 — the hdl-ip-packager -> hdlpkg rename — June 2026
 - [x] **Cut `0.13.0`**: renamed the import package `hdl_ip_packager` -> `hdlpkg` (moved

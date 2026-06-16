@@ -66,6 +66,7 @@ __all__ = [
     "ConflictPolicy",
     "Dependency",
     "Fileset",
+    "IpxactParameter",
     "Manifest",
     "Target",
 ]
@@ -129,6 +130,20 @@ class Target:
 
 
 @dataclass(frozen=True)
+class IpxactParameter:
+    """A component-level IP-XACT parameter declared in the optional ``[ipxact.parameters]``.
+
+    Carries the producer-stated name, a string value, and an optional description. The
+    value is kept as a string because IP-XACT models a parameter value as text; the manifest
+    accepts a scalar (int/float/bool/string) or a ``{ value, description }`` table.
+    """
+
+    name: str
+    value: str
+    description: str | None = None
+
+
+@dataclass(frozen=True)
 class Manifest:
     """A fully-parsed, validated ``ip.toml``."""
 
@@ -141,6 +156,7 @@ class Manifest:
     dependencies: tuple[Dependency, ...] = ()
     filesets: dict[str, Fileset] = field(default_factory=dict)
     targets: dict[str, Target] = field(default_factory=dict)
+    ipxact_parameters: tuple[IpxactParameter, ...] = ()
     schema_version: int = MANIFEST_SCHEMA_VERSION
     version_scheme: VersionScheme = DEFAULT_VERSION_SCHEME
     conflict_policy: ConflictPolicy = DEFAULT_CONFLICT_POLICY
@@ -184,6 +200,7 @@ class Manifest:
         dependencies = cls._parse_dependencies(data.get("dependencies", {}))
         filesets = cls._parse_filesets(data.get("filesets", {}))
         targets = cls._parse_targets(data.get("targets", {}), filesets)
+        ipxact_parameters = cls._parse_ipxact(data.get("ipxact", {}))
 
         return cls(
             vlnv=vlnv,
@@ -195,6 +212,7 @@ class Manifest:
             dependencies=dependencies,
             filesets=filesets,
             targets=targets,
+            ipxact_parameters=ipxact_parameters,
             schema_version=schema,
             version_scheme=scheme,
             conflict_policy=policy,
@@ -331,6 +349,60 @@ class Manifest:
                 raise ManifestError(f"targets.{name}.top must be a string.")
             out[name] = Target(name=name, toolflow=toolflow, filesets=target_filesets, top=top)
         return out
+
+    @classmethod
+    def _parse_ipxact(cls, table: object) -> tuple[IpxactParameter, ...]:
+        """Parse the optional ``[ipxact]`` metadata section (only ``parameters`` for now).
+
+        Additive and ignorable: an older hdlpkg simply skips the whole table. Unknown
+        ``[ipxact.*]`` subsections are rejected so a typo is not silently dropped.
+        """
+        if not isinstance(table, dict):
+            raise ManifestError("[ipxact] must be a table.")
+        unknown = set(table) - {"parameters"}
+        if unknown:
+            raise ManifestError(
+                f"Unsupported [ipxact] subsection(s) {sorted(unknown)}; "
+                f"this hdlpkg supports: parameters."
+            )
+        params = table.get("parameters", {})
+        if not isinstance(params, dict):
+            raise ManifestError("[ipxact.parameters] must be a table.")
+        out: list[IpxactParameter] = []
+        for name, body in params.items():
+            out.append(cls._parse_ipxact_parameter(name, body))
+        return tuple(out)
+
+    @classmethod
+    def _parse_ipxact_parameter(cls, name: str, body: object) -> IpxactParameter:
+        """One ``[ipxact.parameters]`` entry: a scalar, or a ``{ value, description }`` table."""
+        where = f"ipxact.parameters.{name}"
+        if isinstance(body, dict):
+            if "value" not in body:
+                raise ManifestError(f"[{where}] table must have a 'value'.")
+            extra = set(body) - {"value", "description"}
+            if extra:
+                raise ManifestError(f"[{where}] has unsupported key(s) {sorted(extra)}.")
+            value = body["value"]
+            description = body.get("description")
+            if description is not None and not isinstance(description, str):
+                raise ManifestError(f"{where}.description must be a string.")
+        else:
+            value, description = body, None
+        return IpxactParameter(
+            name=name, value=cls._scalar_str(value, where), description=description
+        )
+
+    @staticmethod
+    def _scalar_str(value: object, where: str) -> str:
+        """Render an IP-XACT parameter value (TOML scalar) as the string IP-XACT models."""
+        if isinstance(value, bool):
+            return "true" if value else "false"  # IP-XACT, not Python's "True"/"False"
+        if isinstance(value, (int, float, str)):
+            return str(value)
+        raise ManifestError(
+            f"{where} value must be a string, number, or boolean, got {type(value).__name__}."
+        )
 
     # ----------------------------------------------------------- convenience
     @property

@@ -38,7 +38,7 @@ from .exceptions import (
     ManifestError,
     RegistryError,
 )
-from .ipxact import to_ipxact
+from .ipxact import DEFAULT_IPXACT_STD, SUPPORTED_IPXACT_STDS, to_ipxact
 from .lockfile import LOCKFILE_FILENAME, Lockfile, sha256_digest
 from .mangle import GenCore, GenSourceFile, ManglePlan, plan_package_mangling
 from .manifest import (
@@ -307,6 +307,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         metavar="FILE",
         help="output XML path (default: <vendor>.<library>.<name>.<version>.xml in the cwd)",
+    )
+    p_ipxact.add_argument(
+        "--std",
+        choices=SUPPORTED_IPXACT_STDS,
+        default=DEFAULT_IPXACT_STD,
+        help=f"IEEE 1685 revision to emit (default: {DEFAULT_IPXACT_STD})",
     )
     p_ipxact.set_defaults(func=_cmd_export_ipxact)
 
@@ -635,11 +641,16 @@ def _cmd_gen(args: argparse.Namespace) -> int:
     cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
     cache = ContentAddressedCache(cache_root)
 
+    registry: Registry | None
     if args.locked:
         # Reproducible generation: pin dependency versions from ip.lock, no re-resolve.
         lock = _load_lockfile(manifest_path)
-        registry = _reader_registry(manifest_path, args)
         dep_specs = [(pkg.vlnv, pkg.checksum) for pkg in lock.packages]
+        # Offline-after-install: only touch the registry if a locked artifact is missing
+        # from the content-addressed cache. When `install --locked` already populated it,
+        # gen needs no network at all -- so a `git+` source never re-clones/fetches.
+        need_registry = any(not (checksum and cache.has(checksum)) for _, checksum in dep_specs)
+        registry = _reader_registry(manifest_path, args) if need_registry else None
     else:
         resolution, registry = _resolve(manifest_path, args)
         _print_warnings(resolution)
@@ -696,7 +707,7 @@ def _cmd_gen(args: argparse.Namespace) -> int:
 def _dependency_source(
     vlnv: Vlnv,
     checksum: str,
-    registry: Registry,
+    registry: Registry | None,
     cache: ContentAddressedCache,
     cache_root: Path,
 ) -> CoreSource:
@@ -706,10 +717,16 @@ def _dependency_source(
     ``gen --locked`` works fully offline); a loose source tree discoverable on disk
     (``--search``/default scan, used in place); otherwise fetch the ``.ipkg`` from the
     selected registry into the cache and extract it. The last two paths let ``gen`` build
-    against published/installed cores without their original source trees.
+    against published/installed cores without their original source trees. *registry* is
+    ``None`` only on the all-cached locked path, where the first branch always returns.
     """
     if checksum and cache.has(checksum):
         return _extract_dependency(cache.get(checksum), checksum, cache_root)
+    if registry is None:  # locked + uncached + no registry selected
+        raise RegistryError(
+            f"{vlnv} is not in the cache and no registry is available; "
+            f"run 'hdlpkg install --locked' or pass --registry."
+        )
     if isinstance(registry, LocalDirectoryRegistry):
         return CoreSource(manifest=registry.manifest(vlnv), root=str(registry.core_dir(vlnv)))
     digest = registry.fetch(vlnv, cache)
@@ -823,8 +840,8 @@ def _cmd_export_ipxact(args: argparse.Namespace) -> int:
         if args.output
         else Path(f"{vlnv.vendor}.{vlnv.library}.{vlnv.name}.{vlnv.version}.xml")
     )
-    output.write_text(to_ipxact(manifest), encoding="utf-8")
-    print(f"Exported IP-XACT for {vlnv} -> {output}")
+    output.write_text(to_ipxact(manifest, std=args.std), encoding="utf-8")
+    print(f"Exported IP-XACT {args.std} for {vlnv} -> {output}")
     return 0
 
 

@@ -132,8 +132,19 @@ hdlpkg pull acme:common:fifo:1.0.0 --registry ./registry --output ./fetched-fifo
 **6. Interop & supply chain**
 
 ```bash
-hdlpkg export-ipxact examples/uart/ip.toml          # IEEE 1685 XML
+hdlpkg export-ipxact examples/uart/ip.toml             # IEEE 1685-2014 XML (default)
+hdlpkg export-ipxact examples/uart/ip.toml --std 2022  # IEEE 1685-2022 XML
 hdlpkg pack examples/uart/ip.toml --sbom --search examples   # .ipkg + CycloneDX SBOM
+```
+
+`export-ipxact` maps the VLNV, a build view per `[targets.*]`, and the filesets. To carry
+component **parameters** into the IP-XACT, declare them in an optional `[ipxact.parameters]`
+table (additive; older `hdlpkg` simply ignores it):
+
+```toml
+[ipxact.parameters]
+WIDTH = 8                                       # scalar shorthand -> value "8"
+DEPTH = { value = 16, description = "FIFO depth" }
 ```
 
 ## Authoring your own core

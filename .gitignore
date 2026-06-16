@@ -72,3 +72,4 @@ marketing/
 .scratch*/
 # Per-user agent settings (the shared .claude/ files stay tracked).
 .claude/settings.local.json
+shim/dist/

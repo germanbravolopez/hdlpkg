@@ -1,0 +1,38 @@
+# Deprecation shim for the OLD distribution name `hdl-ip-packager`.
+#
+# The project was renamed to `hdlpkg` in 0.13.0. This is a SEPARATE, metadata-only
+# distribution published under the old `hdl-ip-packager` name so that an existing
+# `pip install hdl-ip-packager` keeps working: it has no code of its own, it just
+# depends on `hdlpkg`, which provides the package and the `hdlpkg` command. There is
+# deliberately NO `hdl_ip_packager` import module (the import name is a clean break).
+#
+# This is a ONE-TIME publish (never updated again). It is not part of the hdlpkg wheel.
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hdl-ip-packager"
+version = "0.12.1"
+description = "Deprecated, renamed to 'hdlpkg'. Installs hdlpkg; use `pip install hdlpkg` instead."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "German Bravo Lopez", email = "gebralo@hotmail.com" }]
+keywords = ["hdl", "deprecated", "renamed", "hdlpkg"]
+classifiers = [
+    "Development Status :: 7 - Inactive",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+# The whole point of the shim: pull in the renamed package.
+dependencies = ["hdlpkg>=0.13.0"]
+
+[project.urls]
+Homepage = "https://github.com/germanbravolopez/hdlpkg"
+Repository = "https://github.com/germanbravolopez/hdlpkg"
+
+# Metadata-only wheel: no Python modules ship, so `import hdl_ip_packager` stays broken
+# (clean break) while the dependency on hdlpkg makes the tool itself available.
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
