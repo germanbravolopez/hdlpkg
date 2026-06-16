@@ -18,18 +18,18 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`0.13.0`** cut — the **`hdl-ip-packager` -> `hdlpkg` rename**. The import
-package (`hdl_ip_packager` -> `hdlpkg`, the `src/hdlpkg/` dir) and the PyPI distribution
-(`hdl-ip-packager` -> `hdlpkg`) now take the name the CLI has always used; the GitHub repo is
-renamed too. **No `ip.toml`/`ip.lock`/CLI change** (the `hdlpkg` command and on-disk formats
-are unchanged — only `import hdlpkg` and `pip install hdlpkg` differ). A `hdl-ip-packager`
-deprecation shim keeps the old `pip install` resolving to `hdlpkg`; `import hdl_ip_packager`
-is a clean break (pre-1.0). See [docs/design/rename-to-hdlpkg.md](design/rename-to-hdlpkg.md).
-The prior release (`0.12.0`, as `hdl-ip-packager`) added module/interface/entity coexistence.
-**Next**: `0.14.0` — Git-registry hardening + richer IP-XACT mapping + an IP-XACT 2022 output
-mode (see [docs/design/0.14.0-git-and-ipxact.md](design/0.14.0-git-and-ipxact.md)); **in
-progress on `develop`** — the four Git-registry fixes (A1–A4) have landed. The project
-stays **pre-1.0** (formats keep the licence to change), validated continuously via
+**Version**: **`0.14.0`** cut — **Git-registry hardening + richer IP-XACT** (see
+[docs/design/0.14.0-git-and-ipxact.md](design/0.14.0-git-and-ipxact.md)). Workstream **A**:
+the four `GitRegistry` fixes (tag-preferred ref resolution, offline `@sha`/`gen --locked`,
+scp-URL rejection), validated end to end in `hdlpkg-livetest` against a real remote.
+Workstream **B**: an IP-XACT **2022** output mode (`export-ipxact --std {2014,2022}`,
+validated against the official 1685-2022 XSD) and **parameter mapping** via an optional,
+ignorable `[ipxact.parameters]` manifest section. **No `ip.toml`/`ip.lock`/CLI break** — the
+`[ipxact.parameters]` table is purely additive (no `schema` bump) and the `--std` flag is
+optional. The prior release (`0.13.0`) was the `hdl-ip-packager` -> `hdlpkg` rename.
+**Next**: `0.15.0`+ — supply-chain (Sigstore signing) + confidential IP (IEEE 1735), and the
+deferred IP-XACT ports/bus-interface mapping, as the backlog matures. The project stays
+**pre-1.0** (formats keep the licence to change), validated continuously via
 `hdlpkg-livetest`; `1.0.0` is a deliberate freeze for later. See the Release plan.
 
 **Stage**: Feature-complete for the roadmap (M1–M8) and iterating through the backlog as
@@ -178,6 +178,19 @@ the next `0.x` release.
 ---
 
 ## Completed Milestones
+
+### Release 0.14.0 — Git-registry hardening + richer IP-XACT — June 2026
+- [x] **Cut `0.14.0`**, bundling the two workstreams of
+  [docs/design/0.14.0-git-and-ipxact.md](design/0.14.0-git-and-ipxact.md): **(A)** Git-registry
+  hardening — tag-preferred ref resolution, the offline `@sha` / `gen --locked` guarantee
+  (clone cache keyed by URL; lazy registry when the cache is complete), and scp-URL rejection
+  — validated end to end in `hdlpkg-livetest` against a real remote; and **(B)** an IP-XACT
+  **2022** output mode (`export-ipxact --std {2014,2022}`, validated against the official
+  1685-2022 XSD, vendored) plus **parameter mapping** via an optional `[ipxact.parameters]`
+  manifest section. **No `ip.toml`/`ip.lock`/CLI break** — `[ipxact.parameters]` is additive
+  and ignorable (no `schema` bump) and `--std` is optional. Bumped `pyproject.toml` +
+  `src/hdlpkg/__init__.py` to `0.14.0`; regenerated the man page. Next: `0.15.0`+
+  (Sigstore signing, confidential IP, deferred IP-XACT ports/bus interfaces).
 
 ### 0.14.0 workstream B (part 2) — IP-XACT parameter mapping — June 2026
 - [x] **`export-ipxact` now maps producer-declared parameters**, the richer-mapping half of
