@@ -27,7 +27,8 @@ deprecation shim keeps the old `pip install` resolving to `hdlpkg`; `import hdl_
 is a clean break (pre-1.0). See [docs/design/rename-to-hdlpkg.md](design/rename-to-hdlpkg.md).
 The prior release (`0.12.0`, as `hdl-ip-packager`) added module/interface/entity coexistence.
 **Next**: `0.14.0` — Git-registry hardening + richer IP-XACT mapping + an IP-XACT 2022 output
-mode (see [docs/design/0.13.0-git-and-ipxact.md](design/0.13.0-git-and-ipxact.md)). The project
+mode (see [docs/design/0.14.0-git-and-ipxact.md](design/0.14.0-git-and-ipxact.md)); **in
+progress on `develop`** — the four Git-registry fixes (A1–A4) have landed. The project
 stays **pre-1.0** (formats keep the licence to change), validated continuously via
 `hdlpkg-livetest`; `1.0.0` is a deliberate freeze for later. See the Release plan.
 
@@ -162,7 +163,7 @@ the next `0.x` release.
 | Sigstore (cosign) artifact signing | `packaging.py`, `.github/workflows/` | The unbuilt half of M8: keyless signing of the `.ipkg` + SBOM and a verify path. Needs OIDC + Fulcio/Rekor (or a managed key) and a live transparency log to implement and test honestly — deferred like the Git backend. Checksums + SBOM already ship; this adds authenticity on top. |
 | Richer IP-XACT mapping (bus interfaces, parameters) + IP-XACT 2022 | `ipxact.py`, tests | Export now **validates against the official 1685-2014 XSD** (see Completed Milestones). Remaining, optional: map more of the standard (bus interfaces, parameters, memory maps) and consider an IP-XACT **2022** (1685-2022) output mode. Not needed for the current Vivado-ingest use case. |
 | Name-mangling — named-library references + classifier cleanup | `mangle.py` | Follow-ups filed from the 0.12.0 release review (not release blockers). (1) **Named-library references to a coexisting unit are left untouched**: a `use mylib.bus` / `entity mylib.foo` reference to a colliding package/entity is not rewritten while its declaration is, so a design that references a coexisting unit via a named library (not `work`) would dangle. Unreachable in the current single-`work`-library `gen` flow (everything is analyzed into `work`), and the same long-standing limitation applies to packages; the safe fix is to *refuse* on a named-lib reference to a colliding unit (parity with the SV classifiers). (2) **Cleanup**: `_reject_unclassifiable_sv_modules` / `_reject_unclassifiable_sv_interfaces` and the per-kind declaration scanners share structure — collapse into one parameterized helper so the scan scaffold cannot drift between kinds. |
-| Git-backed registry — ref-resolution and parsing hardening | `registry.py` | Follow-ups from the 0.11.0 release review of the new `GitRegistry` (all need a real git server, which the integration tests can't exercise on the CFA-restricted Windows box, so they are filed not fixed): (1) **`_resolve` prefers a remote branch over a tag of the same name** — `git+...@v1.0.0` resolves to `origin/v1.0.0` (branch tip, which can move) before the `v1.0.0` tag, weakening the immutable-provenance promise when both exist; prefer the tag, or disambiguate. (2) **`_parse_git_location` mis-splits an scp-style URL with an `@ref`** — `git+git@host:repo.git@v1.0` (no `/` before the repo) splits at the first `@`; document `git+ssh://` as the supported form, or special-case scp syntax. (3) **A bare scp URL (`git@host:repo.git`, no `git+`) silently falls through to `LocalRegistry`** and fails with a confusing "not in the local registry" error; detect it and hint `git+ssh://`. (4) **`gen --locked` against a `git+` location still re-fetches** (`_sync` always fetches when a clone exists) so the "works offline after install" claim is only true for the cache path; thread the pinned `@sha` to short-circuit the fetch when the commit is already present. None are integrity bugs (the `gen --locked` digest check now fails closed regardless). |
+| Git-backed registry — ref-resolution and parsing hardening | `registry.py` | **Fixed (June 2026, 0.14.0 workstream A — see Completed Milestones).** All four 0.11.0-review follow-ups landed: (1) `_resolve` now prefers the immutable **tag** over a same-named remote branch (`refs/tags/<ref>` -> `origin/<ref>` -> raw SHA); (2) scp-style URLs (`git+git@host:repo.git`) are rejected in `_parse_git_location` with a hint to use `git+ssh://`; (3) a bare scp URL (`git@host:repo.git`) is detected in `registry_from_location` and hinted (no longer a confusing `LocalRegistry` miss); (4) `_sync` short-circuits the fetch when the pinned `@<sha>` is already present in the clone (true offline-after-install). Unit-tested for the pure parse/decision logic; the real-git-server cases (tag-vs-branch, offline) run as integration tests (skip on the CFA-restricted Windows box, run in CI) and are the **`hdlpkg-livetest`** validation target. None were integrity bugs (the `gen --locked` digest check fails closed regardless). |
 
 ---
 
@@ -177,6 +178,31 @@ the next `0.x` release.
 ---
 
 ## Completed Milestones
+
+### 0.14.0 workstream A — Git-registry hardening (the four ref/parse fixes) — June 2026
+- [x] **Fixed all four `GitRegistry` follow-ups** filed from the 0.11.0/0.12.0 reviews
+  (workstream A of [docs/design/0.14.0-git-and-ipxact.md](design/0.14.0-git-and-ipxact.md)),
+  hardening provenance and the offline story without any `ip.toml`/`ip.lock`/CLI change:
+  - **A1 — tag preferred over a same-named branch.** `_resolve` now tries
+    `refs/tags/<ref>` first, then `origin/<ref>`, then a raw SHA, so a pinned
+    `git+<url>@v1.0.0` binds to the **immutable tag** rather than the moving `origin/v1.0.0`
+    branch tip — closing the provenance-drift gap.
+  - **A4 — exact-SHA pins resolve offline.** `_sync` skips the network `git fetch` when the
+    pinned `@<sha>` (the form a lockfile records) is already a commit in the clone
+    (`_commit_present`), so `gen --locked` against a `git+` source genuinely works offline
+    after the first install. A branch/tag pin (or no pin) still fetches.
+  - **A2/A3 — scp-style URLs rejected with a hint.** `_parse_git_location` rejects
+    `git+git@host:repo.git[@ref]` (its first `@` is ambiguous), and `registry_from_location`
+    detects a bare `git@host:repo.git` (which used to fall through to `LocalRegistry` with a
+    confusing "not in the local registry" error) — both point at the supported
+    `git+ssh://host/path/repo.git[@ref]` form. New pure helpers `_is_scp_like` / `_is_full_sha`.
+  - **Tests**: pure parse/decision logic is unit-tested (`tests/unit/test_registry_location.py`
+    — scp rejection, full-SHA detection); the real-git-server behaviours (tag-vs-branch
+    preference, offline `@sha` re-resolve after the remote is removed) are integration tests
+    (`tests/integration/test_git_registry_cli.py`) that **skip** on the CFA-restricted Windows
+    box but run in CI, and are the **`hdlpkg-livetest`** end-to-end validation target.
+  Files: `src/hdlpkg/registry.py`, the two test modules. Next in 0.14.0: workstream B
+  (IP-XACT 2022 output mode + parameter mapping).
 
 ### Release 0.13.0 — the hdl-ip-packager -> hdlpkg rename — June 2026
 - [x] **Cut `0.13.0`**: renamed the import package `hdl_ip_packager` -> `hdlpkg` (moved

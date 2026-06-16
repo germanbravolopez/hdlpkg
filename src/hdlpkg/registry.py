@@ -585,13 +585,48 @@ def default_git_cache_root() -> Path:
     return Path(override) if override else Path.home() / ".hdlpkg" / "git"
 
 
+# scp-style git syntax (``[user@]host:path``) -- unsupported; we want the explicit
+# ``git+ssh://host/path`` form so an ``@ref`` is never ambiguous. Matches with or without
+# a ``git+`` prefix, and requires a ``user@host:`` shape with no scheme and a non-absolute
+# path (so a Windows drive ``C:\...`` or a ``path:dir`` location never matches).
+_SCP_LIKE = re.compile(r"^(?:git\+)?[\w.-]+@[\w.-]+:(?!/)")
+
+# A full commit object name (git's SHA-1 40 hex, or SHA-256 64 hex). Only an exact commit
+# is treated as offline-resolvable; a branch/tag name could have moved on the remote.
+_FULL_SHA = re.compile(r"^[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?$")
+
+
+def _is_scp_like(location: str) -> bool:
+    """True if *location* looks like an scp-style git URL (``[user@]host:path``).
+
+    These are rejected in favour of the explicit ``git+ssh://host/path[@ref]`` form, whose
+    ``@ref`` split is unambiguous. A location carrying an explicit ``://`` scheme is never
+    scp-style.
+    """
+    if "://" in location:
+        return False
+    return bool(_SCP_LIKE.match(location))
+
+
+def _is_full_sha(ref: str) -> bool:
+    """True if *ref* is a full commit SHA (the only ref we resolve offline)."""
+    return bool(_FULL_SHA.match(ref))
+
+
 def _parse_git_location(location: str) -> tuple[str, str | None]:
     """Split a ``git+<url>[@<ref>]`` location into the git URL and an optional ref.
 
     The ``git+`` prefix is stripped to recover the real URL. An optional ``@<ref>`` (a
     branch, tag, or commit) is taken from the *final* path segment only, so an ``ssh``
-    user (``git@host``) earlier in the URL is never mistaken for a ref.
+    user (``git@host``) earlier in the URL is never mistaken for a ref. An scp-style URL
+    (``git+git@host:repo.git``) is rejected here with a hint: its first ``@`` cannot be
+    told apart from an ``@ref``, so the explicit ``git+ssh://`` form is required.
     """
+    if _is_scp_like(location):
+        raise RegistryError(
+            f"scp-style git URL {location!r} is not supported; "
+            f"use git+ssh://host/path/repo.git[@ref] instead"
+        )
     url = location[len("git+") :]
     head, _, tail = url.rpartition("/")
     name, at, ref = tail.partition("@")
@@ -637,16 +672,32 @@ class GitRegistry(Registry):
         return result.stdout.strip()
 
     def _sync(self, cache_root: Path) -> Path:
-        """Clone (or fetch) the repo into the cache and check out the target commit."""
+        """Clone (or fetch) the repo into the cache and check out the target commit.
+
+        Offline fast path: when the pin is an exact commit already present in the clone
+        (the ``@<sha>`` a lockfile records), the network fetch is skipped entirely -- so
+        ``gen --locked`` against a ``git+`` source works offline after the first install.
+        A branch/tag pin (or no pin) still fetches, since the remote tip could have moved.
+        """
         cache_root.mkdir(parents=True, exist_ok=True)
         work = cache_root / hashlib.sha256(self.location.encode()).hexdigest()[:16]
         if (work / ".git").is_dir():
-            self._git("fetch", "--tags", "--force", "--prune", "origin", cwd=work)
+            if not (self.ref and self._commit_present(work, self.ref)):
+                self._git("fetch", "--tags", "--force", "--prune", "origin", cwd=work)
         else:
             self._git("clone", "--quiet", self.url, str(work))
         target = self.ref or self._default_branch(work)
         self._git("checkout", "--quiet", "--force", self._resolve(work, target), cwd=work)
         return work
+
+    def _commit_present(self, work: Path, ref: str) -> bool:
+        """True if *ref* is a full commit SHA already present locally (no fetch needed)."""
+        if not _is_full_sha(ref):
+            return False
+        try:
+            return self._git("cat-file", "-t", ref, cwd=work) == "commit"
+        except RegistryError:
+            return False
 
     def _default_branch(self, work: Path) -> str:
         """The remote's default branch name (e.g. ``main``)."""
@@ -655,8 +706,14 @@ class GitRegistry(Registry):
         )[-1]
 
     def _resolve(self, work: Path, ref: str) -> str:
-        """Resolve *ref* to a commit SHA, preferring the remote branch over a tag/SHA."""
-        for candidate in (f"origin/{ref}", ref):
+        """Resolve *ref* to a commit SHA, preferring an immutable tag over a branch.
+
+        For an ``@ref`` pin we try ``refs/tags/<ref>`` first, then the remote branch
+        ``origin/<ref>``, then a raw SHA. A tag is immutable provenance; a same-named
+        remote branch is a moving tip, so preferring the tag keeps ``git+<url>@<ref>``
+        bound to what the user pinned.
+        """
+        for candidate in (f"refs/tags/{ref}", f"origin/{ref}", ref):
             try:
                 return self._git("rev-parse", "--verify", f"{candidate}^{{commit}}", cwd=work)
             except RegistryError:
@@ -695,6 +752,11 @@ def registry_from_location(
     head, separator, rest = location.partition("://")
     scheme = head.lower() if separator else ""
     if not separator:
+        if _is_scp_like(location):  # git@host:repo.git -- would silently become a LocalRegistry
+            raise RegistryError(
+                f"scp-style git URL {location!r} is not supported; "
+                f"use git+ssh://host/path/repo.git[@ref] instead"
+            )
         prefix, colon, tail = location.partition(":")
         if colon and prefix.lower() == "path":
             return LocalRegistry(tail)

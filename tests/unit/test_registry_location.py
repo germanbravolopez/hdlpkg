@@ -10,6 +10,8 @@ from hdlpkg.registry import (
     HttpRegistry,
     LocalRegistry,
     OciRegistry,
+    _is_full_sha,
+    _is_scp_like,
     _parse_git_location,
     parse_bearer_challenge,
     registry_from_location,
@@ -92,3 +94,47 @@ def test_unknown_scheme_raises() -> None:
 )
 def test_parse_git_location_splits_url_and_ref(location: str, url: str, ref: str | None) -> None:
     assert _parse_git_location(location) == (url, ref)
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        "git@host:org/repo.git",  # bare scp (no git+) -- would fall through to LocalRegistry
+        "git+git@host:repo.git",  # scp with a git+ prefix
+        "git+git@host:repo.git@v1.0",  # scp + @ref -- the first '@' is ambiguous
+    ],
+)
+def test_scp_style_git_url_is_rejected(location: str) -> None:
+    assert _is_scp_like(location)
+    with pytest.raises(RegistryError, match="scp-style git URL"):
+        registry_from_location(location)
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        "git+ssh://git@host/org/repo.git",  # the supported explicit form
+        "git+https://host/org/repo.git",
+        "path:some/dir",
+        "C:\\registry",
+        "some/dir",
+    ],
+)
+def test_non_scp_locations_are_not_flagged(location: str) -> None:
+    assert not _is_scp_like(location)
+
+
+@pytest.mark.parametrize(
+    ("ref", "expected"),
+    [
+        ("0" * 40, True),  # SHA-1
+        ("a1b2c3d4" * 5, True),  # 40 hex
+        ("f" * 64, True),  # SHA-256
+        ("v1.0.0", False),  # a tag
+        ("main", False),  # a branch
+        ("0" * 39, False),  # too short
+        ("g" * 40, False),  # not hex
+    ],
+)
+def test_is_full_sha(ref: str, expected: bool) -> None:
+    assert _is_full_sha(ref) is expected
