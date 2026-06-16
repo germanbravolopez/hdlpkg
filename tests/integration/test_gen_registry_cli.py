@@ -105,6 +105,48 @@ def test_install_locked_then_gen_locked_works_offline(
     assert "sync_fifo.sv" in (tmp_path / "out" / "uart.vc").read_text(encoding="utf-8")
 
 
+def test_gen_locked_does_not_build_registry_when_cache_is_complete(
+    store: Path, uart_project: Path, tmp_path: Path
+) -> None:
+    # The offline-after-install promise: when every locked artifact is already cached,
+    # `gen --locked` must not even construct the registry -- so a `git+` source never
+    # re-clones/fetches. Proven here with a bogus --registry that would fail on
+    # construction (registry_from_location raises on an unknown scheme): gen must still
+    # succeed, because the registry is never built.
+    cache = tmp_path / "cache"
+    assert cli.main(["resolve", str(uart_project), "--registry", str(store)]) == 0
+    assert (
+        cli.main(
+            [
+                "install",
+                str(uart_project),
+                "--registry",
+                str(store),
+                "--cache-dir",
+                str(cache),
+                "--locked",
+            ]
+        )
+        == 0
+    )
+    rc = cli.main(
+        [
+            "gen",
+            "sim",
+            str(uart_project),
+            "--registry",
+            "ftp://unreachable.invalid/x",
+            "--cache-dir",
+            str(cache),
+            "--locked",
+            "--output",
+            str(tmp_path / "out"),
+        ]
+    )
+    assert rc == 0
+    assert (tmp_path / "out" / "uart.vc").is_file()
+
+
 def test_gen_locked_fails_closed_on_checksum_drift(
     store: Path, uart_project: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

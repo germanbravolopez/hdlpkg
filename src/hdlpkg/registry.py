@@ -680,7 +680,10 @@ class GitRegistry(Registry):
         A branch/tag pin (or no pin) still fetches, since the remote tip could have moved.
         """
         cache_root.mkdir(parents=True, exist_ok=True)
-        work = cache_root / hashlib.sha256(self.location.encode()).hexdigest()[:16]
+        # Key the clone by the repo URL (not the full @ref location) so every ref of one
+        # repo shares a single clone -- which is what lets an exact-@sha pin reuse the clone
+        # a no-ref install already made and resolve offline.
+        work = cache_root / hashlib.sha256(self.url.encode()).hexdigest()[:16]
         if (work / ".git").is_dir():
             if not (self.ref and self._commit_present(work, self.ref)):
                 self._git("fetch", "--tags", "--force", "--prune", "origin", cwd=work)
