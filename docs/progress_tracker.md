@@ -179,6 +179,23 @@ the next `0.x` release.
 
 ## Completed Milestones
 
+### 0.14.0 workstream B (part 1) — IP-XACT 2022 output mode — June 2026
+- [x] **`export-ipxact` can now emit IEEE 1685-2022 as well as 1685-2014**, via a new
+  `--std {2014,2022}` flag (default 2014 for back-compat). `to_ipxact(manifest, std=...)`
+  (`ipxact.py`) is parameterized by standard: the VLNV / model views+instantiations /
+  fileSets shape is shared; the only structural delta is **`description` placement** (2022
+  carries it in the `documentNameGroup` right after the version; 2014 trails it after
+  `fileSets`). The `fileType` `user`-escape is unchanged (2022 only *adds* enum types, so a
+  2014-valid type is valid in 2022). The full official **1685-2022 XSD set** (Apache-2.0) is
+  vendored under `tests/schema/ipxact-1685-2022/` (test fixture only, not in the wheel), and
+  `tests/unit/test_ipxact_xsd.py` now validates **both** standards against their official
+  XSDs over the example cores + custom `fileType`/description cases, plus a negative test per
+  standard. Additive/internal — no `ip.toml`/`ip.lock`/format change. Files: `ipxact.py`,
+  `cli.py` (+ regenerated `man/hdlpkg.1`), `tests/unit/test_ipxact.py`,
+  `tests/unit/test_ipxact_xsd.py`, `tests/integration/test_ipxact_cli.py`,
+  `tests/schema/ipxact-1685-2022/`. Next (part 2): richer mapping — an optional `ip.toml`
+  `[ipxact.*]` section exporting **parameters** in both standards.
+
 ### 0.14.0 workstream A — Git-registry hardening (the four ref/parse fixes) — June 2026
 - [x] **Fixed all four `GitRegistry` follow-ups** filed from the 0.11.0/0.12.0 reviews
   (workstream A of [docs/design/0.14.0-git-and-ipxact.md](design/0.14.0-git-and-ipxact.md)),

@@ -38,7 +38,7 @@ from .exceptions import (
     ManifestError,
     RegistryError,
 )
-from .ipxact import to_ipxact
+from .ipxact import DEFAULT_IPXACT_STD, SUPPORTED_IPXACT_STDS, to_ipxact
 from .lockfile import LOCKFILE_FILENAME, Lockfile, sha256_digest
 from .mangle import GenCore, GenSourceFile, ManglePlan, plan_package_mangling
 from .manifest import (
@@ -307,6 +307,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         metavar="FILE",
         help="output XML path (default: <vendor>.<library>.<name>.<version>.xml in the cwd)",
+    )
+    p_ipxact.add_argument(
+        "--std",
+        choices=SUPPORTED_IPXACT_STDS,
+        default=DEFAULT_IPXACT_STD,
+        help=f"IEEE 1685 revision to emit (default: {DEFAULT_IPXACT_STD})",
     )
     p_ipxact.set_defaults(func=_cmd_export_ipxact)
 
@@ -834,8 +840,8 @@ def _cmd_export_ipxact(args: argparse.Namespace) -> int:
         if args.output
         else Path(f"{vlnv.vendor}.{vlnv.library}.{vlnv.name}.{vlnv.version}.xml")
     )
-    output.write_text(to_ipxact(manifest), encoding="utf-8")
-    print(f"Exported IP-XACT for {vlnv} -> {output}")
+    output.write_text(to_ipxact(manifest, std=args.std), encoding="utf-8")
+    print(f"Exported IP-XACT {args.std} for {vlnv} -> {output}")
     return 0
 
 
