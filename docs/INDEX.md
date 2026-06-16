@@ -42,7 +42,7 @@ quick-find reference.
 | Tool-flow backends (`gen`) | `src/hdlpkg/backends/` | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) |
 | Name-mangling (packages, SV modules/interfaces, VHDL entities) | `src/hdlpkg/mangle.py` | implemented |
 | Dependency tree view (`tree`) | `src/hdlpkg/treeview.py` | implemented |
-| IP-XACT export (`export-ipxact`) | `src/hdlpkg/ipxact.py` | implemented (1685-2014) |
+| IP-XACT export (`export-ipxact`) | `src/hdlpkg/ipxact.py` | implemented (1685-2014/2022 + parameters) |
 | SBOM (`pack --sbom`) | `src/hdlpkg/sbom.py` | implemented (CycloneDX 1.5) |
 
 ## Tooling & build files

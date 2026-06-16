@@ -72,6 +72,7 @@ from .manifest import (
     ConflictPolicy,
     Dependency,
     Fileset,
+    IpxactParameter,
     Manifest,
     Target,
 )
@@ -134,6 +135,7 @@ __all__ = [
     "InvalidConstraintError",
     "InvalidVersionError",
     "InvalidVlnvError",
+    "IpxactParameter",
     "LocalDirectoryRegistry",
     "LocalRegistry",
     "LockedPackage",

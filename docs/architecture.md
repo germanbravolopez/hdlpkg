@@ -57,7 +57,7 @@ task-oriented intro see the [user guide](user_guide.md).
 | Backends | [backends/](../src/hdlpkg/backends/) | implemented (Verilator, Vivado, Icarus, GHDL, Yosys) | EDAM-like intermediate (`build_eda_design`) → tool inputs behind `hdlpkg gen` |
 | Name-mangling | [mangle.py](../src/hdlpkg/mangle.py) | implemented (SV + VHDL packages, SV modules/interfaces, VHDL entities) | Rewrite coexisting unit names so two versions build together under `gen` |
 | Tree view | [treeview.py](../src/hdlpkg/treeview.py) | implemented | `render_dependency_tree` → ASCII dependency graph behind `hdlpkg tree` |
-| IP-XACT | [ipxact.py](../src/hdlpkg/ipxact.py) | implemented | `to_ipxact` → IEEE 1685-2014 component XML behind `hdlpkg export-ipxact` |
+| IP-XACT | [ipxact.py](../src/hdlpkg/ipxact.py) | implemented | `to_ipxact` → IEEE 1685-2014/2022 component XML (`export-ipxact --std`), incl. `[ipxact.parameters]` |
 | SBOM | [sbom.py](../src/hdlpkg/sbom.py) | implemented (CycloneDX) | `build_cyclonedx` → deterministic CycloneDX 1.5 SBOM behind `hdlpkg pack --sbom` |
 
 The dependency direction is strictly one-way and acyclic:
@@ -270,13 +270,17 @@ tree into `<output>/src/` and builds over it (`build_eda_design(allow_multiversi
 The design rationale is in [docs/design/module-entity-coexistence.md](design/module-entity-coexistence.md).
 
 ### IP-XACT export *(implemented — [ipxact.py](../src/hdlpkg/ipxact.py))*
-`export-ipxact` renders a manifest as an IEEE **1685-2014** component XML via the
-pure `to_ipxact`: VLNV identity, a `model` of one view + componentInstantiation per
-target, and the `fileSets`. Standard fileset `type` values map straight through to the
-IP-XACT `fileType` enumeration; a custom/tool-specific type uses the IP-XACT
-`<fileType user="…">user</fileType>` escape. Output is deterministic (stdlib
-`ElementTree`) and **validated against the official Accellera 1685-2014 XSD** by a test
-(the schema set is vendored under `tests/schema/`, `lxml` validates).
+`export-ipxact` renders a manifest as an IEEE component XML via the pure
+`to_ipxact(manifest, std=...)`, targeting **1685-2014** (default) or **1685-2022**
+(`--std 2022`): VLNV identity, a `model` of one view + componentInstantiation per target,
+the `fileSets`, and — from an optional `[ipxact.parameters]` manifest table — a
+`parameters` block. The two standards differ only in `description` placement (2022 carries
+it in the `documentNameGroup`; 2014 trails it after `fileSets`). Standard fileset `type`
+values map straight through to the IP-XACT `fileType` enumeration; a custom/tool-specific
+type uses the IP-XACT `<fileType user="…">user</fileType>` escape. Output is deterministic
+(stdlib `ElementTree`) and **validated against the official Accellera 1685-2014 and
+1685-2022 XSDs** by tests (both schema sets vendored under `tests/schema/`, `lxml`
+validates). Ports and bus interfaces remain a deferred Open Non-Blocking item.
 
 ### Supply-chain *(SBOM implemented — [sbom.py](../src/hdlpkg/sbom.py); signing planned)*
 Checksums first (the packed-content SHA-256 already pins every artifact across the

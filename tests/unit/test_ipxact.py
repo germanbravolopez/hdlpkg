@@ -121,6 +121,28 @@ def test_2022_places_description_right_after_version() -> None:
     assert tags14.index("description") > tags14.index("fileSets")
 
 
+PARAMS = (
+    UART + '\n[ipxact.parameters]\nWIDTH = 8\nDEPTH = { value = 16, description = "FIFO depth" }\n'
+)
+
+
+@pytest.mark.parametrize("std", ["2014", "2022"])
+def test_parameters_are_emitted(std: str) -> None:
+    ns = {"ipxact": IPXACT_NAMESPACES[std]}
+    root = ET.fromstring(to_ipxact(Manifest.from_str(PARAMS), std=std))
+    params = root.findall(".//ipxact:parameters/ipxact:parameter", ns)
+    by_name = {p.findtext("ipxact:name", namespaces=ns): p for p in params}
+    assert set(by_name) == {"WIDTH", "DEPTH"}
+    assert by_name["WIDTH"].findtext("ipxact:value", namespaces=ns) == "8"
+    assert by_name["DEPTH"].findtext("ipxact:value", namespaces=ns) == "16"
+    assert by_name["DEPTH"].findtext("ipxact:description", namespaces=ns) == "FIFO depth"
+
+
+def test_no_parameters_section_when_absent() -> None:
+    root = _root(UART)  # UART declares no [ipxact.parameters]
+    assert root.find(".//ipxact:parameters", NS) is None
+
+
 def test_2022_keeps_vlnv_and_filesets() -> None:
     root = ET.fromstring(to_ipxact(Manifest.from_str(UART), std="2022"))
     assert root.findtext("ipxact:name", namespaces=NS22) == "uart"

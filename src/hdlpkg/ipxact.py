@@ -183,6 +183,17 @@ def to_ipxact(manifest: Manifest, std: IpxactStd = DEFAULT_IPXACT_STD) -> str:
     if std == "2014" and manifest.description:
         sub(component, "description", manifest.description)
 
+    # parameters: the producer-declared component parameters (optional [ipxact.parameters]).
+    # Placed last (before vendorExtensions, which we do not emit) -- valid in both standards.
+    if manifest.ipxact_parameters:
+        parameters = sub(component, "parameters")
+        for param in manifest.ipxact_parameters:
+            element = sub(parameters, "parameter")
+            sub(element, "name", param.name)
+            if param.description:
+                sub(element, "description", param.description)
+            sub(element, "value", param.value)
+
     ET.indent(component, space="  ")
     body = ET.tostring(component, encoding="unicode")
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + body + "\n"

@@ -96,6 +96,18 @@ def test_description_validates_in_both_standards(std_schema: tuple[IpxactStd, An
     assert _validate(schema, xml), str(schema.error_log)
 
 
+def test_parameters_validate_in_both_standards(std_schema: tuple[IpxactStd, Any]) -> None:
+    std, schema = std_schema
+    text = (
+        _BASE
+        + '[filesets.r]\nfiles=["a.sv"]\ntype="systemVerilogSource"\n'
+        + "[ipxact.parameters]\n"
+        + 'WIDTH = 8\nDEPTH = { value = 16, description = "FIFO depth" }\n'
+    )
+    xml = to_ipxact(Manifest.from_str(text), std=std)
+    assert _validate(schema, xml), str(schema.error_log)
+
+
 def test_custom_type_uses_the_user_escape(std_schema: tuple[IpxactStd, Any]) -> None:
     std, schema = std_schema
     xml = to_ipxact(
