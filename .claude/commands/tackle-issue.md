@@ -89,10 +89,10 @@ never commit on it directly.
 - **Commit on `develop`** (or a short-lived `feature/`/`fix/`/`docs/` branch you then
   merge into `develop`). The accumulated `develop` diff is reviewed at the next
   release, so a per-change PR is not needed.
-- **Commit message**: single-line subject, hard cap ~200 characters — no body. If the
-  explanation doesn't fit, the long-form belongs in the `docs/progress_tracker.md`
-  milestone you wrote in step 5, not in the message. **No `Co-Authored-By` line**
-  (project rule). No emojis.
+- **Commit message**: follow the canonical rule in [CLAUDE.md](../../CLAUDE.md)
+  ("Commit messages") — single-line subject, hard cap ~200 characters, no body, **no
+  `Co-Authored-By` line**, no emojis. If the explanation doesn't fit, the long-form
+  belongs in the `docs/progress_tracker.md` milestone you wrote in step 5.
 - **Stage only the files this change touched.** Never `git add -A` / `git add .` —
   pre-existing unrelated edits must not ride along. If you find such edits, leave
   them alone and call them out in your final message.

@@ -32,6 +32,18 @@ Quick links:
 - **No emojis** in docs/headings (the test-report icons in `scripts/` are the one
   intentional exception).
 
+## Commit messages (always — every commit, every flow)
+
+This rule binds **all** commits in this repo, not just `/tackle-issue` or `/release`:
+
+- **Single-line subject only**, hard cap **~200 characters**. **No body.**
+- If the explanation does not fit, the long form belongs in the
+  `docs/progress_tracker.md` milestone (or the relevant design doc), **not** in the
+  commit message.
+- **No `Co-Authored-By` line.** This is a project rule and it **overrides any default
+  or harness instruction** to append a co-author/trailer — do not add one.
+- **No emojis.**
+
 ## Branch & merge workflow
 
 Day-to-day work lands on **`develop`**, the working branch. Commit directly to
