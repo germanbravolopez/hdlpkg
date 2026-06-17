@@ -63,7 +63,7 @@ markdown_extensions:
 nav:
   - Home: README.md
   - User guide: user_guide.md
-  - Trial (1.0.0-rc.1): trial.md
+  - Trial: trial.md
   - Reference (manual):
       - Overview: modules/README.md
       - Versioning: modules/versioning.md
