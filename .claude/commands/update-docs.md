@@ -1,3 +1,7 @@
+---
+description: Update project docs after a change — docs/progress_tracker.md plus architecture.md / INDEX.md / README.md and the generated man page when relevant. Run after a feature, fix, or refactor.
+---
+
 # /update-docs — Update Project Documentation
 
 Run this after every feature, fix, refactor, or new insight. Good docs save the

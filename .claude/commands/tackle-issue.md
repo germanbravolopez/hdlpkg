@@ -1,3 +1,8 @@
+---
+description: Pick up and ship an open item from docs/progress_tracker.md — read, plan, implement, test, update docs, commit on develop. Use for "tackle X", "fix Y", "do the next roadmap milestone".
+argument-hint: <issue or roadmap item>
+---
+
 # /tackle-issue — Resolve an Open Issue from the Progress Tracker
 
 End-to-end workflow for picking up an open item from `docs/progress_tracker.md` and shipping it. Encapsulates the loop we run for every change: read → plan (if non-trivial) → implement → test → update docs → commit.

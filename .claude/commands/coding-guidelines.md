@@ -1,3 +1,7 @@
+---
+description: hdlpkg code style, typing, and testability rules — Python 3.11+, ruff format (line 100), mypy --strict on src/, frozen dataclasses with parse/from_* classmethods, I/O confined to the CLI and registry layers. Apply when writing or changing code under src/.
+---
+
 # /coding-guidelines — Code Development Guidelines
 
 Apply these to all new code in this project. When modifying existing code, follow
