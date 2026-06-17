@@ -18,7 +18,10 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`0.14.0`** cut — **Git-registry hardening + richer IP-XACT** (see
+**Version**: **`0.14.1`** cut — a **docs hotfix** over `0.14.0`: removed stale `1.0.0-rc.1`
+references (a yanked, superseded candidate) from the user guide install example and the docs
+nav. No code / `ip.toml` / `ip.lock` / CLI change. `0.14.0` delivered **Git-registry hardening
++ richer IP-XACT** (see
 [docs/design/0.14.0-git-and-ipxact.md](design/0.14.0-git-and-ipxact.md)). Workstream **A**:
 the four `GitRegistry` fixes (tag-preferred ref resolution, offline `@sha`/`gen --locked`,
 scp-URL rejection), validated end to end in `hdlpkg-livetest` against a real remote.
@@ -178,6 +181,17 @@ the next `0.x` release.
 ---
 
 ## Completed Milestones
+
+### Release 0.14.1 — docs hotfix (stale 1.0.0-rc.1 references) — June 2026
+- [x] **Cut `0.14.1`**, a docs-only hotfix off `main` (no code / `ip.toml` / `ip.lock` / CLI
+  change): removed the last stale references to the **yanked `1.0.0-rc.1`** candidate — the
+  `pip install hdlpkg==1.0.0rc1` example in `docs/user_guide.md` (now a generic
+  `==x.y.z` placeholder) and the `Trial (1.0.0-rc.1)` label in the `mkdocs.yml` nav (now
+  `Trial`). Branched off `main` (not `develop`, which carries unrelated in-flight 0.15.0
+  work), released via PR, then merged back into `develop`. Bumped `pyproject.toml` +
+  `src/hdlpkg/__init__.py` to `0.14.1` and regenerated the man page. (SemVer pre-release
+  *examples* in `docs/modules/versioning.md` and the historical `1.0.0-rc.1` milestone
+  entries below are intentionally left as-is.)
 
 ### Release 0.14.0 — Git-registry hardening + richer IP-XACT — June 2026
 - [x] **Cut `0.14.0`**, bundling the two workstreams of
