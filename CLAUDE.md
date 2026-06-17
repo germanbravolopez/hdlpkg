@@ -69,6 +69,20 @@ anything the user reserved. Full detail in
 [docs/ai_agent_instructions.md](docs/ai_agent_instructions.md) and the `/release`
 and `/tackle-issue` commands.
 
+## Docs site vs releases (a docs-only change does NOT need a release)
+
+The MkDocs site (GitHub Pages) is **decoupled from PyPI**: `.github/workflows/docs.yml`
+redeploys it on any push to `main` touching `docs/**` or `mkdocs.yml`, independent of
+version tags. A **release** (version bump + tag → PyPI) is only for a change to the
+**packaged wheel** — code, or wheel-shipped data like `man/hdlpkg.1`.
+
+So decide by *what changed*:
+- **Only `docs/**` / `mkdocs.yml`** → **no release.** Land it on `main` via a plain
+  docs PR (no version bump, no tag), then merge `main` back into `develop`; the Docs
+  workflow redeploys the site. Or just commit on `develop` and let it ride to `main`
+  at the next release if the live site can wait. Never run `/release` for docs alone.
+- **Code, or `man/hdlpkg.1`, that should ship on PyPI** → use `/release`.
+
 ## Shell preference
 
 Default to the **Bash** tool for `git`, file inspection, and general commands —
