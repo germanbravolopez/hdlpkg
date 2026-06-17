@@ -51,7 +51,7 @@ hdlpkg --help            # if 'hdlpkg' is not on PATH: python -m hdlpkg --help
 > default, so ask for it explicitly:
 > ```bash
 > pip install --pre hdlpkg        # newest, including pre-releases
-> pip install hdlpkg==1.0.0rc1    # or pin the exact candidate
+> pip install hdlpkg==x.y.z       # or pin the exact candidate
 > ```
 
 From a source checkout instead (for development — tests, lint, types):
