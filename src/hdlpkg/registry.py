@@ -776,16 +776,29 @@ class CompositeRegistry(Registry):
         self.warnings: list[str] = []
         self._shadow_warned: set[Vlnv] = set()
         self._unreachable_warned: set[int] = set()
+        # Memoize each backend's versions(ref) for this instance's lifetime (one CLI command):
+        # the resolver's graph walk and the per-VLNV owner lookups would otherwise re-query
+        # every backend repeatedly -- a network round-trip each time for HTTP/OCI/Git.
+        self._versions_cache: dict[tuple[int, PackageRef], list[Vlnv]] = {}
+
+    def _versions_of(self, registry: Registry, ref: PackageRef) -> list[Vlnv]:
+        """Backend ``versions(ref)``, cached; an unreachable backend yields ``[]`` (warn once)."""
+        key = (id(registry), ref)
+        cached = self._versions_cache.get(key)
+        if cached is not None:
+            return cached
+        try:
+            found = registry.versions(ref)
+        except RegistryError as exc:
+            self._note_unreachable(registry, exc)
+            found = []
+        self._versions_cache[key] = found
+        return found
 
     def versions(self, ref: PackageRef) -> list[Vlnv]:
         union: dict[Vlnv, None] = {}  # dict preserves first-seen order while deduplicating
         for registry in self._registries:
-            try:
-                found = registry.versions(ref)
-            except RegistryError as exc:
-                self._note_unreachable(registry, exc)
-                continue
-            for vlnv in found:
+            for vlnv in self._versions_of(registry, ref):
                 union.setdefault(vlnv, None)
         return list(union)
 
@@ -800,13 +813,7 @@ class CompositeRegistry(Registry):
 
     def _owner(self, vlnv: Vlnv) -> Registry:
         """The first backend (in order) that offers *vlnv*; warn once if more than one does."""
-        owners: list[Registry] = []
-        for registry in self._registries:
-            try:
-                if vlnv in registry.versions(vlnv.ref):
-                    owners.append(registry)
-            except RegistryError as exc:
-                self._note_unreachable(registry, exc)
+        owners = [reg for reg in self._registries if vlnv in self._versions_of(reg, vlnv.ref)]
         if not owners:
             raise RegistryError(f"{vlnv} is not available in any configured registry")
         if len(owners) > 1 and vlnv not in self._shadow_warned:
