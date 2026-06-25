@@ -18,20 +18,19 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`0.14.1`** cut — a **docs hotfix** over `0.14.0`: removed stale `1.0.0-rc.1`
-references (a yanked, superseded candidate) from the user guide install example and the docs
-nav. No code / `ip.toml` / `ip.lock` / CLI change. `0.14.0` delivered **Git-registry hardening
-+ richer IP-XACT** (see
-[docs/design/0.14.0-git-and-ipxact.md](design/0.14.0-git-and-ipxact.md)). Workstream **A**:
-the four `GitRegistry` fixes (tag-preferred ref resolution, offline `@sha`/`gen --locked`,
-scp-URL rejection), validated end to end in `hdlpkg-livetest` against a real remote.
-Workstream **B**: an IP-XACT **2022** output mode (`export-ipxact --std {2014,2022}`,
-validated against the official 1685-2022 XSD) and **parameter mapping** via an optional,
-ignorable `[ipxact.parameters]` manifest section. **No `ip.toml`/`ip.lock`/CLI break** — the
-`[ipxact.parameters]` table is purely additive (no `schema` bump) and the `--std` flag is
-optional. The prior release (`0.13.0`) was the `hdl-ip-packager` -> `hdlpkg` rename.
-**Next**: `0.15.0` — **IP-XACT ports + bus interfaces** (finishing the richer-IP-XACT arc;
-plan: [docs/design/0.15.0-ipxact-ports-businterfaces.md](design/0.15.0-ipxact-ports-businterfaces.md)),
+**Version**: **`0.15.0`** cut — the **multi-registry consumer flow** (an adopter-driven
+feature that slotted ahead of the planned IP-XACT ports work; plan:
+[docs/design/consumer-flow-multi-registry.md](design/consumer-flow-multi-registry.md)). Five
+phases, all additive — **no `ip.toml`/`ip.lock` format change**: (1) repeatable `--registry`
+builds an ordered search path (`CompositeRegistry`: union versions, first-wins shadowing, skip
+an unreachable backend); (2) `--locked` install/gen fetch each package from the exact `source`
+its lock entry recorded (`LockSourceRegistry`); (3) a `hdlpkg install <vlnv>` one-shot (declare
++ resolve + lock + cache, the `pip install <name>` shape); (4) a new `hdlpkg vendor` command
+materializes every locked dep into `deps/<vendor>/<library>/<name>/` for Makefile consumers;
+(5) a `hdlpkg-livetest --multi-registry` scenario exercising it end to end. `0.14.1` was a docs
+hotfix over `0.14.0` (Git-registry hardening + richer IP-XACT). **Next**: `0.16.0` — the
+deferred **IP-XACT ports + bus interfaces** (plan:
+[docs/design/0.15.0-ipxact-ports-businterfaces.md](design/0.15.0-ipxact-ports-businterfaces.md)),
 then supply-chain (Sigstore signing) + confidential IP (IEEE 1735) as the backlog matures.
 The project stays **pre-1.0** (formats keep the licence to change), validated continuously via
 `hdlpkg-livetest`; `1.0.0` is a deliberate freeze for later. See the Release plan.
@@ -182,6 +181,39 @@ the next `0.x` release.
 ---
 
 ## Completed Milestones
+
+### Release 0.15.0 — multi-registry consumer flow — June 2026
+- [x] **Cut `0.15.0`**, the multi-registry consumer flow (design:
+  [docs/design/consumer-flow-multi-registry.md](design/consumer-flow-multi-registry.md)), an
+  adopter-driven feature that slotted ahead of the planned IP-XACT ports work. Bumped
+  `pyproject.toml` + `src/hdlpkg/__init__.py` to `0.15.0` and regenerated the man page. Five
+  phases, all additive — **no `ip.toml`/`ip.lock` format change** (the lockfile's free-form
+  per-package `source` already carried the registry of origin):
+  - **Phase 1 — repeatable `--registry` + `CompositeRegistry`.** `--registry` is repeatable on
+    `resolve`/`install`/`gen`/`tree`/`pull` (CLI order = precedence); `versions` unions across
+    all reachable backends, and `manifest`/`artifact_bytes`/`source_for` (+ the inherited
+    `fetch`) delegate to the first backend that has the exact VLNV, so the lock pins each core's
+    true origin. A shadowed VLNV warns and takes the first; an unreachable backend is skipped
+    with a warning. New `composite_registry_from_locations`.
+  - **Phase 2 — `--locked` fetch from the recorded source.** With no `--registry`/`--search`,
+    `install --locked`/`gen --locked` fetch each package from the exact `source` its lock entry
+    recorded, via `LockSourceRegistry` + `registry_from_lock_source` (maps the recorded
+    `path:`/`registry:`/`oci:`/`git+…@sha` forms back to a backend). An explicit
+    `--registry`/`--search` still overrides; a cached core is reused offline. (Caveat: an OCI
+    source carries no transport scheme, so it is rebuilt as HTTPS.)
+  - **Phase 3 — `hdlpkg install <vlnv>` one-shot.** `install` accepts
+    `vendor:library:name[@constraint]` specs (positional `nargs="*"`), adds them to the
+    manifest, then resolves/locks/caches — the `pip install <name>` shape. Refused with
+    `--locked`; build (`gen`) stays separate.
+  - **Phase 4 — `hdlpkg vendor`.** Extracts every locked dep into
+    `deps/<vendor>/<library>/<name>/` (verify-against-lock, clears a stale tree), so a Makefile
+    consumer can include the sources the cache only holds as `.ipkg` blobs.
+  - **Phase 5 — docs + livetest.** User-guide sections, `vendor` listed in README/architecture;
+    a `hdlpkg-livetest --multi-registry` mode drives all four phases end to end against two
+    local-directory registries (no server/Docker/network).
+  - **Tests**: `tests/unit/test_composite_registry.py`, `test_lock_source_registry.py`, and
+    `tests/integration/test_multi_registry_cli.py`, `test_locked_from_lock_source_cli.py`,
+    `test_install_oneshot_cli.py`, `test_vendor_cli.py`. Full suite green (601 passing).
 
 ### Release 0.14.1 — docs hotfix (stale 1.0.0-rc.1 references) — June 2026
 - [x] **Cut `0.14.1`**, a docs-only hotfix off `main` (no code / `ip.toml` / `ip.lock` / CLI
