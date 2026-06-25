@@ -314,6 +314,20 @@ hdlpkg pull    acme:common:fifo:1.0.0 --registry oci://harbor.corp.local/ip --ou
 `hdlpkg logout <location>` removes a stored credential. Publishing is **append-only**: a
 version can never be overwritten (use a new version, or `yank` to retire a bad one).
 
+**Adding a dependency in one command.** `install` also accepts dependency specs, so you can
+declare and install in a single step — the `pip install <name>` shape — instead of editing
+`ip.toml` (or running `hdlpkg add`) first:
+
+```bash
+hdlpkg install acme:common:fifo@^1.0.0 --registry oci://harbor.corp.local/ip
+```
+
+Each `vendor:library:name[@constraint]` argument is written into the manifest's
+`[dependencies]`, then the usual resolve + lock + cache runs. You can name the manifest too
+(`hdlpkg install my_soc/ip.toml acme:common:fifo`); with no path it defaults to `./ip.toml`,
+and several specs may be added at once. Building (`hdlpkg gen`) stays a separate step.
+(Adding deps re-resolves, so it cannot be combined with `--locked`.)
+
 To try this end to end without standing up a server, a no-auth [Zot](https://zotregistry.dev)
 binary or `docker run -d -p 5000:5000 registry:2` gives you a real OCI registry on
 `oci+http://127.0.0.1:5000/ip` in one command.

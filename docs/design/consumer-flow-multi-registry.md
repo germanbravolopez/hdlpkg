@@ -170,7 +170,18 @@ readable" ≠ "not on disk.")
    in `registry.py` (`registry_from_lock_source`, `LockSourceRegistry`) and `cli.py`
    (`_locked_registry`); covered by `tests/unit/test_lock_source_registry.py` and
    `tests/integration/test_locked_from_lock_source_cli.py`; documented in the user guide.
-3. `hdlpkg install <vlnv>` one-shot (declare + resolve + lock + cache).
+3. **[done — `feature/multi-registry`]** `hdlpkg install <vlnv>` one-shot (declare + resolve +
+   lock + cache). `install`'s positional became `nargs="*"`: a `vendor:library:name[@constraint]`
+   token is added to the manifest's `[dependencies]` (reusing `editing.add_dependency`), then the
+   normal resolve/lock/cache runs; a non-spec token is the manifest path (default `ip.toml`,
+   at most one), and several specs may be added at once. **Decision** for the §6 "command
+   surface" open question: **overload `install`** (not a new flag / `add --install`), with
+   spec-vs-path disambiguation by whether the token parses as a `PackageRef`. Adding deps
+   re-resolves, so it is refused with `--locked`; a self-dependency and two manifest paths are
+   refused too. Implemented in `cli.py` (`_install_targets`, `_add_dependencies`,
+   `_parse_dependency_spec`/`_looks_like_dependency_spec` factored out of `_cmd_add`); covered by
+   `tests/integration/test_install_oneshot_cli.py`; man page regenerated; documented in the user
+   guide. Build (`gen`) stays a separate, deliberate step (firm decision §5.4).
 4. `vendor`/`sync` source materialization to a predictable tree (the Makefile case).
 5. Docs + a `hdlpkg-livetest` scenario exercising heterogeneous registries (OCI + Git + local).
 

@@ -159,10 +159,11 @@ def build_parser() -> argparse.ArgumentParser:
         "install", help="resolve dependencies and fetch them into the local cache"
     )
     p_install.add_argument(
-        "path",
-        nargs="?",
-        default=MANIFEST_FILENAME,
-        help=f"path to the root manifest (default: ./{MANIFEST_FILENAME})",
+        "targets",
+        nargs="*",
+        metavar="PATH | VENDOR:LIBRARY:NAME[@CONSTRAINT]",
+        help=f"the root manifest path (default: ./{MANIFEST_FILENAME}), and/or one or more "
+        "dependency specs to add to it before installing (the 'pip install <name>' shape)",
     )
     p_install.add_argument(
         "--search",
@@ -548,8 +549,46 @@ def _cmd_resolve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _install_targets(targets: list[str]) -> tuple[Path, list[str]]:
+    """Split ``install`` positionals into the manifest path and any dependency specs.
+
+    A ``vendor:library:name[@constraint]`` token is a dependency to add; anything else is the
+    manifest path (at most one; default ``ip.toml``).
+    """
+    specs = [t for t in targets if _looks_like_dependency_spec(t)]
+    paths = [t for t in targets if not _looks_like_dependency_spec(t)]
+    if len(paths) > 1:
+        raise ManifestError("install takes at most one manifest path; got: " + ", ".join(paths))
+    manifest_path = Path(paths[0]) if paths else Path(MANIFEST_FILENAME)
+    return manifest_path, specs
+
+
+def _add_dependencies(manifest_path: Path, specs: list[str]) -> None:
+    """Add each ``vendor:library:name[@constraint]`` *spec* to the manifest, then write it."""
+    text = manifest_path.read_text(encoding="utf-8")
+    own_ref = Manifest.from_str(text).ref  # validates, and guards against self-dependency
+    added: list[str] = []
+    for spec in specs:
+        ref, constraint = _parse_dependency_spec(spec)
+        if ref == own_ref:
+            raise ManifestError(f"A core cannot depend on itself ({ref}).")
+        text = add_dependency(text, ref, constraint)
+        added.append(f"{ref} = {constraint}")
+    Manifest.from_str(text)  # re-validate the edited manifest before writing
+    manifest_path.write_text(text, encoding="utf-8")
+    for entry in added:
+        print(f"Added {entry} to {manifest_path}")
+
+
 def _cmd_install(args: argparse.Namespace) -> int:
-    manifest_path = Path(args.path)
+    manifest_path, dep_specs = _install_targets(args.targets)
+    if dep_specs:
+        if args.locked:
+            raise ManifestError(
+                "cannot add dependencies with --locked; --locked installs an existing "
+                "lockfile unchanged. Drop --locked to add and resolve."
+            )
+        _add_dependencies(manifest_path, dep_specs)
     cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
     cache = ContentAddressedCache(cache_root)
 
@@ -897,14 +936,35 @@ def _cmd_export_ipxact(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_add(args: argparse.Namespace) -> int:
-    ref_str, at, inline = args.dependency.partition("@")
-    constraint_str = args.version or (inline if at else "*")
+def _parse_dependency_spec(
+    text: str, version: str | None = None
+) -> tuple[PackageRef, VersionConstraint]:
+    """Parse a ``vendor:library:name[@constraint]`` spec into a ref + constraint.
+
+    *version* overrides any inline ``@constraint``; the default constraint is ``*``.
+    """
+    ref_str, at, inline = text.partition("@")
+    constraint_str = version or (inline if at else "*")
     try:
         ref = PackageRef.parse(ref_str.strip())
         constraint = VersionConstraint.parse(constraint_str.strip())
     except HdlPackagerError as exc:
-        raise ManifestError(f"Invalid dependency '{args.dependency}': {exc}") from exc
+        raise ManifestError(f"Invalid dependency '{text}': {exc}") from exc
+    return ref, constraint
+
+
+def _looks_like_dependency_spec(token: str) -> bool:
+    """True if *token* is a ``vendor:library:name[@constraint]`` spec, not a manifest path."""
+    ref_str = token.partition("@")[0].strip()
+    try:
+        PackageRef.parse(ref_str)
+    except HdlPackagerError:
+        return False
+    return True
+
+
+def _cmd_add(args: argparse.Namespace) -> int:
+    ref, constraint = _parse_dependency_spec(args.dependency, args.version)
 
     manifest_path = Path(args.path)
     manifest = Manifest.from_path(manifest_path)  # validates and confirms it exists
