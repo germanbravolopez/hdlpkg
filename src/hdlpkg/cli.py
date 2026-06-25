@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import re
+import shutil
 import sys
 from collections.abc import Sequence
 from dataclasses import replace
@@ -232,6 +233,41 @@ def build_parser() -> argparse.ArgumentParser:
     p_pull.add_argument("--output", metavar="DIR", help="extract the core into this directory")
     p_pull.add_argument("--cache-dir", metavar="DIR", help="cache root (default: ~/.hdlpkg/cache)")
     p_pull.set_defaults(func=_cmd_pull)
+
+    p_vendor = sub.add_parser(
+        "vendor",
+        help="extract every locked dependency into a predictable source tree (for Makefiles)",
+    )
+    p_vendor.add_argument(
+        "path",
+        nargs="?",
+        default=MANIFEST_FILENAME,
+        help=f"path to the root manifest (default: ./{MANIFEST_FILENAME})",
+    )
+    p_vendor.add_argument(
+        "--output",
+        metavar="DIR",
+        help="where to write the vendored tree (default: ./deps next to the manifest); "
+        "each core lands in <DIR>/<vendor>/<library>/<name>/",
+    )
+    p_vendor.add_argument(
+        "--search",
+        action="append",
+        metavar="DIR",
+        help="directory to scan for the locked cores (repeatable)",
+    )
+    p_vendor.add_argument(
+        "--cache-dir", metavar="DIR", help="cache root (default: ~/.hdlpkg/cache)"
+    )
+    p_vendor.add_argument(
+        "--registry",
+        action="append",
+        metavar="LOCATION",
+        help="fetch the locked cores from a published registry (repeatable, CLI order = "
+        "precedence); by default each core is fetched from the source ip.lock recorded; "
+        + _REGISTRY_HELP,
+    )
+    p_vendor.set_defaults(func=_cmd_vendor)
 
     p_yank = sub.add_parser("yank", help="hide a published version from new resolves")
     p_yank.add_argument("vlnv", help="the core version to yank, e.g. acme:common:fifo:1.0.0")
@@ -681,6 +717,35 @@ def _cmd_pull(args: argparse.Namespace) -> int:
     if args.output:
         dest = extract_ipkg(cache.get(digest), Path(args.output))
         print(f"Extracted to {dest}")
+    return 0
+
+
+def _cmd_vendor(args: argparse.Namespace) -> int:
+    manifest_path = Path(args.path)
+    lock = _load_lockfile(manifest_path)
+    cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
+    cache = ContentAddressedCache(cache_root)
+    registry = _locked_registry(manifest_path, args, lock)
+
+    # Fetch every locked core into the cache, then verify the digests against the lock
+    # (fail closed) before laying any source down.
+    fetched = {pkg.vlnv: registry.fetch(pkg.vlnv, cache) for pkg in lock.packages}
+    lock.verify(fetched)
+
+    out_root = Path(args.output) if args.output else manifest_path.parent / "deps"
+    written: list[tuple[Vlnv, Path]] = []
+    for pkg in lock.packages:
+        vlnv = pkg.vlnv
+        dest = out_root / vlnv.vendor / vlnv.library / vlnv.name
+        if dest.exists():
+            shutil.rmtree(dest)  # replace any stale tree so the vendored copy matches the lock
+        extract_ipkg(cache.get(fetched[vlnv]), dest)
+        written.append((vlnv, dest))
+
+    _print_registry_warnings(registry)
+    print(f"Vendored {len(written)} package(s) into {out_root}")
+    for vlnv, dest in written:
+        print(f"  {vlnv} -> {dest}")
     return 0
 
 

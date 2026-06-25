@@ -182,7 +182,20 @@ readable" ≠ "not on disk.")
    `_parse_dependency_spec`/`_looks_like_dependency_spec` factored out of `_cmd_add`); covered by
    `tests/integration/test_install_oneshot_cli.py`; man page regenerated; documented in the user
    guide. Build (`gen`) stays a separate, deliberate step (firm decision §5.4).
-4. `vendor`/`sync` source materialization to a predictable tree (the Makefile case).
+4. **[done — `feature/multi-registry`]** `vendor` source materialization to a predictable tree
+   (the Makefile case). A new `hdlpkg vendor [path]` command reads the lock, fetches each core
+   (reusing `_locked_registry`, so it works from the recorded source / cache, offline), verifies
+   the digests against the lock (fail closed), and extracts each into
+   `<DIR>/<vendor>/<library>/<name>/` (default `./deps`), clearing any stale tree first so the
+   vendored copy matches the lock. **Decisions** for the §6 "vendoring shape" open question: a
+   **new `vendor` command** (not `install --vendor`), layout **`<vendor>/<library>/<name>/`**
+   (include library — VLNV identity is vendor:library:name — but not the version, so a Makefile
+   include path is stable across version bumps), **opt-in** (run it explicitly; the default
+   posture stays Go-modules-style "build from cache, vendor on request", not node_modules-style
+   vendor-by-default). It coexists with `gen`'s own `<cache>/src/<digest>/` extraction rather
+   than replacing it — `vendor` is for consumers driving their own Makefile, `gen` for the
+   built-in toolflows. Implemented in `cli.py` (`_cmd_vendor`); covered by
+   `tests/integration/test_vendor_cli.py`; man page regenerated; documented in the user guide.
 5. Docs + a `hdlpkg-livetest` scenario exercising heterogeneous registries (OCI + Git + local).
 
 Parts A (1–2) and B (3–4) are independent; A can ship first.

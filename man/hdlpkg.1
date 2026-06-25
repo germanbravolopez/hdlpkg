@@ -191,6 +191,29 @@ extract the core into this directory
 .TP
 .B \-\-cache\-dir DIR
 cache root (default: ~/.hdlpkg/cache)
+.SS vendor
+.ad l
+Extract every locked dependency into a predictable source tree (for Makefiles).
+.PP
+.RS 4
+hdlpkg vendor [\-h] [\-\-output DIR] [\-\-search DIR] [\-\-cache\-dir DIR] [\-\-registry LOCATION] [path]
+.RE
+.PP
+.TP
+.B [path]
+path to the root manifest (default: ./ip.toml)
+.TP
+.B \-\-output DIR
+where to write the vendored tree (default: ./deps next to the manifest); each core lands in <DIR>/<vendor>/<library>/<name>/
+.TP
+.B \-\-search DIR
+directory to scan for the locked cores (repeatable)
+.TP
+.B \-\-cache\-dir DIR
+cache root (default: ~/.hdlpkg/cache)
+.TP
+.B \-\-registry LOCATION
+fetch the locked cores from a published registry (repeatable, CLI order = precedence); by default each core is fetched from the source ip.lock recorded; a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .SS yank
 .ad l
 Hide a published version from new resolves.

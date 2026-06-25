@@ -47,7 +47,7 @@ task-oriented intro see the [user guide](user_guide.md).
 | Manifest | [manifest.py](../src/hdlpkg/manifest.py) | implemented | Parse/validate `ip.toml` → `Manifest` (identity, deps, filesets, targets) |
 | Scaffolder | [scaffold.py](../src/hdlpkg/scaffold.py) | implemented | Pure renderer for a starter `ip.toml` (behind `hdlpkg init`) |
 | Errors | [exceptions.py](../src/hdlpkg/exceptions.py) | implemented | One exception hierarchy rooted at `HdlPackagerError` |
-| CLI | [cli.py](../src/hdlpkg/cli.py) | implemented | `hdlpkg` entry point; all commands implemented (`info`/`validate`/`init`/`add`/`resolve`/`install`/`pack`/`publish`/`pull`/`yank`/`login`/`logout`/`gen`/`tree`/`export-ipxact`) |
+| CLI | [cli.py](../src/hdlpkg/cli.py) | implemented | `hdlpkg` entry point; all commands implemented (`info`/`validate`/`init`/`add`/`resolve`/`install`/`pack`/`publish`/`pull`/`vendor`/`yank`/`login`/`logout`/`gen`/`tree`/`export-ipxact`) |
 | Resolver | [resolver.py](../src/hdlpkg/resolver.py) | implemented | Constraints → selected `Vlnv`(s) (backtracking, Cargo-style unification, `[resolution] on-conflict` policy, scheme-aware) |
 | Lockfile | [lockfile.py](../src/hdlpkg/lockfile.py) | implemented | Serialize/parse/verify `ip.lock` (a `Resolution` + per-core source + SHA-256) |
 | Cache | [cache.py](../src/hdlpkg/cache.py) | implemented | Content-addressed local blob store (SHA-256 key, verify-on-read, atomic writes) |

@@ -358,6 +358,22 @@ hdlpkg install my_soc/ip.toml \
 Credentials stay per-host (via `hdlpkg login`), so each registry in the path authenticates
 with its own stored credential.
 
+**Vendoring sources for a Makefile.** The cache holds packed `.ipkg` blobs, not loose
+source, so a plain Makefile cannot read a dependency from it. `hdlpkg vendor` extracts every
+locked dependency into a predictable tree — `<DIR>/<vendor>/<library>/<name>/`, the
+`node_modules` of HDL — so an existing Makefile can just include the files:
+
+```bash
+hdlpkg vendor                       # writes ./deps/<vendor>/<library>/<name>/ for each locked core
+hdlpkg vendor --output third_party  # or choose the directory
+```
+
+It needs an `ip.lock` (run `resolve`/`install` first) and, like `--locked`, fetches each core
+from the source the lock recorded (pass `--registry` to override). Re-running replaces each
+core's tree so the vendored copy always matches the lock. Building (`hdlpkg gen`) remains
+independent — use `vendor` when you drive the build yourself, `gen` when you want hdlpkg to
+emit the tool inputs.
+
 **Installing straight from the lock.** Once `ip.lock` is written, each package entry records
 the exact registry it came from (its `source`). So `install --locked` and `gen --locked` with
 **no** `--registry`/`--search` fetch each core from its own recorded source — a lock that
