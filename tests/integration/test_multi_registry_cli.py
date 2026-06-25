@@ -50,8 +50,9 @@ def test_resolve_finds_a_dependency_in_the_second_registry(
     assert rc == 0
     text = lock.read_text(encoding="utf-8")
     assert "acme:common:fifo" in text or "fifo" in text
-    # The resolved core is pinned to the registry that actually had it (the second one).
-    assert str(store) in text
+    # The resolved core is pinned to the registry that actually had it (the second one). The
+    # lock records the path posix-style, so match on the registry dir name (Windows-safe).
+    assert store.name in text
 
 
 def test_shadowed_vlnv_warns_and_takes_the_first_registry(
@@ -69,5 +70,6 @@ def test_shadowed_vlnv_warns_and_takes_the_first_registry(
     assert rc == 0
     err = capsys.readouterr().err
     assert "multiple registries" in err
-    # First-in-order wins: the lock pins the core to the first registry.
-    assert str(first) in (uart_project.parent / "ip.lock").read_text(encoding="utf-8")
+    # First-in-order wins: the lock pins the core to the first registry (match the dir name,
+    # since the lock records the path posix-style and Windows str(path) is backslashed).
+    assert first.name in (uart_project.parent / "ip.lock").read_text(encoding="utf-8")
