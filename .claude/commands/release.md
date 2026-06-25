@@ -1,3 +1,8 @@
+---
+description: Cut a release X.Y.Z end-to-end — bump the version, green the gates, record the tracker, open a PR into main, /code-review, then tag the merge to publish to PyPI. Use when asked to release / ship / cut a version.
+argument-hint: X.Y.Z
+---
+
 # /release — Cut a Release X.Y.Z End-to-End
 
 Executes this project's tag-driven release flow: bump the version, make the gates

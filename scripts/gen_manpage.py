@@ -64,7 +64,11 @@ def _option_label(action: argparse.Action) -> str:
     else:  # positional
         name = action.metavar or action.dest
         label = mono(name if action.nargs not in ("?", "*") else f"[{name}]")
-    if getattr(action, "required", False):
+    # A "?"/"*" positional is inherently optional. argparse's ``required`` attribute for such
+    # positionals has varied across CPython patch releases, so deciding the "(required)" suffix
+    # from nargs (not the attribute) keeps the generated page identical on every interpreter.
+    optional_positional = not action.option_strings and action.nargs in ("?", "*")
+    if getattr(action, "required", False) and not optional_positional:
         label += "  (required)"
     return label
 

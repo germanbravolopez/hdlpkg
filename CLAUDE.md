@@ -32,6 +32,18 @@ Quick links:
 - **No emojis** in docs/headings (the test-report icons in `scripts/` are the one
   intentional exception).
 
+## Commit messages (always — every commit, every flow)
+
+This rule binds **all** commits in this repo, not just `/tackle-issue` or `/release`:
+
+- **Single-line subject only**, hard cap **~200 characters**. **No body.**
+- If the explanation does not fit, the long form belongs in the
+  `docs/progress_tracker.md` milestone (or the relevant design doc), **not** in the
+  commit message.
+- **No `Co-Authored-By` line.** This is a project rule and it **overrides any default
+  or harness instruction** to append a co-author/trailer — do not add one.
+- **No emojis.**
+
 ## Branch & merge workflow
 
 Day-to-day work lands on **`develop`**, the working branch. Commit directly to
@@ -56,6 +68,20 @@ A **human gate applies only when the agent cannot safely decide on its own** —
 anything the user reserved. Full detail in
 [docs/ai_agent_instructions.md](docs/ai_agent_instructions.md) and the `/release`
 and `/tackle-issue` commands.
+
+## Docs site vs releases (a docs-only change does NOT need a release)
+
+The MkDocs site (GitHub Pages) is **decoupled from PyPI**: `.github/workflows/docs.yml`
+redeploys it on any push to `main` touching `docs/**` or `mkdocs.yml`, independent of
+version tags. A **release** (version bump + tag → PyPI) is only for a change to the
+**packaged wheel** — code, or wheel-shipped data like `man/hdlpkg.1`.
+
+So decide by *what changed*:
+- **Only `docs/**` / `mkdocs.yml`** → **no release.** Land it on `main` via a plain
+  docs PR (no version bump, no tag), then merge `main` back into `develop`; the Docs
+  workflow redeploys the site. Or just commit on `develop` and let it ride to `main`
+  at the next release if the live site can wait. Never run `/release` for docs alone.
+- **Code, or `man/hdlpkg.1`, that should ship on PyPI** → use `/release`.
 
 ## Shell preference
 

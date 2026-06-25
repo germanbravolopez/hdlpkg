@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import re
+import shutil
 import sys
 from collections.abc import Sequence
 from dataclasses import replace
@@ -22,6 +23,7 @@ from . import __version__
 from .backends import CoreSource, build_eda_design, get_backend, normalize_file_type
 from .cache import ContentAddressedCache, default_cache_root
 from .credentials import (
+    CredentialStore,
     default_credentials_path,
     load_credentials,
     load_docker_config,
@@ -50,8 +52,10 @@ from .manifest import (
 from .packaging import artifact_filename, expand_fileset_files, extract_ipkg, pack_core
 from .registry import (
     LocalDirectoryRegistry,
+    LockSourceRegistry,
     Registry,
     available_from_registry,
+    composite_registry_from_locations,
     registry_from_location,
 )
 from .resolver import Resolution
@@ -144,8 +148,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_resolve.add_argument(
         "--registry",
+        action="append",
         metavar="LOCATION",
-        help="resolve from a published registry (overrides --search); " + _REGISTRY_HELP,
+        help="resolve from a published registry (overrides --search; repeatable, CLI order = "
+        "precedence); " + _REGISTRY_HELP,
     )
     _add_conflict_arg(p_resolve)
     p_resolve.set_defaults(func=_cmd_resolve)
@@ -154,10 +160,11 @@ def build_parser() -> argparse.ArgumentParser:
         "install", help="resolve dependencies and fetch them into the local cache"
     )
     p_install.add_argument(
-        "path",
-        nargs="?",
-        default=MANIFEST_FILENAME,
-        help=f"path to the root manifest (default: ./{MANIFEST_FILENAME})",
+        "targets",
+        nargs="*",
+        metavar="PATH | VENDOR:LIBRARY:NAME[@CONSTRAINT]",
+        help=f"the root manifest path (default: ./{MANIFEST_FILENAME}), and/or one or more "
+        "dependency specs to add to it before installing (the 'pip install <name>' shape)",
     )
     p_install.add_argument(
         "--search",
@@ -179,8 +186,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_install.add_argument(
         "--registry",
+        action="append",
         metavar="LOCATION",
-        help="fetch from a published registry (overrides --search); " + _REGISTRY_HELP,
+        help="fetch from a published registry (overrides --search; repeatable, CLI order = "
+        "precedence); " + _REGISTRY_HELP,
     )
     _add_conflict_arg(p_install)
     p_install.set_defaults(func=_cmd_install)
@@ -214,10 +223,51 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_pull = sub.add_parser("pull", help="download a core from a registry by VLNV")
     p_pull.add_argument("vlnv", help="the core to pull, e.g. acme:common:fifo:1.0.0")
-    p_pull.add_argument("--registry", required=True, metavar="LOCATION", help=_REGISTRY_HELP)
+    p_pull.add_argument(
+        "--registry",
+        action="append",
+        required=True,
+        metavar="LOCATION",
+        help="registry to pull from (repeatable, CLI order = precedence); " + _REGISTRY_HELP,
+    )
     p_pull.add_argument("--output", metavar="DIR", help="extract the core into this directory")
     p_pull.add_argument("--cache-dir", metavar="DIR", help="cache root (default: ~/.hdlpkg/cache)")
     p_pull.set_defaults(func=_cmd_pull)
+
+    p_vendor = sub.add_parser(
+        "vendor",
+        help="extract every locked dependency into a predictable source tree (for Makefiles)",
+    )
+    p_vendor.add_argument(
+        "path",
+        nargs="?",
+        default=MANIFEST_FILENAME,
+        help=f"path to the root manifest (default: ./{MANIFEST_FILENAME})",
+    )
+    p_vendor.add_argument(
+        "--output",
+        metavar="DIR",
+        help="where to write the vendored tree (default: ./deps next to the manifest); "
+        "each core lands in <DIR>/<vendor>/<library>/<name>/",
+    )
+    p_vendor.add_argument(
+        "--search",
+        action="append",
+        metavar="DIR",
+        help="directory to scan for the locked cores (repeatable)",
+    )
+    p_vendor.add_argument(
+        "--cache-dir", metavar="DIR", help="cache root (default: ~/.hdlpkg/cache)"
+    )
+    p_vendor.add_argument(
+        "--registry",
+        action="append",
+        metavar="LOCATION",
+        help="fetch the locked cores from a published registry (repeatable, CLI order = "
+        "precedence); by default each core is fetched from the source ip.lock recorded; "
+        + _REGISTRY_HELP,
+    )
+    p_vendor.set_defaults(func=_cmd_vendor)
 
     p_yank = sub.add_parser("yank", help="hide a published version from new resolves")
     p_yank.add_argument("vlnv", help="the core version to yank, e.g. acme:common:fifo:1.0.0")
@@ -261,9 +311,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("--output", metavar="DIR", help="output directory (default: ./gen/<target>)")
     p_gen.add_argument(
         "--registry",
+        action="append",
         metavar="LOCATION",
         help="fetch dependency sources from a published registry instead of --search "
-        "(materialized from the cache); " + _REGISTRY_HELP,
+        "(materialized from the cache; repeatable, CLI order = precedence); " + _REGISTRY_HELP,
     )
     p_gen.add_argument(
         "--cache-dir",
@@ -293,8 +344,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_tree.add_argument(
         "--registry",
+        action="append",
         metavar="LOCATION",
-        help="resolve from a published registry (overrides --search); " + _REGISTRY_HELP,
+        help="resolve from a published registry (overrides --search; repeatable, CLI order = "
+        "precedence); " + _REGISTRY_HELP,
     )
     _add_conflict_arg(p_tree)
     p_tree.set_defaults(func=_cmd_tree)
@@ -353,6 +406,12 @@ def _policy(args: argparse.Namespace) -> ConflictPolicy | None:
 def _print_warnings(resolution: Resolution) -> None:
     """Surface any policy-driven compromises the resolve made."""
     for warning in resolution.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+
+
+def _print_registry_warnings(registry: Registry) -> None:
+    """Surface a composite registry's shadowed-VLNV / unreachable-backend warnings."""
+    for warning in getattr(registry, "warnings", []):
         print(f"warning: {warning}", file=sys.stderr)
 
 
@@ -449,23 +508,47 @@ def _local_registry(manifest_path: Path, search: list[str] | None) -> LocalDirec
     return LocalDirectoryRegistry([Path(d) for d in search_dirs])
 
 
-def _selected_registry(location: str) -> Registry:
-    """Build the registry named by a ``--registry`` location, wiring in stored credentials.
+def _credentials() -> CredentialStore:
+    """Stored ``hdlpkg login`` credentials, with ``docker login`` entries as a fallback."""
+    return load_credentials().with_fallback(load_docker_config())
 
-    ``hdlpkg login`` credentials win; a ``docker login`` (``~/.docker/config.json``)
-    entry for the same host is used as a fallback, so an already-authenticated registry
-    works without a second login.
+
+def _selected_registry(location: str) -> Registry:
+    """Build the registry named by a single ``--registry`` location (publish/yank target)."""
+    return registry_from_location(location, credentials=_credentials())
+
+
+def _selected_registries(locations: list[str]) -> Registry:
+    """Build the registry for one or more ``--registry`` locations (an ordered search path).
+
+    One location yields that backend directly; several are aggregated behind a
+    :class:`CompositeRegistry` whose CLI order is the precedence. ``hdlpkg login``
+    credentials win; a ``docker login`` (``~/.docker/config.json``) entry for the same host
+    is used as a fallback, so an already-authenticated registry works without a second login.
     """
-    credentials = load_credentials().with_fallback(load_docker_config())
-    return registry_from_location(location, credentials=credentials)
+    return composite_registry_from_locations(locations, credentials=_credentials())
 
 
 def _reader_registry(manifest_path: Path, args: argparse.Namespace) -> Registry:
-    """The registry to resolve/fetch from: a published `--registry`, else a `--search` scan."""
-    registry = getattr(args, "registry", None)
-    if registry:
-        return _selected_registry(registry)
+    """The registry to resolve/fetch from: published `--registry` (1+), else a `--search` scan."""
+    registries = getattr(args, "registry", None)
+    if registries:
+        return _selected_registries(registries)
     return _local_registry(manifest_path, args.search)
+
+
+def _locked_registry(manifest_path: Path, args: argparse.Namespace, lock: Lockfile) -> Registry:
+    """The registry a ``--locked`` install/gen fetches from.
+
+    An explicit ``--registry``/``--search`` overrides (the previous behavior); otherwise each
+    locked package is fetched from the exact ``source`` its lockfile entry recorded (a
+    :class:`LockSourceRegistry`), so multi-registry works straight from the lock with no
+    flags.
+    """
+    if getattr(args, "registry", None) or getattr(args, "search", None):
+        return _reader_registry(manifest_path, args)
+    sources = {pkg.vlnv: pkg.source for pkg in lock.packages}
+    return LockSourceRegistry(sources, credentials=_credentials())
 
 
 def _resolve(manifest_path: Path, args: argparse.Namespace) -> tuple[Resolution, Registry]:
@@ -495,23 +578,63 @@ def _cmd_resolve(args: argparse.Namespace) -> int:
     output.write_text(lock.to_toml(), encoding="utf-8")
 
     _print_warnings(resolution)
+    _print_registry_warnings(registry)
     print(f"Resolved {len(resolution.vlnvs)} package(s); wrote {output}")
     for vlnv in resolution.vlnvs:
         print(f"  {vlnv}")
     return 0
 
 
+def _install_targets(targets: list[str]) -> tuple[Path, list[str]]:
+    """Split ``install`` positionals into the manifest path and any dependency specs.
+
+    A ``vendor:library:name[@constraint]`` token is a dependency to add; anything else is the
+    manifest path (at most one; default ``ip.toml``).
+    """
+    specs = [t for t in targets if _looks_like_dependency_spec(t)]
+    paths = [t for t in targets if not _looks_like_dependency_spec(t)]
+    if len(paths) > 1:
+        raise ManifestError("install takes at most one manifest path; got: " + ", ".join(paths))
+    manifest_path = Path(paths[0]) if paths else Path(MANIFEST_FILENAME)
+    return manifest_path, specs
+
+
+def _add_dependencies(manifest_path: Path, specs: list[str]) -> None:
+    """Add each ``vendor:library:name[@constraint]`` *spec* to the manifest, then write it."""
+    text = manifest_path.read_text(encoding="utf-8")
+    own_ref = Manifest.from_str(text).ref  # validates, and guards against self-dependency
+    added: list[str] = []
+    for spec in specs:
+        ref, constraint = _parse_dependency_spec(spec)
+        if ref == own_ref:
+            raise ManifestError(f"A core cannot depend on itself ({ref}).")
+        text = add_dependency(text, ref, constraint)
+        added.append(f"{ref} = {constraint}")
+    Manifest.from_str(text)  # re-validate the edited manifest before writing
+    manifest_path.write_text(text, encoding="utf-8")
+    for entry in added:
+        print(f"Added {entry} to {manifest_path}")
+
+
 def _cmd_install(args: argparse.Namespace) -> int:
-    manifest_path = Path(args.path)
+    manifest_path, dep_specs = _install_targets(args.targets)
+    if dep_specs:
+        if args.locked:
+            raise ManifestError(
+                "cannot add dependencies with --locked; --locked installs an existing "
+                "lockfile unchanged. Drop --locked to add and resolve."
+            )
+        _add_dependencies(manifest_path, dep_specs)
     cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
     cache = ContentAddressedCache(cache_root)
 
     if args.locked:
         # Reproducible install: fetch exactly what ip.lock pins, no re-resolve, no rewrite.
         lock = _load_lockfile(manifest_path)
-        registry = _reader_registry(manifest_path, args)
+        registry = _locked_registry(manifest_path, args, lock)
         fetched = {pkg.vlnv: registry.fetch(pkg.vlnv, cache) for pkg in lock.packages}
         lock.verify(fetched)  # fail closed if any fetched digest disagrees with the lock
+        _print_registry_warnings(registry)
         print(
             f"Installed {len(fetched)} locked package(s) into {cache_root} "
             f"(from {LOCKFILE_FILENAME})"
@@ -530,6 +653,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
     output.write_text(lock.to_toml(), encoding="utf-8")
 
     _print_warnings(resolution)
+    _print_registry_warnings(registry)
     print(f"Installed {len(fetched)} package(s) into {cache_root}; wrote {output}")
     for vlnv in resolution.vlnvs:
         print(f"  {vlnv}")
@@ -584,14 +708,44 @@ def _user_vlnv(text: str) -> Vlnv:
 
 def _cmd_pull(args: argparse.Namespace) -> int:
     vlnv = _user_vlnv(args.vlnv)
-    registry = _selected_registry(args.registry)
+    registry = _selected_registries(args.registry)
     cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
     cache = ContentAddressedCache(cache_root)
     digest = registry.fetch(vlnv, cache)
     print(f"Pulled {vlnv} into {cache_root} ({digest})")
+    _print_registry_warnings(registry)
     if args.output:
         dest = extract_ipkg(cache.get(digest), Path(args.output))
         print(f"Extracted to {dest}")
+    return 0
+
+
+def _cmd_vendor(args: argparse.Namespace) -> int:
+    manifest_path = Path(args.path)
+    lock = _load_lockfile(manifest_path)
+    cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
+    cache = ContentAddressedCache(cache_root)
+    registry = _locked_registry(manifest_path, args, lock)
+
+    # Fetch every locked core into the cache, then verify the digests against the lock
+    # (fail closed) before laying any source down.
+    fetched = {pkg.vlnv: registry.fetch(pkg.vlnv, cache) for pkg in lock.packages}
+    lock.verify(fetched)
+
+    out_root = Path(args.output) if args.output else manifest_path.parent / "deps"
+    written: list[tuple[Vlnv, Path]] = []
+    for pkg in lock.packages:
+        vlnv = pkg.vlnv
+        dest = out_root / vlnv.vendor / vlnv.library / vlnv.name
+        if dest.exists():
+            shutil.rmtree(dest)  # replace any stale tree so the vendored copy matches the lock
+        extract_ipkg(cache.get(fetched[vlnv]), dest)
+        written.append((vlnv, dest))
+
+    _print_registry_warnings(registry)
+    print(f"Vendored {len(written)} package(s) into {out_root}")
+    for vlnv, dest in written:
+        print(f"  {vlnv} -> {dest}")
     return 0
 
 
@@ -650,10 +804,11 @@ def _cmd_gen(args: argparse.Namespace) -> int:
         # from the content-addressed cache. When `install --locked` already populated it,
         # gen needs no network at all -- so a `git+` source never re-clones/fetches.
         need_registry = any(not (checksum and cache.has(checksum)) for _, checksum in dep_specs)
-        registry = _reader_registry(manifest_path, args) if need_registry else None
+        registry = _locked_registry(manifest_path, args, lock) if need_registry else None
     else:
         resolution, registry = _resolve(manifest_path, args)
         _print_warnings(resolution)
+        _print_registry_warnings(registry)
         dep_specs = [(vlnv, "") for vlnv in resolution.vlnvs]
     root_source = _materialize_filesets(
         CoreSource(manifest=root, root=str(manifest_path.resolve().parent))
@@ -828,6 +983,7 @@ def _cmd_tree(args: argparse.Namespace) -> int:
     resolution, registry = _resolve(manifest_path, args)
     manifests = {vlnv: registry.manifest(vlnv) for vlnv in resolution.vlnvs}
     _print_warnings(resolution)
+    _print_registry_warnings(registry)
     print(render_dependency_tree(root, resolution.by_ref, manifests))
     return 0
 
@@ -845,14 +1001,35 @@ def _cmd_export_ipxact(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_add(args: argparse.Namespace) -> int:
-    ref_str, at, inline = args.dependency.partition("@")
-    constraint_str = args.version or (inline if at else "*")
+def _parse_dependency_spec(
+    text: str, version: str | None = None
+) -> tuple[PackageRef, VersionConstraint]:
+    """Parse a ``vendor:library:name[@constraint]`` spec into a ref + constraint.
+
+    *version* overrides any inline ``@constraint``; the default constraint is ``*``.
+    """
+    ref_str, at, inline = text.partition("@")
+    constraint_str = version or (inline if at else "*")
     try:
         ref = PackageRef.parse(ref_str.strip())
         constraint = VersionConstraint.parse(constraint_str.strip())
     except HdlPackagerError as exc:
-        raise ManifestError(f"Invalid dependency '{args.dependency}': {exc}") from exc
+        raise ManifestError(f"Invalid dependency '{text}': {exc}") from exc
+    return ref, constraint
+
+
+def _looks_like_dependency_spec(token: str) -> bool:
+    """True if *token* is a ``vendor:library:name[@constraint]`` spec, not a manifest path."""
+    ref_str = token.partition("@")[0].strip()
+    try:
+        PackageRef.parse(ref_str)
+    except HdlPackagerError:
+        return False
+    return True
+
+
+def _cmd_add(args: argparse.Namespace) -> int:
+    ref, constraint = _parse_dependency_spec(args.dependency, args.version)
 
     manifest_path = Path(args.path)
     manifest = Manifest.from_path(manifest_path)  # validates and confirms it exists

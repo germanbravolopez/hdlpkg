@@ -61,8 +61,8 @@ Implemented today:
   `docker login` is reused), so a team shares IP inside its network. A deterministic `.ipkg`
   artifact backs `pack`, append-only `publish` (with `yank`), and `pull` (by VLNV).
 - **CLI (`hdlpkg`)** — all commands are implemented: `info`, `validate`, `init`, `add`,
-  `resolve`, `install`, `pack`, `publish`, `pull`, `yank`, `login`, `logout`, `gen`, `tree`,
-  `export-ipxact`.
+  `resolve`, `install`, `pack`, `publish`, `pull`, `vendor`, `yank`, `login`, `logout`, `gen`,
+  `tree`, `export-ipxact`.
 
 Designed and on the roadmap (see the progress tracker):
 

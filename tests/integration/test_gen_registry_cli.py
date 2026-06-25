@@ -183,7 +183,9 @@ def test_gen_locked_without_cache_or_registry_gives_actionable_error(
 ) -> None:
     assert cli.main(["resolve", str(uart_project), "--registry", str(store)]) == 0
     capsys.readouterr()
-    # Locked, but nothing installed and no --registry/--search to fetch from.
+    # Locked, nothing installed, and the lock's recorded source is gone -- so there is
+    # nothing to fetch from (a reachable source would now be used; that is Phase 2).
+    shutil.rmtree(store)
     rc = cli.main(
         [
             "gen",

@@ -21,7 +21,9 @@ docs/
 ├── design/                       (design proposals for in-flight work)
 │   ├── module-entity-coexistence.md  (0.12.0: module/entity multi-version coexistence)
 │   ├── rename-to-hdlpkg.md            (rename hdl-ip-packager -> hdlpkg, ships as 0.13.0)
-│   └── 0.14.0-git-and-ipxact.md       (0.14.0: git-registry hardening + richer IP-XACT)
+│   ├── 0.14.0-git-and-ipxact.md       (0.14.0: git-registry hardening + richer IP-XACT)
+│   ├── 0.15.0-ipxact-ports-businterfaces.md  (0.15.0: IP-XACT ports + bus interfaces)
+│   └── consumer-flow-multi-registry.md  (proposed: multi-registry resolve + install ergonomics)
 └── research/
     └── state_of_the_art.md       (survey of package managers + HDL tools; design rationale)
 ```

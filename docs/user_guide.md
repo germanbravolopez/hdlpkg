@@ -314,9 +314,79 @@ hdlpkg pull    acme:common:fifo:1.0.0 --registry oci://harbor.corp.local/ip --ou
 `hdlpkg logout <location>` removes a stored credential. Publishing is **append-only**: a
 version can never be overwritten (use a new version, or `yank` to retire a bad one).
 
+**Adding a dependency in one command.** `install` also accepts dependency specs, so you can
+declare and install in a single step — the `pip install <name>` shape — instead of editing
+`ip.toml` (or running `hdlpkg add`) first:
+
+```bash
+hdlpkg install acme:common:fifo@^1.0.0 --registry oci://harbor.corp.local/ip
+```
+
+Each `vendor:library:name[@constraint]` argument is written into the manifest's
+`[dependencies]`, then the usual resolve + lock + cache runs. You can name the manifest too
+(`hdlpkg install my_soc/ip.toml acme:common:fifo`); with no path it defaults to `./ip.toml`,
+and several specs may be added at once. Building (`hdlpkg gen`) stays a separate step.
+(Adding deps re-resolves, so it cannot be combined with `--locked`.)
+
 To try this end to end without standing up a server, a no-auth [Zot](https://zotregistry.dev)
 binary or `docker run -d -p 5000:5000 registry:2` gives you a real OCI registry on
 `oci+http://127.0.0.1:5000/ip` in one command.
+
+### Resolving across more than one registry
+
+A project's dependencies may not all live in the same place — one core in your company's
+OCI registry, another in a Git repository. Pass `--registry` **more than once** and the
+locations form an ordered **search path** (the order on the command line is the
+precedence). It works on `resolve`, `install`, `gen`, `tree`, and `pull`:
+
+```bash
+hdlpkg install my_soc/ip.toml \
+  --registry oci://harbor.corp.local/ip \
+  --registry git+ssh://bitbucket.org/org/ip-registry.git
+```
+
+- The set of available versions is the **union** across all reachable registries, so the
+  resolver sees every version regardless of which registry hosts it.
+- Each resolved core is fetched from the **first** registry, in order, that offers it, and
+  the lockfile records that registry as the core's `source` — so a resolve spanning several
+  registries pins each core to its true origin with no lockfile-format change.
+- If the **same** version of a core is offered by more than one registry, the first wins and
+  a warning notes the others (the lockfile's checksum still fails closed if a later fetch
+  returns different bytes). An **unreachable** registry is skipped with a warning and the
+  resolve continues from the rest.
+
+Credentials stay per-host (via `hdlpkg login`), so each registry in the path authenticates
+with its own stored credential.
+
+**Vendoring sources for a Makefile.** The cache holds packed `.ipkg` blobs, not loose
+source, so a plain Makefile cannot read a dependency from it. `hdlpkg vendor` extracts every
+locked dependency into a predictable tree — `<DIR>/<vendor>/<library>/<name>/`, the
+`node_modules` of HDL — so an existing Makefile can just include the files:
+
+```bash
+hdlpkg vendor                       # writes ./deps/<vendor>/<library>/<name>/ for each locked core
+hdlpkg vendor --output third_party  # or choose the directory
+```
+
+It needs an `ip.lock` (run `resolve`/`install` first) and, like `--locked`, fetches each core
+from the source the lock recorded (pass `--registry` to override). Re-running replaces each
+core's tree so the vendored copy always matches the lock. Building (`hdlpkg gen`) remains
+independent — use `vendor` when you drive the build yourself, `gen` when you want hdlpkg to
+emit the tool inputs.
+
+**Installing straight from the lock.** Once `ip.lock` is written, each package entry records
+the exact registry it came from (its `source`). So `install --locked` and `gen --locked` with
+**no** `--registry`/`--search` fetch each core from its own recorded source — a lock that
+spans several registries reinstalls with no flags at all:
+
+```bash
+hdlpkg install my_soc/ip.toml --locked   # fetches each core from the source ip.lock recorded
+```
+
+Passing `--registry`/`--search` still overrides (it fetches everything from there instead). A
+core already in the local cache is reused untouched, so a repeat `--locked` install/gen is
+fully offline. (A recorded OCI source assumes HTTPS; for a plaintext `oci+http://` dev
+registry, pass `--registry` explicitly.)
 
 ### Pointing at a managed registry (JFrog Artifactory, Nexus, cloud)
 

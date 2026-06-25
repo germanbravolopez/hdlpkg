@@ -13,7 +13,7 @@ from __future__ import annotations
 
 # Defined before the submodule imports below so a submodule loaded during this
 # package's initialization (e.g. ``registry``) can read it without a circular import.
-__version__ = "0.14.1"
+__version__ = "0.15.0"
 
 from .backends import (
     Backend,
@@ -78,15 +78,19 @@ from .manifest import (
 )
 from .packaging import artifact_filename, extract_ipkg, manifest_from_ipkg, pack_core
 from .registry import (
+    CompositeRegistry,
     GitRegistry,
     HttpRegistry,
     LocalDirectoryRegistry,
     LocalRegistry,
+    LockSourceRegistry,
     OciRegistry,
     Registry,
     available_from_registry,
+    composite_registry_from_locations,
     parse_bearer_challenge,
     registry_from_location,
+    registry_from_lock_source,
 )
 from .resolver import Resolution, resolve
 from .sbom import CYCLONEDX_SPEC_VERSION, build_cyclonedx
@@ -117,6 +121,7 @@ __all__ = [
     "Backend",
     "BackendError",
     "CalVer",
+    "CompositeRegistry",
     "ConflictPolicy",
     "ContentAddressedCache",
     "CoreSource",
@@ -138,6 +143,7 @@ __all__ = [
     "IpxactParameter",
     "LocalDirectoryRegistry",
     "LocalRegistry",
+    "LockSourceRegistry",
     "LockedPackage",
     "Lockfile",
     "LockfileError",
@@ -165,6 +171,7 @@ __all__ = [
     "build_cyclonedx",
     "build_eda_design",
     "compatibility_group",
+    "composite_registry_from_locations",
     "declared_modules",
     "declared_packages",
     "declared_sv_interfaces",
@@ -185,6 +192,7 @@ __all__ = [
     "parse_version",
     "plan_package_mangling",
     "registry_from_location",
+    "registry_from_lock_source",
     "registry_host",
     "render_dependency_tree",
     "resolve",

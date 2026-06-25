@@ -1,3 +1,7 @@
+---
+description: Update project docs after a change — docs/progress_tracker.md plus architecture.md / INDEX.md / README.md and the generated man page when relevant. Run after a feature, fix, or refactor.
+---
+
 # /update-docs — Update Project Documentation
 
 Run this after every feature, fix, refactor, or new insight. Good docs save the
@@ -49,3 +53,9 @@ if nothing in that file changed.
 - **Respect the size limits** in `docs/ai_agent_instructions.md`; split when over.
 - After updating docs, make sure the quality gates still pass (`pytest`, `ruff`,
   `mypy`) — docs and code land together.
+- **A docs-only change does NOT need a release.** The MkDocs site redeploys from any
+  push to `main` touching `docs/**` / `mkdocs.yml` (`.github/workflows/docs.yml`),
+  independent of version tags/PyPI. If *only* `docs/**` / `mkdocs.yml` changed, land it
+  via a plain docs PR to `main` (no version bump, no tag) — do **not** run `/release`.
+  A release is only for a change to the packaged wheel (code, or `man/hdlpkg.1`). See
+  the "Docs site vs releases" note in [CLAUDE.md](../../CLAUDE.md).

@@ -1,4 +1,4 @@
-.TH HDLPKG 1 "" "hdlpkg 0.14.1" "HDL IP Packager Manual"
+.TH HDLPKG 1 "" "hdlpkg 0.15.0" "HDL IP Packager Manual"
 .nh
 .ad l
 .SH NAME
@@ -104,7 +104,7 @@ directory to scan for available cores (repeatable; default: the manifest's paren
 where to write the lockfile (default: ./ip.lock next to the manifest)
 .TP
 .B \-\-registry LOCATION
-resolve from a published registry (overrides --search); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
+resolve from a published registry (overrides --search; repeatable, CLI order = precedence); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .TP
 .B \-\-on\-conflict ON_CONFLICT
 how to handle an incompatible version conflict, overriding the manifest's [resolution] on-conflict (default: the manifest's value, or fail_on_conflict)
@@ -113,12 +113,12 @@ how to handle an incompatible version conflict, overriding the manifest's [resol
 Resolve dependencies and fetch them into the local cache.
 .PP
 .RS 4
-hdlpkg install [\-h] [\-\-search DIR] [\-\-cache\-dir DIR] [\-\-output OUTPUT] [\-\-locked] [\-\-registry LOCATION] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] [path]
+hdlpkg install [\-h] [\-\-search DIR] [\-\-cache\-dir DIR] [\-\-output OUTPUT] [\-\-locked] [\-\-registry LOCATION] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] [PATH | VENDOR:LIBRARY:NAME[@CONSTRAINT] ...]
 .RE
 .PP
 .TP
-.B [path]
-path to the root manifest (default: ./ip.toml)
+.B [PATH | VENDOR:LIBRARY:NAME[@CONSTRAINT]]
+the root manifest path (default: ./ip.toml), and/or one or more dependency specs to add to it before installing (the 'pip install <name>' shape)
 .TP
 .B \-\-search DIR
 directory to scan for available cores (repeatable)
@@ -133,7 +133,7 @@ where to write the lockfile (default: ./ip.lock)
 install exactly from an existing ip.lock without re-resolving (reproducible builds); fail if it is missing
 .TP
 .B \-\-registry LOCATION
-fetch from a published registry (overrides --search); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
+fetch from a published registry (overrides --search; repeatable, CLI order = precedence); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .TP
 .B \-\-on\-conflict ON_CONFLICT
 how to handle an incompatible version conflict, overriding the manifest's [resolution] on-conflict (default: the manifest's value, or fail_on_conflict)
@@ -184,13 +184,36 @@ hdlpkg pull [\-h] \-\-registry LOCATION [\-\-output DIR] [\-\-cache\-dir DIR] vl
 the core to pull, e.g. acme:common:fifo:1.0.0
 .TP
 .B \-\-registry LOCATION  (required)
-a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
+registry to pull from (repeatable, CLI order = precedence); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .TP
 .B \-\-output DIR
 extract the core into this directory
 .TP
 .B \-\-cache\-dir DIR
 cache root (default: ~/.hdlpkg/cache)
+.SS vendor
+.ad l
+Extract every locked dependency into a predictable source tree (for Makefiles).
+.PP
+.RS 4
+hdlpkg vendor [\-h] [\-\-output DIR] [\-\-search DIR] [\-\-cache\-dir DIR] [\-\-registry LOCATION] [path]
+.RE
+.PP
+.TP
+.B [path]
+path to the root manifest (default: ./ip.toml)
+.TP
+.B \-\-output DIR
+where to write the vendored tree (default: ./deps next to the manifest); each core lands in <DIR>/<vendor>/<library>/<name>/
+.TP
+.B \-\-search DIR
+directory to scan for the locked cores (repeatable)
+.TP
+.B \-\-cache\-dir DIR
+cache root (default: ~/.hdlpkg/cache)
+.TP
+.B \-\-registry LOCATION
+fetch the locked cores from a published registry (repeatable, CLI order = precedence); by default each core is fetched from the source ip.lock recorded; a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .SS yank
 .ad l
 Hide a published version from new resolves.
@@ -255,7 +278,7 @@ directory to scan for dependency cores (repeatable; default: the manifest's pare
 output directory (default: ./gen/<target>)
 .TP
 .B \-\-registry LOCATION
-fetch dependency sources from a published registry instead of --search (materialized from the cache); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
+fetch dependency sources from a published registry instead of --search (materialized from the cache; repeatable, CLI order = precedence); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .TP
 .B \-\-cache\-dir DIR
 cache root for materialized dependencies (default: ~/.hdlpkg/cache)
@@ -281,7 +304,7 @@ path to the root manifest
 directory to scan for dependency cores (repeatable; default: the manifest's parent directory)
 .TP
 .B \-\-registry LOCATION
-resolve from a published registry (overrides --search); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
+resolve from a published registry (overrides --search; repeatable, CLI order = precedence); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry
 .TP
 .B \-\-on\-conflict ON_CONFLICT
 how to handle an incompatible version conflict, overriding the manifest's [resolution] on-conflict (default: the manifest's value, or fail_on_conflict)
