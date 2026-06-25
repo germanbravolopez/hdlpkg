@@ -83,12 +83,14 @@ from .registry import (
     HttpRegistry,
     LocalDirectoryRegistry,
     LocalRegistry,
+    LockSourceRegistry,
     OciRegistry,
     Registry,
     available_from_registry,
     composite_registry_from_locations,
     parse_bearer_challenge,
     registry_from_location,
+    registry_from_lock_source,
 )
 from .resolver import Resolution, resolve
 from .sbom import CYCLONEDX_SPEC_VERSION, build_cyclonedx
@@ -141,6 +143,7 @@ __all__ = [
     "IpxactParameter",
     "LocalDirectoryRegistry",
     "LocalRegistry",
+    "LockSourceRegistry",
     "LockedPackage",
     "Lockfile",
     "LockfileError",
@@ -189,6 +192,7 @@ __all__ = [
     "parse_version",
     "plan_package_mangling",
     "registry_from_location",
+    "registry_from_lock_source",
     "registry_host",
     "render_dependency_tree",
     "resolve",

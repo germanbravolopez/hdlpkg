@@ -344,6 +344,20 @@ hdlpkg install my_soc/ip.toml \
 Credentials stay per-host (via `hdlpkg login`), so each registry in the path authenticates
 with its own stored credential.
 
+**Installing straight from the lock.** Once `ip.lock` is written, each package entry records
+the exact registry it came from (its `source`). So `install --locked` and `gen --locked` with
+**no** `--registry`/`--search` fetch each core from its own recorded source — a lock that
+spans several registries reinstalls with no flags at all:
+
+```bash
+hdlpkg install my_soc/ip.toml --locked   # fetches each core from the source ip.lock recorded
+```
+
+Passing `--registry`/`--search` still overrides (it fetches everything from there instead). A
+core already in the local cache is reused untouched, so a repeat `--locked` install/gen is
+fully offline. (A recorded OCI source assumes HTTPS; for a plaintext `oci+http://` dev
+registry, pass `--registry` explicitly.)
+
 ### Pointing at a managed registry (JFrog Artifactory, Nexus, cloud)
 
 `hdlpkg`'s OCI backend speaks the standard OCI distribution API, so any registry that

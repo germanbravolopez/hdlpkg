@@ -51,6 +51,7 @@ from .manifest import (
 from .packaging import artifact_filename, expand_fileset_files, extract_ipkg, pack_core
 from .registry import (
     LocalDirectoryRegistry,
+    LockSourceRegistry,
     Registry,
     available_from_registry,
     composite_registry_from_locations,
@@ -499,6 +500,20 @@ def _reader_registry(manifest_path: Path, args: argparse.Namespace) -> Registry:
     return _local_registry(manifest_path, args.search)
 
 
+def _locked_registry(manifest_path: Path, args: argparse.Namespace, lock: Lockfile) -> Registry:
+    """The registry a ``--locked`` install/gen fetches from.
+
+    An explicit ``--registry``/``--search`` overrides (the previous behavior); otherwise each
+    locked package is fetched from the exact ``source`` its lockfile entry recorded (a
+    :class:`LockSourceRegistry`), so multi-registry works straight from the lock with no
+    flags.
+    """
+    if getattr(args, "registry", None) or getattr(args, "search", None):
+        return _reader_registry(manifest_path, args)
+    sources = {pkg.vlnv: pkg.source for pkg in lock.packages}
+    return LockSourceRegistry(sources, credentials=_credentials())
+
+
 def _resolve(manifest_path: Path, args: argparse.Namespace) -> tuple[Resolution, Registry]:
     """Resolve *manifest_path* against the selected registry (published or local-scan)."""
     root = Manifest.from_path(manifest_path)
@@ -541,7 +556,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
     if args.locked:
         # Reproducible install: fetch exactly what ip.lock pins, no re-resolve, no rewrite.
         lock = _load_lockfile(manifest_path)
-        registry = _reader_registry(manifest_path, args)
+        registry = _locked_registry(manifest_path, args, lock)
         fetched = {pkg.vlnv: registry.fetch(pkg.vlnv, cache) for pkg in lock.packages}
         lock.verify(fetched)  # fail closed if any fetched digest disagrees with the lock
         _print_registry_warnings(registry)
@@ -685,7 +700,7 @@ def _cmd_gen(args: argparse.Namespace) -> int:
         # from the content-addressed cache. When `install --locked` already populated it,
         # gen needs no network at all -- so a `git+` source never re-clones/fetches.
         need_registry = any(not (checksum and cache.has(checksum)) for _, checksum in dep_specs)
-        registry = _reader_registry(manifest_path, args) if need_registry else None
+        registry = _locked_registry(manifest_path, args, lock) if need_registry else None
     else:
         resolution, registry = _resolve(manifest_path, args)
         _print_warnings(resolution)

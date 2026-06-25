@@ -156,7 +156,20 @@ readable" ≠ "not on disk.")
    errors and returns `[]` (e.g. `HttpRegistry`) cannot be distinguished from "unknown
    package", so the unreachable-warning fires only when a backend actually raises — acceptable
    for now, revisit if it bites.
-2. `--locked` fetch from the lock's `source` (offline + multi-registry straight from the lock).
+2. **[done — `feature/multi-registry`]** `--locked` fetch from the lock's `source` (offline +
+   multi-registry straight from the lock). When `install --locked` / `gen --locked` is run with
+   no `--registry`/`--search`, each package is fetched from the exact `source` its lock entry
+   recorded, via a new `LockSourceRegistry` that dispatches each VLNV through
+   `registry_from_lock_source` (which maps the recorded `path:` / `registry:` / `oci:` /
+   `git+…@sha` forms back to a backend). An explicit `--registry`/`--search` still overrides
+   (prior behavior). **Decision taken** for the §6 open question: `--locked` defaults to the
+   lock's recorded source, and `--registry` overrides it — backward compatible (explicit flags
+   behave as before) while making the no-flag case "install from the lock". **Caveat:** the
+   recorded OCI `source` does not encode the transport scheme, so it is rebuilt as HTTPS; a
+   plaintext `oci+http://` registry must be reached with an explicit `--registry`. Implemented
+   in `registry.py` (`registry_from_lock_source`, `LockSourceRegistry`) and `cli.py`
+   (`_locked_registry`); covered by `tests/unit/test_lock_source_registry.py` and
+   `tests/integration/test_locked_from_lock_source_cli.py`; documented in the user guide.
 3. `hdlpkg install <vlnv>` one-shot (declare + resolve + lock + cache).
 4. `vendor`/`sync` source materialization to a predictable tree (the Makefile case).
 5. Docs + a `hdlpkg-livetest` scenario exercising heterogeneous registries (OCI + Git + local).

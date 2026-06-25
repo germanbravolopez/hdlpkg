@@ -63,12 +63,14 @@ __all__ = [
     "HttpRegistry",
     "LocalDirectoryRegistry",
     "LocalRegistry",
+    "LockSourceRegistry",
     "OciRegistry",
     "Registry",
     "available_from_registry",
     "composite_registry_from_locations",
     "parse_bearer_challenge",
     "registry_from_location",
+    "registry_from_lock_source",
 ]
 
 _IPKG_NAME = f"core{IPKG_SUFFIX}"
@@ -880,6 +882,88 @@ def composite_registry_from_locations(
     if len(backends) == 1:
         return backends[0]
     return CompositeRegistry(backends)
+
+
+def registry_from_lock_source(
+    source: str, *, credentials: CredentialStore | None = None
+) -> Registry:
+    """Rebuild the registry a lockfile ``source`` string came from.
+
+    The ``source`` recorded by :meth:`Registry.source_for` is not always a
+    :func:`registry_from_location` location, so this maps each form back to a backend:
+
+    * ``path:<dir>`` (a loose local core tree) -> a :class:`LocalDirectoryRegistry` over
+      that directory.
+    * ``registry:<location>`` (a writable local store root or an HTTP base URL) -> the
+      backend :func:`registry_from_location` builds for ``<location>``.
+    * ``oci:<host>/<repo>:<version>`` -> an :class:`OciRegistry` for ``oci://<host>/<prefix>``
+      (``<prefix>`` is ``<repo>`` minus its trailing ``vendor/library/name``). The transport
+      scheme is not recorded, so this assumes HTTPS; a plaintext ``oci+http://`` registry
+      must be reached with an explicit ``--registry`` instead.
+    * anything else (``git+...@<sha>``, a bare path) -> :func:`registry_from_location`.
+
+    Raises :class:`RegistryError` on an empty or unparseable source.
+    """
+    if not source:
+        raise RegistryError("empty lockfile source; pass --registry/--search")
+    if source.startswith("path:"):
+        return LocalDirectoryRegistry([Path(source[len("path:") :])])
+    if source.startswith("registry:"):
+        return registry_from_location(source[len("registry:") :], credentials=credentials)
+    if source.startswith("oci:") and not source.startswith("oci://"):
+        host_repo, separator, _version = source[len("oci:") :].rpartition(":")
+        if not separator:
+            raise RegistryError(f"malformed OCI lock source (no version): {source!r}")
+        segments = host_repo.split("/")
+        if len(segments) <= 3:  # need host + vendor/library/name at least
+            raise RegistryError(f"malformed OCI lock source: {source!r}")
+        base = "oci://" + "/".join(segments[:-3])  # drop the vendor/library/name tail
+        return registry_from_location(base, credentials=credentials)
+    return registry_from_location(source, credentials=credentials)
+
+
+class LockSourceRegistry(Registry):
+    """Serve each package from the exact source its lockfile entry recorded.
+
+    Built from a lockfile's ``{vlnv: source}`` map, it dispatches every VLNV through
+    :func:`registry_from_lock_source` (backends are cached per distinct source string), so a
+    ``--locked`` install/gen fetches each core from its own origin -- multi-registry straight
+    from the lock with no ``--registry`` flags. :meth:`versions` returns only the pinned
+    VLNVs (the locked flow never re-resolves).
+    """
+
+    def __init__(
+        self, sources: dict[Vlnv, str], *, credentials: CredentialStore | None = None
+    ) -> None:
+        self._sources = dict(sources)
+        self._credentials = credentials
+        self._backends: dict[str, Registry] = {}
+
+    def _backend(self, vlnv: Vlnv) -> Registry:
+        source = self._sources.get(vlnv)
+        if source is None:
+            raise RegistryError(f"{vlnv} is not pinned in the lockfile")
+        if not source:
+            raise RegistryError(
+                f"{vlnv} has no recorded source in the lockfile; pass --registry/--search"
+            )
+        if source not in self._backends:
+            self._backends[source] = registry_from_lock_source(
+                source, credentials=self._credentials
+            )
+        return self._backends[source]
+
+    def versions(self, ref: PackageRef) -> list[Vlnv]:
+        return [vlnv for vlnv in self._sources if vlnv.ref == ref]
+
+    def manifest(self, vlnv: Vlnv) -> Manifest:
+        return self._backend(vlnv).manifest(vlnv)
+
+    def artifact_bytes(self, vlnv: Vlnv) -> bytes:
+        return self._backend(vlnv).artifact_bytes(vlnv)
+
+    def source_for(self, vlnv: Vlnv) -> str:
+        return self._sources.get(vlnv, "")
 
 
 def available_from_registry(registry: Registry, root: Manifest) -> dict[PackageRef, list[Manifest]]:
