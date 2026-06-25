@@ -318,6 +318,32 @@ To try this end to end without standing up a server, a no-auth [Zot](https://zot
 binary or `docker run -d -p 5000:5000 registry:2` gives you a real OCI registry on
 `oci+http://127.0.0.1:5000/ip` in one command.
 
+### Resolving across more than one registry
+
+A project's dependencies may not all live in the same place — one core in your company's
+OCI registry, another in a Git repository. Pass `--registry` **more than once** and the
+locations form an ordered **search path** (the order on the command line is the
+precedence). It works on `resolve`, `install`, `gen`, `tree`, and `pull`:
+
+```bash
+hdlpkg install my_soc/ip.toml \
+  --registry oci://harbor.corp.local/ip \
+  --registry git+ssh://bitbucket.org/org/ip-registry.git
+```
+
+- The set of available versions is the **union** across all reachable registries, so the
+  resolver sees every version regardless of which registry hosts it.
+- Each resolved core is fetched from the **first** registry, in order, that offers it, and
+  the lockfile records that registry as the core's `source` — so a resolve spanning several
+  registries pins each core to its true origin with no lockfile-format change.
+- If the **same** version of a core is offered by more than one registry, the first wins and
+  a warning notes the others (the lockfile's checksum still fails closed if a later fetch
+  returns different bytes). An **unreachable** registry is skipped with a warning and the
+  resolve continues from the rest.
+
+Credentials stay per-host (via `hdlpkg login`), so each registry in the path authenticates
+with its own stored credential.
+
 ### Pointing at a managed registry (JFrog Artifactory, Nexus, cloud)
 
 `hdlpkg`'s OCI backend speaks the standard OCI distribution API, so any registry that

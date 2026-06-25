@@ -141,8 +141,21 @@ readable" ≠ "not on disk.")
 
 ## 7. Phasing (tentative)
 
-1. `CompositeRegistry` + repeatable `--registry` across resolve/install/gen/tree (+ pull). Unit
-   tests for union/precedence; a shadowed-VLNV warning.
+1. **[done — `feature/multi-registry`]** `CompositeRegistry` + repeatable `--registry` across
+   resolve/install/gen/tree/pull. The CLI order is the precedence; `versions` unions across all
+   reachable backends and `manifest`/`artifact_bytes`/`source_for` (and the inherited `fetch`)
+   delegate to the first backend that has the exact VLNV (so the lock pins each core's true
+   origin — no lock-format change). A shadowed VLNV warns and takes the first; an unreachable
+   backend is skipped with a warning. Decisions taken with the maintainer: **first-wins +
+   warn** on duplicate VLNV, **union** versions across registries, **warn + continue** on an
+   unreachable registry. Implemented in `registry.py` (`CompositeRegistry`,
+   `composite_registry_from_locations`, `_registry_label`) and `cli.py` (repeatable
+   `--registry`, `_selected_registries`, `_print_registry_warnings`); covered by
+   `tests/unit/test_composite_registry.py` and `tests/integration/test_multi_registry_cli.py`,
+   documented in the user guide. **Caveat:** a backend whose `versions()` swallows transport
+   errors and returns `[]` (e.g. `HttpRegistry`) cannot be distinguished from "unknown
+   package", so the unreachable-warning fires only when a backend actually raises — acceptable
+   for now, revisit if it bites.
 2. `--locked` fetch from the lock's `source` (offline + multi-registry straight from the lock).
 3. `hdlpkg install <vlnv>` one-shot (declare + resolve + lock + cache).
 4. `vendor`/`sync` source materialization to a predictable tree (the Makefile case).

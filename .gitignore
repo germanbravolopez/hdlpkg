@@ -66,8 +66,6 @@ Thumbs.db
 # --------------------------------------------------------------------------- #
 # Local-only work (kept out of the repo on purpose)                            #
 # --------------------------------------------------------------------------- #
-# Customer/marketing material (deck builder, .pptx, slide previews).
-marketing/
 # Scratch directories for ad-hoc experiments.
 .scratch*/
 # Per-user agent settings (the shared .claude/ files stay tracked).

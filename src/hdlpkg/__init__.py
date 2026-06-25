@@ -78,6 +78,7 @@ from .manifest import (
 )
 from .packaging import artifact_filename, extract_ipkg, manifest_from_ipkg, pack_core
 from .registry import (
+    CompositeRegistry,
     GitRegistry,
     HttpRegistry,
     LocalDirectoryRegistry,
@@ -85,6 +86,7 @@ from .registry import (
     OciRegistry,
     Registry,
     available_from_registry,
+    composite_registry_from_locations,
     parse_bearer_challenge,
     registry_from_location,
 )
@@ -117,6 +119,7 @@ __all__ = [
     "Backend",
     "BackendError",
     "CalVer",
+    "CompositeRegistry",
     "ConflictPolicy",
     "ContentAddressedCache",
     "CoreSource",
@@ -165,6 +168,7 @@ __all__ = [
     "build_cyclonedx",
     "build_eda_design",
     "compatibility_group",
+    "composite_registry_from_locations",
     "declared_modules",
     "declared_packages",
     "declared_sv_interfaces",

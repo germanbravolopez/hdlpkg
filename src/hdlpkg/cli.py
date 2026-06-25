@@ -22,6 +22,7 @@ from . import __version__
 from .backends import CoreSource, build_eda_design, get_backend, normalize_file_type
 from .cache import ContentAddressedCache, default_cache_root
 from .credentials import (
+    CredentialStore,
     default_credentials_path,
     load_credentials,
     load_docker_config,
@@ -52,6 +53,7 @@ from .registry import (
     LocalDirectoryRegistry,
     Registry,
     available_from_registry,
+    composite_registry_from_locations,
     registry_from_location,
 )
 from .resolver import Resolution
@@ -144,8 +146,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_resolve.add_argument(
         "--registry",
+        action="append",
         metavar="LOCATION",
-        help="resolve from a published registry (overrides --search); " + _REGISTRY_HELP,
+        help="resolve from a published registry (overrides --search; repeatable, CLI order = "
+        "precedence); " + _REGISTRY_HELP,
     )
     _add_conflict_arg(p_resolve)
     p_resolve.set_defaults(func=_cmd_resolve)
@@ -179,8 +183,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_install.add_argument(
         "--registry",
+        action="append",
         metavar="LOCATION",
-        help="fetch from a published registry (overrides --search); " + _REGISTRY_HELP,
+        help="fetch from a published registry (overrides --search; repeatable, CLI order = "
+        "precedence); " + _REGISTRY_HELP,
     )
     _add_conflict_arg(p_install)
     p_install.set_defaults(func=_cmd_install)
@@ -214,7 +220,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_pull = sub.add_parser("pull", help="download a core from a registry by VLNV")
     p_pull.add_argument("vlnv", help="the core to pull, e.g. acme:common:fifo:1.0.0")
-    p_pull.add_argument("--registry", required=True, metavar="LOCATION", help=_REGISTRY_HELP)
+    p_pull.add_argument(
+        "--registry",
+        action="append",
+        required=True,
+        metavar="LOCATION",
+        help="registry to pull from (repeatable, CLI order = precedence); " + _REGISTRY_HELP,
+    )
     p_pull.add_argument("--output", metavar="DIR", help="extract the core into this directory")
     p_pull.add_argument("--cache-dir", metavar="DIR", help="cache root (default: ~/.hdlpkg/cache)")
     p_pull.set_defaults(func=_cmd_pull)
@@ -261,9 +273,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("--output", metavar="DIR", help="output directory (default: ./gen/<target>)")
     p_gen.add_argument(
         "--registry",
+        action="append",
         metavar="LOCATION",
         help="fetch dependency sources from a published registry instead of --search "
-        "(materialized from the cache); " + _REGISTRY_HELP,
+        "(materialized from the cache; repeatable, CLI order = precedence); " + _REGISTRY_HELP,
     )
     p_gen.add_argument(
         "--cache-dir",
@@ -293,8 +306,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_tree.add_argument(
         "--registry",
+        action="append",
         metavar="LOCATION",
-        help="resolve from a published registry (overrides --search); " + _REGISTRY_HELP,
+        help="resolve from a published registry (overrides --search; repeatable, CLI order = "
+        "precedence); " + _REGISTRY_HELP,
     )
     _add_conflict_arg(p_tree)
     p_tree.set_defaults(func=_cmd_tree)
@@ -353,6 +368,12 @@ def _policy(args: argparse.Namespace) -> ConflictPolicy | None:
 def _print_warnings(resolution: Resolution) -> None:
     """Surface any policy-driven compromises the resolve made."""
     for warning in resolution.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+
+
+def _print_registry_warnings(registry: Registry) -> None:
+    """Surface a composite registry's shadowed-VLNV / unreachable-backend warnings."""
+    for warning in getattr(registry, "warnings", []):
         print(f"warning: {warning}", file=sys.stderr)
 
 
@@ -449,22 +470,32 @@ def _local_registry(manifest_path: Path, search: list[str] | None) -> LocalDirec
     return LocalDirectoryRegistry([Path(d) for d in search_dirs])
 
 
-def _selected_registry(location: str) -> Registry:
-    """Build the registry named by a ``--registry`` location, wiring in stored credentials.
+def _credentials() -> CredentialStore:
+    """Stored ``hdlpkg login`` credentials, with ``docker login`` entries as a fallback."""
+    return load_credentials().with_fallback(load_docker_config())
 
-    ``hdlpkg login`` credentials win; a ``docker login`` (``~/.docker/config.json``)
-    entry for the same host is used as a fallback, so an already-authenticated registry
-    works without a second login.
+
+def _selected_registry(location: str) -> Registry:
+    """Build the registry named by a single ``--registry`` location (publish/yank target)."""
+    return registry_from_location(location, credentials=_credentials())
+
+
+def _selected_registries(locations: list[str]) -> Registry:
+    """Build the registry for one or more ``--registry`` locations (an ordered search path).
+
+    One location yields that backend directly; several are aggregated behind a
+    :class:`CompositeRegistry` whose CLI order is the precedence. ``hdlpkg login``
+    credentials win; a ``docker login`` (``~/.docker/config.json``) entry for the same host
+    is used as a fallback, so an already-authenticated registry works without a second login.
     """
-    credentials = load_credentials().with_fallback(load_docker_config())
-    return registry_from_location(location, credentials=credentials)
+    return composite_registry_from_locations(locations, credentials=_credentials())
 
 
 def _reader_registry(manifest_path: Path, args: argparse.Namespace) -> Registry:
-    """The registry to resolve/fetch from: a published `--registry`, else a `--search` scan."""
-    registry = getattr(args, "registry", None)
-    if registry:
-        return _selected_registry(registry)
+    """The registry to resolve/fetch from: published `--registry` (1+), else a `--search` scan."""
+    registries = getattr(args, "registry", None)
+    if registries:
+        return _selected_registries(registries)
     return _local_registry(manifest_path, args.search)
 
 
@@ -495,6 +526,7 @@ def _cmd_resolve(args: argparse.Namespace) -> int:
     output.write_text(lock.to_toml(), encoding="utf-8")
 
     _print_warnings(resolution)
+    _print_registry_warnings(registry)
     print(f"Resolved {len(resolution.vlnvs)} package(s); wrote {output}")
     for vlnv in resolution.vlnvs:
         print(f"  {vlnv}")
@@ -512,6 +544,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
         registry = _reader_registry(manifest_path, args)
         fetched = {pkg.vlnv: registry.fetch(pkg.vlnv, cache) for pkg in lock.packages}
         lock.verify(fetched)  # fail closed if any fetched digest disagrees with the lock
+        _print_registry_warnings(registry)
         print(
             f"Installed {len(fetched)} locked package(s) into {cache_root} "
             f"(from {LOCKFILE_FILENAME})"
@@ -530,6 +563,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
     output.write_text(lock.to_toml(), encoding="utf-8")
 
     _print_warnings(resolution)
+    _print_registry_warnings(registry)
     print(f"Installed {len(fetched)} package(s) into {cache_root}; wrote {output}")
     for vlnv in resolution.vlnvs:
         print(f"  {vlnv}")
@@ -584,11 +618,12 @@ def _user_vlnv(text: str) -> Vlnv:
 
 def _cmd_pull(args: argparse.Namespace) -> int:
     vlnv = _user_vlnv(args.vlnv)
-    registry = _selected_registry(args.registry)
+    registry = _selected_registries(args.registry)
     cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
     cache = ContentAddressedCache(cache_root)
     digest = registry.fetch(vlnv, cache)
     print(f"Pulled {vlnv} into {cache_root} ({digest})")
+    _print_registry_warnings(registry)
     if args.output:
         dest = extract_ipkg(cache.get(digest), Path(args.output))
         print(f"Extracted to {dest}")
@@ -654,6 +689,7 @@ def _cmd_gen(args: argparse.Namespace) -> int:
     else:
         resolution, registry = _resolve(manifest_path, args)
         _print_warnings(resolution)
+        _print_registry_warnings(registry)
         dep_specs = [(vlnv, "") for vlnv in resolution.vlnvs]
     root_source = _materialize_filesets(
         CoreSource(manifest=root, root=str(manifest_path.resolve().parent))
@@ -828,6 +864,7 @@ def _cmd_tree(args: argparse.Namespace) -> int:
     resolution, registry = _resolve(manifest_path, args)
     manifests = {vlnv: registry.manifest(vlnv) for vlnv in resolution.vlnvs}
     _print_warnings(resolution)
+    _print_registry_warnings(registry)
     print(render_dependency_tree(root, resolution.by_ref, manifests))
     return 0
 

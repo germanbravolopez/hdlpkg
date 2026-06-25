@@ -43,6 +43,7 @@ import re
 import subprocess
 import urllib.error
 import urllib.request
+from collections.abc import Sequence
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
@@ -57,6 +58,7 @@ from .version import OpaqueVersion, Version
 from .vlnv import PackageRef, Vlnv
 
 __all__ = [
+    "CompositeRegistry",
     "GitRegistry",
     "HttpRegistry",
     "LocalDirectoryRegistry",
@@ -64,6 +66,7 @@ __all__ = [
     "OciRegistry",
     "Registry",
     "available_from_registry",
+    "composite_registry_from_locations",
     "parse_bearer_challenge",
     "registry_from_location",
 ]
@@ -738,6 +741,91 @@ class GitRegistry(Registry):
         return f"git+{self.url}@{self.commit}"
 
 
+def _registry_label(registry: Registry) -> str:
+    """A best-effort human label for *registry* (its location, else the backend name)."""
+    for attr in ("location", "base_url", "host", "root"):
+        value = getattr(registry, attr, None)
+        if value:
+            return str(value)
+    return type(registry).__name__
+
+
+class CompositeRegistry(Registry):
+    """An ordered search path over several backends -- the multi-registry resolve.
+
+    :meth:`versions` returns the **union** of versions across every reachable backend, so
+    the resolver sees every available version regardless of which registry hosts it.
+    :meth:`manifest`, :meth:`artifact_bytes`, and :meth:`source_for` (and the inherited
+    :meth:`fetch`, which calls :meth:`artifact_bytes`) delegate to the **first** backend, in
+    the order given, that offers the exact VLNV -- so :meth:`source_for` records each core's
+    true origin in the lockfile and no lock-format change is needed.
+
+    An unreachable backend is skipped (resolve continues from the rest); a VLNV offered by
+    more than one backend is served from the first and flagged once as *shadowed*. Both are
+    appended to :attr:`warnings` (deduplicated) for the CLI to print -- the lockfile's
+    per-package checksum still fails closed if a later fetch returns divergent bytes.
+    """
+
+    def __init__(self, registries: Sequence[Registry]) -> None:
+        backends = list(registries)
+        if not backends:
+            raise RegistryError("a composite registry needs at least one backend")
+        self._registries = backends
+        self.warnings: list[str] = []
+        self._shadow_warned: set[Vlnv] = set()
+        self._unreachable_warned: set[int] = set()
+
+    def versions(self, ref: PackageRef) -> list[Vlnv]:
+        union: dict[Vlnv, None] = {}  # dict preserves first-seen order while deduplicating
+        for registry in self._registries:
+            try:
+                found = registry.versions(ref)
+            except RegistryError as exc:
+                self._note_unreachable(registry, exc)
+                continue
+            for vlnv in found:
+                union.setdefault(vlnv, None)
+        return list(union)
+
+    def manifest(self, vlnv: Vlnv) -> Manifest:
+        return self._owner(vlnv).manifest(vlnv)
+
+    def artifact_bytes(self, vlnv: Vlnv) -> bytes:
+        return self._owner(vlnv).artifact_bytes(vlnv)
+
+    def source_for(self, vlnv: Vlnv) -> str:
+        return self._owner(vlnv).source_for(vlnv)
+
+    def _owner(self, vlnv: Vlnv) -> Registry:
+        """The first backend (in order) that offers *vlnv*; warn once if more than one does."""
+        owners: list[Registry] = []
+        for registry in self._registries:
+            try:
+                if vlnv in registry.versions(vlnv.ref):
+                    owners.append(registry)
+            except RegistryError as exc:
+                self._note_unreachable(registry, exc)
+        if not owners:
+            raise RegistryError(f"{vlnv} is not available in any configured registry")
+        if len(owners) > 1 and vlnv not in self._shadow_warned:
+            self._shadow_warned.add(vlnv)
+            others = ", ".join(_registry_label(reg) for reg in owners[1:])
+            self.warnings.append(
+                f"{vlnv} is available from multiple registries; using "
+                f"{_registry_label(owners[0])} (also in {others})"
+            )
+        return owners[0]
+
+    def _note_unreachable(self, registry: Registry, exc: RegistryError) -> None:
+        key = id(registry)
+        if key in self._unreachable_warned:
+            return
+        self._unreachable_warned.add(key)
+        self.warnings.append(
+            f"registry {_registry_label(registry)} is unreachable, skipping it: {exc}"
+        )
+
+
 def registry_from_location(
     location: str, *, credentials: CredentialStore | None = None
 ) -> Registry:
@@ -774,6 +862,24 @@ def registry_from_location(
     if scheme in ("oci", "oci+http"):
         return OciRegistry(location, credential=credential)
     raise RegistryError(f"Unsupported registry location scheme {scheme!r}: {location!r}")
+
+
+def composite_registry_from_locations(
+    locations: Sequence[str], *, credentials: CredentialStore | None = None
+) -> Registry:
+    """Build a registry from one or more *locations* (CLI order = precedence).
+
+    A single location yields that backend directly (no composite wrapper); two or more are
+    aggregated behind a :class:`CompositeRegistry` ordered search path. Each location is
+    dispatched by :func:`registry_from_location`. Raises :class:`RegistryError` if *locations*
+    is empty.
+    """
+    backends = [registry_from_location(loc, credentials=credentials) for loc in locations]
+    if not backends:
+        raise RegistryError("at least one registry location is required")
+    if len(backends) == 1:
+        return backends[0]
+    return CompositeRegistry(backends)
 
 
 def available_from_registry(registry: Registry, root: Manifest) -> dict[PackageRef, list[Manifest]]:
