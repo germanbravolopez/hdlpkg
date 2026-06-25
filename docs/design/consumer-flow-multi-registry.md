@@ -196,11 +196,27 @@ readable" ≠ "not on disk.")
    than replacing it — `vendor` is for consumers driving their own Makefile, `gen` for the
    built-in toolflows. Implemented in `cli.py` (`_cmd_vendor`); covered by
    `tests/integration/test_vendor_cli.py`; man page regenerated; documented in the user guide.
-5. Docs + a `hdlpkg-livetest` scenario exercising heterogeneous registries (OCI + Git + local).
+5. **[done — `feature/multi-registry`]** Docs + a `hdlpkg-livetest` scenario exercising
+   heterogeneous registries. The user guide gained sections for the multi-registry search path,
+   installing straight from the lock, the `install <vlnv>` one-shot, and `hdlpkg vendor`;
+   `vendor` is listed in the README and `architecture.md` command tables. `hdlpkg-livetest`
+   gained a `--multi-registry` mode (`run_livetest.py:test_multi_registry`) that drives all four
+   phases end to end through the real CLI against two local-directory registries — union
+   resolve, first-wins shadow + warning, `--locked` fetch from the recorded source, `vendor`,
+   and `install <vlnv>` — needing no server, Docker, or network (passes locally).
 
-Parts A (1–2) and B (3–4) are independent; A can ship first.
+Parts A (1–2) and B (3–4) are independent; A can ship first. **All five phases are now
+implemented on `feature/multi-registry`.**
 
 ## 8. Sequencing
+
+**Resolved in implementation:** all five phases landed together on `feature/multi-registry`
+(no `ip.toml`/`ip.lock` format change; the CLI surface grew the repeatable `--registry`, the
+`install <vlnv>` overload, and the new `vendor` command). What remains is a maintainer call on
+**which `0.x` release carries it** (a candidate to slot as `0.15.0` ahead of, or alongside, the
+IP-XACT ports work) and merging `feature/multi-registry` -> `develop`.
+
+The original open question follows.
 
 **Open.** This work is customer-driven and touches the core consume flow every adopter uses.
 Candidate: slot **Part A (multi-registry)** as the next release ahead of, or alongside, the
