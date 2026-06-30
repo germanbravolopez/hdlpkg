@@ -139,6 +139,23 @@ def test_ref_prefers_tag_over_same_named_branch(repo: _Repo, tmp_path: Path) -> 
     assert reg.commit != repo.head
 
 
+def test_ref_with_a_slash_resolves_a_feature_branch(repo: _Repo, tmp_path: Path) -> None:
+    # A git-flow branch name contains '/': pinning @feature/extra must keep the ref whole
+    # (the parser locates the '@' in the URL path, not the final segment), so the core is
+    # served from that branch rather than the default one.
+    work = tmp_path / "feat-seed"
+    subprocess.run(["git", "clone", "--quiet", str(tmp_path / "reg.git"), str(work)], check=True)
+    _git("checkout", "--quiet", "-b", "feature/extra", cwd=work)
+    _git("commit", "--quiet", "--allow-empty", "-m", "feature work", cwd=work)
+    feat_head = _git("rev-parse", "HEAD", cwd=work)
+    _git("push", "--quiet", "origin", "refs/heads/feature/extra", cwd=work)
+
+    reg = GitRegistry(f"{repo.location}@feature/extra", cache_root=tmp_path / "f")
+    assert reg.commit == feat_head
+    assert reg.commit != repo.head  # the feature branch is ahead of the default branch
+    assert reg.versions(PackageRef("acme", "common", "fifo"))  # core discoverable on it
+
+
 def test_pinned_sha_resolves_offline_without_fetching(repo: _Repo, tmp_path: Path) -> None:
     # First sync populates the clone cache (tmp_path is shared with the fixture, so the
     # bare repo is tmp_path/reg.git).

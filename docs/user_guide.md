@@ -282,8 +282,49 @@ login`, and `resolve` / `install` / `publish` then use the stored credential
 automatically. Nothing is exposed publicly — the registry is whatever server you point
 at (typically one your company self-hosts). A **Git** registry instead uses your own git
 credentials (ssh keys / credential helpers), and the lockfile records each core's exact
-commit (`git+<url>@<sha>`) for traceability; it is read-only (consume with `resolve` /
-`install` / `pull`, publish with the other backends).
+commit (`git+<url>@<sha>`) for traceability; it is read-only to the tool (consume with
+`resolve` / `install` / `pull`, publish with the other backends).
+
+### Publishing to a Git registry
+
+A Git registry is **read-only to hdlpkg** — `hdlpkg publish --registry git+…` is not
+supported. "Publishing" is just **git**: a Git registry is an ordinary repository holding
+one directory per core, each with its `ip.toml` (and the files its `[filesets]` reference).
+hdlpkg packs each core deterministically on the fly when a consumer fetches it, so the repo
+stores **source**, not packed `.ipkg` blobs. Identity (the VLNV) comes from each manifest's
+contents, not its path, so the folder layout is free (a `vendor/library/name/` convention is
+just tidy):
+
+```text
+ip-registry.git/
+  acme/common/fifo/1.0.0/    ip.toml (version = "1.0.0") + rtl/…
+  acme/common/fifo/1.1.0/    ip.toml (version = "1.1.0") + rtl/…
+```
+
+To add a version, commit the core's directory and push (optionally tag the release):
+
+```bash
+git clone ssh://git@github.com/org/ip-registry.git && cd ip-registry
+mkdir -p acme/common/fifo/1.1.0 && cp -r <fifo source>/* acme/common/fifo/1.1.0/
+git add . && git commit -m "fifo 1.1.0" && git tag v1.1.0 && git push --follow-tags
+```
+
+**Branch / tag / commit pinning.** The cores do **not** have to live on `main`. Add
+`@<ref>` to the location to consume from any ref — a branch (including a git-flow name with
+a slash, e.g. `@feature/x` or `@release/1.0`), a tag, or a commit SHA:
+
+```bash
+hdlpkg resolve  my_soc/ip.toml --registry git+ssh://github.com/org/ip-registry.git@develop
+hdlpkg install  my_soc/ip.toml --registry git+ssh://github.com/org/ip-registry.git@v1.1.0
+```
+
+With **no** `@<ref>`, the registry uses the remote's **default branch** (so a no-pin consume
+needs the cores on that branch). A **tag wins over a same-named branch** (immutable
+provenance), and `gen --locked` against a `@<sha>` pin works fully offline after the first
+install. Since `GitRegistry` checks out **one ref** and scans that tree, every version you
+want resolvable at a given ref must exist as its own directory there — or tag each release
+and let consumers pin `@<tag>`. There is no `yank` on a Git registry: retract by pushing a
+new commit/tag; anyone pinned to the old SHA still gets the old bits (by design).
 
 **Producer — publish a core** (from the machine that has the source):
 

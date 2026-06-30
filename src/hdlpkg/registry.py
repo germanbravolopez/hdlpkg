@@ -45,7 +45,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from . import __version__
 from .cache import ContentAddressedCache
@@ -621,11 +621,13 @@ def _is_full_sha(ref: str) -> bool:
 def _parse_git_location(location: str) -> tuple[str, str | None]:
     """Split a ``git+<url>[@<ref>]`` location into the git URL and an optional ref.
 
-    The ``git+`` prefix is stripped to recover the real URL. An optional ``@<ref>`` (a
-    branch, tag, or commit) is taken from the *final* path segment only, so an ``ssh``
-    user (``git@host``) earlier in the URL is never mistaken for a ref. An scp-style URL
-    (``git+git@host:repo.git``) is rejected here with a hint: its first ``@`` cannot be
-    told apart from an ``@ref``, so the explicit ``git+ssh://`` form is required.
+    The ``git+`` prefix is stripped to recover the real URL, then ``@<ref>`` is taken from
+    the URL **path** (the part after ``scheme://host``). Locating the separator in the path
+    means a userinfo ``git@host`` in the authority is never mistaken for a ref, *and* a ref
+    that itself contains ``/`` -- a git-flow branch like ``feature/x`` or ``release/1.0`` --
+    is kept whole. An scp-style URL (``git+git@host:repo.git``) is rejected with a hint: its
+    first ``@`` cannot be told apart from an ``@ref``, so the explicit ``git+ssh://`` form is
+    required.
     """
     if _is_scp_like(location):
         raise RegistryError(
@@ -633,11 +635,11 @@ def _parse_git_location(location: str) -> tuple[str, str | None]:
             f"use git+ssh://host/path/repo.git[@ref] instead"
         )
     url = location[len("git+") :]
-    head, _, tail = url.rpartition("/")
-    name, at, ref = tail.partition("@")
-    if at:
-        return f"{head}/{name}", ref
-    return url, None
+    split = urlsplit(url)
+    repo_path, separator, ref = split.path.partition("@")  # the @ref lives in the path
+    if not separator:
+        return url, None
+    return urlunsplit(split._replace(path=repo_path)), ref
 
 
 class GitRegistry(Registry):
