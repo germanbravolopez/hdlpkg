@@ -416,18 +416,32 @@ independent — use `vendor` when you drive the build yourself, `gen` when you w
 emit the tool inputs.
 
 **Installing straight from the lock.** Once `ip.lock` is written, each package entry records
-the exact registry it came from (its `source`). So `install --locked` and `gen --locked` with
-**no** `--registry`/`--search` fetch each core from its own recorded source — a lock that
-spans several registries reinstalls with no flags at all:
+the exact registry it came from (its `source`). So you do **not** have to repeat `--registry`
+to install — a plain `install` builds from the lock:
 
 ```bash
-hdlpkg install my_soc/ip.toml --locked   # fetches each core from the source ip.lock recorded
+hdlpkg resolve my_soc/ip.toml --registry oci://harbor.corp.local/ip   # once: writes ip.lock
+hdlpkg install my_soc/ip.toml                                         # no --registry needed
 ```
 
-Passing `--registry`/`--search` still overrides (it fetches everything from there instead). A
-core already in the local cache is reused untouched, so a repeat `--locked` install/gen is
-fully offline. (A recorded OCI source assumes HTTPS; for a plaintext `oci+http://` dev
-registry, pass `--registry` explicitly.)
+`hdlpkg install` (no flags) checks for an `ip.lock` that still satisfies `ip.toml`; if it does,
+it fetches each core from the `source` the lock recorded — a lock that spans several registries
+reinstalls with no flags at all. It **re-resolves** (which needs `--registry`/`--search`) only
+when there is no lock, the lock is **stale** (you added a dependency or changed a constraint so
+the locked version no longer fits — it says `ip.lock is out of date with ip.toml; re-resolving`
+and refreshes it), or you pass `--update` to pull the newest compatible versions. The related
+modes:
+
+- **`--locked`** — strict reproducible install: fetch exactly what the lock pins, never
+  re-resolve, and fail if the lock is missing. `gen --locked` mirrors this.
+- **`--update`** — force a fresh resolve even when the lock is current (needs a registry to
+  discover newer versions); equivalent to running `hdlpkg resolve` then `install`.
+- Passing `--registry`/`--search` on a plain `install` always re-resolves from there (it does
+  not consult the lock).
+
+A core already in the local cache is reused untouched, so a repeat install is fully offline.
+(A recorded OCI source assumes HTTPS; for a plaintext `oci+http://` dev registry, pass
+`--registry` explicitly.)
 
 ### Pointing at a managed registry (JFrog Artifactory, Nexus, cloud)
 

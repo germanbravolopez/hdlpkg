@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .exceptions import HdlPackagerError, LockfileError
+from .manifest import Manifest
 from .resolver import Resolution
 from .version import (
     SUPPORTED_VERSION_SCHEMES,
@@ -41,13 +42,14 @@ from .version import (
     OpaqueVersion,
     VersionScheme,
 )
-from .vlnv import Vlnv
+from .vlnv import PackageRef, Vlnv
 
 __all__ = [
     "LOCKFILE_FILENAME",
     "LOCKFILE_VERSION",
     "LockedPackage",
     "Lockfile",
+    "lock_satisfies_manifest",
     "sha256_digest",
 ]
 
@@ -202,3 +204,26 @@ class Lockfile:
         locked = tuple(sorted(str(p.vlnv) for p in self.packages))
         resolved = tuple(str(v) for v in resolution.vlnvs)
         return locked == resolved
+
+
+def lock_satisfies_manifest(manifest: Manifest, lock: Lockfile) -> bool:
+    """True if every direct dependency in *manifest* is met by a package in *lock*.
+
+    A registry-free freshness check used to decide whether a plain ``install`` can build
+    straight from an existing ``ip.lock``: for each ``[dependencies]`` entry there must be a
+    locked package with the same ref whose version satisfies the constraint. It catches the
+    common ways a lock goes stale against an edited manifest -- a dependency *added* to
+    ``ip.toml``, or a constraint *changed* so the locked version no longer fits.
+
+    It deliberately does **not** detect a *removed* dependency (the lock would just carry an
+    unused package) or a change reachable only transitively, since verifying those needs the
+    dependencies' own manifests (a registry). For a strict, reproducible install that pins
+    exactly the lock regardless, use ``--locked``.
+    """
+    locked: dict[PackageRef, list[AnyVersion]] = {}
+    for package in lock.packages:
+        locked.setdefault(package.vlnv.ref, []).append(package.vlnv.version)
+    return all(
+        any(dep.constraint.matches(version) for version in locked.get(dep.ref, ()))
+        for dep in manifest.dependencies
+    )

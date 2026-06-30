@@ -113,7 +113,7 @@ how to handle an incompatible version conflict, overriding the manifest's [resol
 Resolve dependencies and fetch them into the local cache.
 .PP
 .RS 4
-hdlpkg install [\-h] [\-\-search DIR] [\-\-cache\-dir DIR] [\-\-output OUTPUT] [\-\-locked] [\-\-registry LOCATION] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] [PATH | VENDOR:LIBRARY:NAME[@CONSTRAINT] ...]
+hdlpkg install [\-h] [\-\-search DIR] [\-\-cache\-dir DIR] [\-\-output OUTPUT] [\-\-locked] [\-\-update] [\-\-registry LOCATION] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] [PATH | VENDOR:LIBRARY:NAME[@CONSTRAINT] ...]
 .RE
 .PP
 .TP
@@ -131,6 +131,9 @@ where to write the lockfile (default: ./ip.lock)
 .TP
 .B \-\-locked
 install exactly from an existing ip.lock without re-resolving (reproducible builds); fail if it is missing
+.TP
+.B \-\-update
+re-resolve to the newest compatible versions even when ip.lock is already up to date with the manifest (needs --registry/--search to discover them)
 .TP
 .B \-\-registry LOCATION
 fetch from a published registry (overrides --search; repeatable, CLI order = precedence); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry

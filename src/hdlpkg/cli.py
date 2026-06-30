@@ -41,7 +41,7 @@ from .exceptions import (
     RegistryError,
 )
 from .ipxact import DEFAULT_IPXACT_STD, SUPPORTED_IPXACT_STDS, to_ipxact
-from .lockfile import LOCKFILE_FILENAME, Lockfile, sha256_digest
+from .lockfile import LOCKFILE_FILENAME, Lockfile, lock_satisfies_manifest, sha256_digest
 from .mangle import GenCore, GenSourceFile, ManglePlan, plan_package_mangling
 from .manifest import (
     MANIFEST_FILENAME,
@@ -183,6 +183,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=f"install exactly from an existing {LOCKFILE_FILENAME} without re-resolving "
         "(reproducible builds); fail if it is missing",
+    )
+    p_install.add_argument(
+        "--update",
+        action="store_true",
+        help=f"re-resolve to the newest compatible versions even when {LOCKFILE_FILENAME} is "
+        "already up to date with the manifest (needs --registry/--search to discover them)",
     )
     p_install.add_argument(
         "--registry",
@@ -616,6 +622,25 @@ def _add_dependencies(manifest_path: Path, specs: list[str]) -> None:
         print(f"Added {entry} to {manifest_path}")
 
 
+def _install_from_lock(
+    manifest_path: Path,
+    args: argparse.Namespace,
+    lock: Lockfile,
+    cache: ContentAddressedCache,
+    cache_root: Path,
+    note: str,
+) -> int:
+    """Fetch exactly what *lock* pins (no re-resolve), verifying every digest (fail closed)."""
+    registry = _locked_registry(manifest_path, args, lock)
+    fetched = {pkg.vlnv: registry.fetch(pkg.vlnv, cache) for pkg in lock.packages}
+    lock.verify(fetched)  # fail closed if any fetched digest disagrees with the lock
+    _print_registry_warnings(registry)
+    print(f"Installed {len(fetched)} package(s) into {cache_root} ({note})")
+    for pkg in lock.packages:
+        print(f"  {pkg.vlnv}")
+    return 0
+
+
 def _cmd_install(args: argparse.Namespace) -> int:
     manifest_path, dep_specs = _install_targets(args.targets)
     if dep_specs:
@@ -625,23 +650,38 @@ def _cmd_install(args: argparse.Namespace) -> int:
                 "lockfile unchanged. Drop --locked to add and resolve."
             )
         _add_dependencies(manifest_path, dep_specs)
+    if args.locked and args.update:
+        raise ManifestError("--locked and --update are mutually exclusive.")
     cache_root = Path(args.cache_dir) if args.cache_dir else default_cache_root()
     cache = ContentAddressedCache(cache_root)
 
     if args.locked:
         # Reproducible install: fetch exactly what ip.lock pins, no re-resolve, no rewrite.
         lock = _load_lockfile(manifest_path)
-        registry = _locked_registry(manifest_path, args, lock)
-        fetched = {pkg.vlnv: registry.fetch(pkg.vlnv, cache) for pkg in lock.packages}
-        lock.verify(fetched)  # fail closed if any fetched digest disagrees with the lock
-        _print_registry_warnings(registry)
-        print(
-            f"Installed {len(fetched)} locked package(s) into {cache_root} "
-            f"(from {LOCKFILE_FILENAME})"
+        return _install_from_lock(
+            manifest_path, args, lock, cache, cache_root, f"from {LOCKFILE_FILENAME}"
         )
-        for pkg in lock.packages:
-            print(f"  {pkg.vlnv}")
-        return 0
+
+    # Ergonomic default: a plain `install` builds straight from an up-to-date ip.lock (no
+    # --registry needed), and only re-resolves when something forces it -- the user pointed at
+    # a registry/search, added dependencies, asked to --update, or the lock is missing/stale.
+    forces_resolve = bool(args.registry or args.search or args.update or dep_specs)
+    lock_path = manifest_path.parent / LOCKFILE_FILENAME
+    if not forces_resolve and lock_path.is_file():
+        lock = Lockfile.from_path(lock_path)
+        if lock_satisfies_manifest(Manifest.from_path(manifest_path), lock):
+            return _install_from_lock(
+                manifest_path,
+                args,
+                lock,
+                cache,
+                cache_root,
+                f"from {LOCKFILE_FILENAME}, up to date with {MANIFEST_FILENAME}",
+            )
+        print(
+            f"{LOCKFILE_FILENAME} is out of date with {MANIFEST_FILENAME}; re-resolving.",
+            file=sys.stderr,
+        )
 
     resolution, registry = _resolve(manifest_path, args)
     lock = _build_lock(resolution, registry)

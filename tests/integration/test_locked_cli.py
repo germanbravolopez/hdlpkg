@@ -43,7 +43,7 @@ def test_install_locked_fetches_exactly_from_lockfile(uart_project: Path, tmp_pa
     )
     assert rc == 0
     out = capsys.readouterr().out
-    assert "locked package(s)" in out
+    assert "(from ip.lock)" in out  # installed straight from the lockfile, no re-resolve
     assert "acme:common:fifo:1.0.0" in out
 
 

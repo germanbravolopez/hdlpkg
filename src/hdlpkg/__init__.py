@@ -50,7 +50,7 @@ from .exceptions import (
     ResolutionError,
 )
 from .ipxact import IPXACT_NAMESPACE, to_ipxact
-from .lockfile import LockedPackage, Lockfile, sha256_digest
+from .lockfile import LockedPackage, Lockfile, lock_satisfies_manifest, sha256_digest
 from .mangle import (
     GenCore,
     GenSourceFile,
@@ -184,6 +184,7 @@ __all__ = [
     "get_backend",
     "load_credentials",
     "load_docker_config",
+    "lock_satisfies_manifest",
     "mangled_name",
     "manifest_from_ipkg",
     "pack_core",
