@@ -65,9 +65,10 @@ def test_gen_filelist_lists_dependency_then_root_sources_from_the_cache(
     assert fifo_idx < uart_idx
 
     # Every path is absolute and the dependency source lives under the cache, not the repo.
+    # hdlpkg emits forward-slash paths (portable), so compare in posix form (Windows-safe).
     assert all(Path(p).is_absolute() and Path(p).is_file() for p in lines)
-    assert str(cache) in lines[fifo_idx]
-    assert str(uart_project.parent) not in lines[fifo_idx]  # the IP was not vendored into the tree
+    assert cache.as_posix() in lines[fifo_idx]
+    assert uart_project.parent.as_posix() not in lines[fifo_idx]  # IP not vendored into the tree
 
 
 def test_gen_filelist_is_offline_after_install_locked(uart_project: Path, tmp_path: Path) -> None:
