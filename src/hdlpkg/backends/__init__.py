@@ -11,6 +11,7 @@ from __future__ import annotations
 from ..exceptions import BackendError
 from .base import Backend, GeneratedFiles
 from .edam import CoreSource, EdaDesign, EdaFile, build_eda_design, normalize_file_type
+from .filelist import FilelistBackend
 from .ghdl import GhdlBackend
 from .icarus import IcarusBackend
 from .verilator import VerilatorBackend
@@ -22,6 +23,7 @@ __all__ = [
     "CoreSource",
     "EdaDesign",
     "EdaFile",
+    "FilelistBackend",
     "GeneratedFiles",
     "build_eda_design",
     "get_backend",

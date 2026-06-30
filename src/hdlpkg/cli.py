@@ -20,7 +20,14 @@ from dataclasses import replace
 from pathlib import Path
 
 from . import __version__
-from .backends import CoreSource, build_eda_design, get_backend, normalize_file_type
+from .backends import (
+    Backend,
+    CoreSource,
+    FilelistBackend,
+    build_eda_design,
+    get_backend,
+    normalize_file_type,
+)
 from .cache import ContentAddressedCache, default_cache_root
 from .credentials import (
     CredentialStore,
@@ -315,6 +322,15 @@ def build_parser() -> argparse.ArgumentParser:
         "manifest's parent directory)",
     )
     p_gen.add_argument("--output", metavar="DIR", help="output directory (default: ./gen/<target>)")
+    p_gen.add_argument(
+        "--format",
+        choices=("native", "filelist"),
+        default="native",
+        help="'native' (default) emits the target's tool inputs (Verilator/Vivado/...); "
+        "'filelist' emits tool-agnostic ordered '.f' source lists, one per HDL type, of "
+        "cache paths -- for a Makefile flow (e.g. QuestaSim/Quartus) to compile the IP from "
+        "the cache without vendoring the sources",
+    )
     p_gen.add_argument(
         "--registry",
         action="append",
@@ -880,7 +896,10 @@ def _cmd_gen(args: argparse.Namespace) -> int:
     design = build_eda_design(
         root_source, args.target, dependencies, allow_multiversion=multiversion
     )
-    outputs = get_backend(design.toolflow).generate(design)
+    backend: Backend = (
+        FilelistBackend() if args.format == "filelist" else get_backend(design.toolflow)
+    )
+    outputs = backend.generate(design)
 
     written = []
     for filename, content in outputs.items():
@@ -890,8 +909,9 @@ def _cmd_gen(args: argparse.Namespace) -> int:
 
     if plan is not None:
         _print_mangle_report(plan)
+    label = "filelist" if args.format == "filelist" else f"{design.toolflow} inputs"
     print(
-        f"Generated {design.toolflow} inputs for {root.vlnv} target {args.target!r} "
+        f"Generated {label} for {root.vlnv} target {args.target!r} "
         f"({len(design.files)} source file(s)):"
     )
     for dest in written:

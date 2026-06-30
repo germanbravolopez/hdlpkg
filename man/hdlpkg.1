@@ -264,7 +264,7 @@ registry URL to forget
 Generate tool-flow inputs for a target.
 .PP
 .RS 4
-hdlpkg gen [\-h] [\-\-search DIR] [\-\-output DIR] [\-\-registry LOCATION] [\-\-cache\-dir DIR] [\-\-locked] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] target [path]
+hdlpkg gen [\-h] [\-\-search DIR] [\-\-output DIR] [\-\-format {native,filelist}] [\-\-registry LOCATION] [\-\-cache\-dir DIR] [\-\-locked] [\-\-on\-conflict {fail_on_conflict,use_latest,isolate_namespaces}] target [path]
 .RE
 .PP
 .TP
@@ -279,6 +279,9 @@ directory to scan for dependency cores (repeatable; default: the manifest's pare
 .TP
 .B \-\-output DIR
 output directory (default: ./gen/<target>)
+.TP
+.B \-\-format FORMAT
+\&'native' (default) emits the target's tool inputs (Verilator/Vivado/...); 'filelist' emits tool-agnostic ordered '.f' source lists, one per HDL type, of cache paths -- for a Makefile flow (e.g. QuestaSim/Quartus) to compile the IP from the cache without vendoring the sources
 .TP
 .B \-\-registry LOCATION
 fetch dependency sources from a published registry instead of --search (materialized from the cache; repeatable, CLI order = precedence); a local directory, or a network URL (http(s)://..., oci://..., or git+ssh/https://...); use 'hdlpkg login' first for a private HTTP/OCI registry

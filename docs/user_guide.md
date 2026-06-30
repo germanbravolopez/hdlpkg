@@ -415,6 +415,25 @@ core's tree so the vendored copy always matches the lock. Building (`hdlpkg gen`
 independent — use `vendor` when you drive the build yourself, `gen` when you want hdlpkg to
 emit the tool inputs.
 
+**Filelists for a Makefile flow (keep the IP in the cache).** If you'd rather **not** copy the
+IP source into your tree at all — keep it in the cache and just feed your compiler a list —
+use `gen --format filelist`. It writes ordered `.f` lists (one per HDL type) of absolute
+**cache** paths, dependencies first, so a Make-based flow (QuestaSim, Quartus, …) compiles the
+IP straight from the cache:
+
+```bash
+hdlpkg gen sim --format filelist --locked --output build/hdlpkg
+#   build/hdlpkg/<name>.vhdl.f  /  .systemverilog.f  /  .verilog.f   (each: -f-style path list)
+```
+
+This is the right fit for a team with their own per-tool Makefiles: hdlpkg supplies the
+dependency IP, their existing `compile`/`simulate` targets read the `.f` lists (most tools
+accept `-f <filelist>`), and the IP never lands in the repo. A reusable `hdlpkg.mk` and a
+worked QuestaSim example are under
+[`examples/integration/`](https://github.com/germanbravolopez/hdlpkg/tree/main/examples/integration).
+(`vendor` lays down readable source; `--format filelist` keeps the source in the cache — pick
+whichever your flow prefers.)
+
 **Installing straight from the lock.** Once `ip.lock` is written, each package entry records
 the exact registry it came from (its `source`). So you do **not** have to repeat `--registry`
 to install — a plain `install` builds from the lock:
