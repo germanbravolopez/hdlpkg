@@ -75,30 +75,30 @@ no deletion, merge-commit-only), updated **only through the release flow**:
 `1.0.0` stability sign-off, a security-sensitive or hard-to-reverse change, or
 anything the user has explicitly reserved; there, prepare the branch + PR and stop.
 The `/tackle-issue` and `/release` commands encode this flow (see
-[README](../README.md) -> Releasing).
+[README](https://github.com/germanbravolopez/hdlpkg/blob/main/README.md) -> Releasing).
 
 ## File map — where to find what
 
 | What you need | Where |
 |---------------|-------|
-| CLI entry point | [src/hdlpkg/cli.py](../src/hdlpkg/cli.py) (`main`) |
-| Public API exports | [src/hdlpkg/__init__.py](../src/hdlpkg/__init__.py) |
-| SemVer + constraints | [src/hdlpkg/version.py](../src/hdlpkg/version.py) |
-| VLNV identity | [src/hdlpkg/vlnv.py](../src/hdlpkg/vlnv.py) |
-| `ip.toml` parsing/validation | [src/hdlpkg/manifest.py](../src/hdlpkg/manifest.py) |
-| Exception hierarchy | [src/hdlpkg/exceptions.py](../src/hdlpkg/exceptions.py) |
-| Resolver | [src/hdlpkg/resolver.py](../src/hdlpkg/resolver.py) |
-| Lockfile (`ip.lock`) | [src/hdlpkg/lockfile.py](../src/hdlpkg/lockfile.py) |
-| Content-addressed cache | [src/hdlpkg/cache.py](../src/hdlpkg/cache.py) |
-| Registry (local/HTTP/writable) | [src/hdlpkg/registry.py](../src/hdlpkg/registry.py) |
-| Packaging (`.ipkg`) | [src/hdlpkg/packaging.py](../src/hdlpkg/packaging.py) |
-| Tool-flow backends (`gen`) | [src/hdlpkg/backends/](../src/hdlpkg/backends/) |
-| IP-XACT / SBOM / tree view | [ipxact.py](../src/hdlpkg/ipxact.py), [sbom.py](../src/hdlpkg/sbom.py), [treeview.py](../src/hdlpkg/treeview.py) |
+| CLI entry point | [src/hdlpkg/cli.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/cli.py) (`main`) |
+| Public API exports | [src/hdlpkg/__init__.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/__init__.py) |
+| SemVer + constraints | [src/hdlpkg/version.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/version.py) |
+| VLNV identity | [src/hdlpkg/vlnv.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/vlnv.py) |
+| `ip.toml` parsing/validation | [src/hdlpkg/manifest.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/manifest.py) |
+| Exception hierarchy | [src/hdlpkg/exceptions.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/exceptions.py) |
+| Resolver | [src/hdlpkg/resolver.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/resolver.py) |
+| Lockfile (`ip.lock`) | [src/hdlpkg/lockfile.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/lockfile.py) |
+| Content-addressed cache | [src/hdlpkg/cache.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/cache.py) |
+| Registry (local/HTTP/writable) | [src/hdlpkg/registry.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/registry.py) |
+| Packaging (`.ipkg`) | [src/hdlpkg/packaging.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/packaging.py) |
+| Tool-flow backends (`gen`) | [src/hdlpkg/backends/](https://github.com/germanbravolopez/hdlpkg/tree/main/src/hdlpkg/backends) |
+| IP-XACT / SBOM / tree view | [ipxact.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/ipxact.py), [sbom.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/sbom.py), [treeview.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/treeview.py) |
 | Per-module reference (manual) | [docs/modules/](modules/README.md) |
-| Tests | [tests/](../tests/) — see [tests/README.md](../tests/README.md) |
-| Test summary renderer | [scripts/render_test_summary.py](../scripts/render_test_summary.py) |
-| Project + tool config | [pyproject.toml](../pyproject.toml) (single source of truth) |
-| CI pipeline | [.github/workflows/ci.yml](../.github/workflows/ci.yml) |
+| Tests | [tests/](https://github.com/germanbravolopez/hdlpkg/tree/main/tests) — see [tests/README.md](https://github.com/germanbravolopez/hdlpkg/blob/main/tests/README.md) |
+| Test summary renderer | [scripts/render_test_summary.py](https://github.com/germanbravolopez/hdlpkg/blob/main/scripts/render_test_summary.py) |
+| Project + tool config | [pyproject.toml](https://github.com/germanbravolopez/hdlpkg/blob/main/pyproject.toml) (single source of truth) |
+| CI pipeline | [.github/workflows/ci.yml](https://github.com/germanbravolopez/hdlpkg/blob/main/.github/workflows/ci.yml) |
 
 ## Documentation map
 
@@ -157,7 +157,7 @@ The implemented modules are the reference; match their style.
 - Cover the **error paths**, not just the happy path — every `raise` should have a
   test.
 - Keep coverage at or above the `fail_under` gate in `pyproject.toml`; raise the
-  gate as the implemented surface grows. See [tests/README.md](../tests/README.md).
+  gate as the implemented surface grows. See [tests/README.md](https://github.com/germanbravolopez/hdlpkg/blob/main/tests/README.md).
 
 ## Agent obligations — after every change
 
@@ -173,7 +173,7 @@ The implemented modules are the reference; match their style.
 7. **English only. No emojis in doc/heading text** (the test-report status icons
    in `scripts/` are the one intentional exception).
 8. Consider the `/coding-guidelines` and `/update-docs` skills in
-   [.claude/commands/](../.claude/commands/) — read the full skill file when relevant.
+   [.claude/commands/](https://github.com/germanbravolopez/hdlpkg/tree/main/.claude/commands) — read the full skill file when relevant.
 
 ## Document size guidance
 

@@ -4,7 +4,7 @@ Stored credentials for authenticating to **private** registries, so a team can p
 to and consume from a self-hosted HTTP or [OCI](registry.md) registry without the cores
 ever being public.
 
-- **Source**: [src/hdlpkg/credentials.py](../../src/hdlpkg/credentials.py)
+- **Source**: [src/hdlpkg/credentials.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/credentials.py)
 - **Import**: `from hdlpkg import Credential, CredentialStore, load_credentials, save_credentials, registry_host, load_docker_config`
 
 ## Model

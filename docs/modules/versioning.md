@@ -3,7 +3,7 @@
 Semantic-version parsing, precedence, and constraint matching. Pure module (no I/O),
 the reference example for the project's testability rule.
 
-- **Source**: [src/hdlpkg/version.py](../../src/hdlpkg/version.py)
+- **Source**: [src/hdlpkg/version.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/version.py)
 - **Import**: `from hdlpkg import Version, VersionConstraint, OpaqueVersion, CalVer, MonotonicVersion, compatibility_group, parse_version`
 
 ## Purpose

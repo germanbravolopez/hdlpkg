@@ -78,7 +78,7 @@ pip install -e ".[dev]"          # docs site extras: pip install -e ".[docs]"
 
 ## A first walkthrough (using the bundled examples)
 
-The repo ships two real cores under [`examples/`](../examples/): a FIFO
+The repo ships two real cores under [`examples/`](https://github.com/germanbravolopez/hdlpkg/tree/main/examples): a FIFO
 (`acme:common:fifo`) and a UART (`acme:comm:uart`) that depends on it. Run these from
 the repo root.
 
@@ -542,6 +542,6 @@ whichever your flow prefers.)
 - [Module manual](modules/README.md) — the full per-module / per-command reference.
 - [CLI reference](modules/cli.md) — every command, flag, and exit code.
 - **Man page** — `man ./man/hdlpkg.1` (or install it so `man hdlpkg` works; see
-  [`man/README.md`](../man/README.md)).
+  [`man/README.md`](https://github.com/germanbravolopez/hdlpkg/blob/main/man/README.md)).
 - [Architecture](architecture.md) — how the pieces fit and why.
 - [Progress tracker](progress_tracker.md) — what is implemented, what is planned.

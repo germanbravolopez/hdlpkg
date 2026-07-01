@@ -3,7 +3,7 @@
 Turn a resolved design into the concrete input files an EDA tool consumes, behind
 `hdlpkg gen`. Tool specifics never leak into the manifest/resolver/packaging layers.
 
-- **Source**: [src/hdlpkg/backends/](../../src/hdlpkg/backends/)
+- **Source**: [src/hdlpkg/backends/](https://github.com/germanbravolopez/hdlpkg/tree/main/src/hdlpkg/backends)
 - **Import**: `from hdlpkg import build_eda_design, get_backend, supported_toolflows, CoreSource, EdaDesign, EdaFile`
 
 ## The pipeline

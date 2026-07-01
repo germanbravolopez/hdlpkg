@@ -3,7 +3,7 @@
 One exception hierarchy rooted at a single base, so a caller (the CLI, or another
 tool embedding the library) can catch the whole family with one `except`.
 
-- **Source**: [src/hdlpkg/exceptions.py](../../src/hdlpkg/exceptions.py)
+- **Source**: [src/hdlpkg/exceptions.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/exceptions.py)
 - **Import**: `from hdlpkg import HdlPackagerError, ManifestError, ...`
 
 ## The hierarchy
