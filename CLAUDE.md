@@ -46,22 +46,28 @@ This rule binds **all** commits in this repo, not just `/tackle-issue` or `/rele
 
 ## Branch & merge workflow
 
-Day-to-day work lands on **`develop`**, the working branch. Commit directly to
-`develop` (or a short-lived `feature/`/`fix/`/`docs/` branch you merge into it);
-**no PR is required for normal work** — `/tackle-issue` just makes the gates green
-and commits. Push `develop`; CI runs on the push.
+**`main` is the trunk** — the single long-lived branch and the release line. It is
+protected (ruleset "main": no direct commits/pushes, no force-push, no deletion,
+merge-commit-only), so **every change reaches `main` through a PR**.
 
-`main` is the protected **release line** (ruleset "main": no direct commits/pushes,
-no force-push, no deletion, merge-commit-only). It is updated **only at release
-time** — a release is the one flow that uses a PR: cut `release/X.Y.Z` off `develop`,
-bump the version, open a PR into `main`, and the agent **reviews it with
-`/code-review`** and resolves or files every finding. **Then — hard gate — confirm
-every PR check is green** with `gh pr checks <branch> --watch` (exit 0; the whole
-matrix, never one workflow, and never piped to `tail` which hides the exit code)
-before **merging** with a merge commit (`gh pr merge --merge --admin`; GitHub forbids
-self-approval, so `--admin` covers only that — never use it to merge past a red or
-pending check). Then tag the merged commit on `main` to publish, and fast-forward
-`develop` to `main`.
+Day-to-day work happens on a **short-lived branch off `main`** — a `feature/`/`fix/`/
+`docs/` branch (or a longer-lived working branch if you prefer; the name doesn't
+matter) — that you then **open a PR into `main`** for. Branch off an up-to-date `main`
+(`git switch main && git pull --ff-only && git switch -c feature/X`), push, and let CI
+run on the PR. There is **no standing `develop` branch**; recreate one off `main` only
+if you want a longer-lived integration branch again.
+
+To merge a PR into `main`: **hard gate — confirm every PR check is green** with
+`gh pr checks <branch> --watch` (exit 0; the whole matrix, never one workflow, and
+never piped to `tail` which hides the exit code) before **merging** with a merge commit
+(`gh pr merge --merge --admin`; GitHub forbids self-approval, so `--admin` covers only
+that — never use it to merge past a red or pending check). Delete the branch after.
+
+A **release** is the same PR flow plus a version bump + tag: cut `release/X.Y.Z` off an
+up-to-date `main`, bump the version, open a PR into `main`, **review it with
+`/code-review`** and resolve or file every finding, confirm checks green, merge, then
+tag the merged commit on `main` to publish (nothing to fast-forward — `main` is the
+only long-lived branch).
 
 A **human gate applies only when the agent cannot safely decide on its own** — the
 `1.0.0` stability sign-off, a security-sensitive or hard-to-reverse change, or
@@ -78,9 +84,8 @@ version tags. A **release** (version bump + tag → PyPI) is only for a change t
 
 So decide by *what changed*:
 - **Only `docs/**` / `mkdocs.yml`** → **no release.** Land it on `main` via a plain
-  docs PR (no version bump, no tag), then merge `main` back into `develop`; the Docs
-  workflow redeploys the site. Or just commit on `develop` and let it ride to `main`
-  at the next release if the live site can wait. Never run `/release` for docs alone.
+  docs PR (a `docs/` branch off `main`, no version bump, no tag); the Docs workflow
+  redeploys the site on merge. Never run `/release` for docs alone.
 - **Code, or `man/hdlpkg.1`, that should ship on PyPI** → use `/release`.
 
 ## Shell preference

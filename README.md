@@ -212,39 +212,40 @@ mkdocs serve
 
 ## Development workflow
 
-Day-to-day work lands on **`develop`**, the working branch; **`main` is the protected
-release line**, updated only at release time. **No PR is needed for normal work** —
-only a release goes through a PR (see Releasing).
+**`main` is the trunk** and the only long-lived branch; it is protected and updated
+**only through PRs**. Every change — from a one-line fix to a release — lands on a
+short-lived branch off `main` and merges back via a PR.
 
-1. **Work on `develop`** (or a short-lived `feature/`/`fix/`/`docs/` branch you merge
-   into it). `main` is off-limits for direct commits (ruleset "main": no direct
-   commits/pushes, no force-push, no deletion).
+1. **Work on a branch off `main`** — `git switch main && git pull --ff-only &&
+   git switch -c feature/X` (any `feature/`/`fix/`/`docs/` name; recreate a longer-lived
+   `develop` off `main` if you prefer). `main` is off-limits for direct commits (ruleset
+   "main": no direct commits/pushes, no force-push, no deletion, merge-commit-only).
 2. **Implement with tests.** Keep docs in sync as you go — run the `/update-docs`
    checklist (`docs/progress_tracker.md`, `docs/architecture.md`, `docs/INDEX.md`,
    and this README if user-visible behaviour changed).
 3. **Make the gates green** before committing: `pytest`, `ruff check .`,
    `ruff format --check .`, `mypy`. The pre-commit hooks (`pre-commit install`) run
    ruff + mypy on each commit so these are caught locally before CI.
-4. **Commit to `develop` and push.** CI runs on the push. No PR — the accumulated
-   `develop` diff is reviewed at the next release.
+4. **Push and open a PR into `main`** (`gh pr create --base main`). CI runs on the PR;
+   once green, **review with `/code-review`**, resolve findings, then merge with a merge
+   commit (`gh pr merge --merge --admin --delete-branch`) and delete the branch.
 
-A release is the one flow that uses a PR (`develop` → `main`); the agent reviews it
-with `/code-review` and merges it (see Releasing). A **human gate applies only when
-the agent cannot safely decide on its own** — the `1.0.0` stability sign-off, a
-security-sensitive or hard-to-reverse change, or anything explicitly reserved.
+A **human gate applies only when the agent cannot safely decide on its own** — the
+`1.0.0` stability sign-off, a security-sensitive or hard-to-reverse change, or anything
+explicitly reserved.
 
 ### Releasing
 
 Releases are **tag-driven**, and the `X.Y.Z` tag must sit on the merge commit on
-`main` — so a release goes through the same PR flow, not a direct push:
+`main` — a release is the normal PR flow plus a version bump + tag:
 
-1. On a `release/X.Y.Z` branch cut off **`develop`**, bump the version in **both**
-   `pyproject.toml` and `src/hdlpkg/__init__.py`, record the release in
+1. On a `release/X.Y.Z` branch cut off an up-to-date **`main`**, bump the version in
+   **both** `pyproject.toml` and `src/hdlpkg/__init__.py`, record the release in
    `docs/progress_tracker.md`, and make the gates green.
 2. Open a PR into `main`, **review it (`/code-review`) and merge with a merge commit**
    (the agent owns this — see the workflow above; the `1.0.0` sign-off is the one
-   release that needs explicit human go-ahead). Fast-forward `develop` to the merged
-   `main` afterwards so the working branch carries the release commit.
+   release that needs explicit human go-ahead). `main` is the only long-lived branch,
+   so there is nothing to fast-forward afterwards.
 3. On the updated `main`, create and push the bare `X.Y.Z` tag (no `v` prefix).
    `.github/workflows/release.yml` then builds the wheel + sdist, publishes to PyPI
    via OIDC trusted publishing, and **creates a GitHub Release** for the tag (a short
