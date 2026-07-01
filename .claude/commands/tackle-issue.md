@@ -1,5 +1,5 @@
 ---
-description: Pick up and ship an open item from docs/progress_tracker.md — read, plan, implement, test, update docs, commit on develop. Use for "tackle X", "fix Y", "do the next roadmap milestone".
+description: Pick up and ship an open item from docs/progress_tracker.md — read, plan, implement, test, update docs, PR a branch into main. Use for "tackle X", "fix Y", "do the next roadmap milestone".
 argument-hint: <issue or roadmap item>
 ---
 
@@ -85,15 +85,15 @@ A passing import proves the code loads; the test suite is what proves the change
 - Watch the Windows gotcha from `CLAUDE.md`: `os.chdir` into a `%TEMP%` dir can fail with WinError 5 (Controlled Folder Access). Don't write tests that rely on `chdir` into temp; skip gracefully if one truly must.
 - If a change genuinely cannot be unit-tested (pure CLI wiring), state that explicitly in the commit + milestone and note what a future harness would need — don't silently skip coverage.
 
-### 7. Commit (on `develop` — no PR)
+### 7. Commit on a branch off `main` and open a PR
 
-Normal work lands on **`develop`**, the working branch — **no PR** (a PR is only for
-a release, `develop` → `main`; see `/release`). `main` is the protected release line;
-never commit on it directly.
+`main` is the protected trunk; **never commit on it directly**. Work on a **short-lived
+branch off an up-to-date `main`** — a `feature/`/`fix/`/`docs/` branch — and land it via
+a **PR into `main`** (see `/release`'s merge steps: green checks, then `gh pr merge
+--merge --admin`, then delete the branch).
 
-- **Commit on `develop`** (or a short-lived `feature/`/`fix/`/`docs/` branch you then
-  merge into `develop`). The accumulated `develop` diff is reviewed at the next
-  release, so a per-change PR is not needed.
+- **Branch, commit, push, PR**: `git switch main && git pull --ff-only && git switch -c
+  fix/<slug>`, commit, `git push -u origin fix/<slug>`, then `gh pr create --base main`.
 - **Commit message**: follow the canonical rule in [CLAUDE.md](../../CLAUDE.md)
   ("Commit messages") — single-line subject, hard cap ~200 characters, no body, **no
   `Co-Authored-By` line**, no emojis. If the explanation doesn't fit, the long-form
@@ -103,7 +103,7 @@ never commit on it directly.
   them alone and call them out in your final message.
 - **Never `--amend`** a commit the user has already seen or that has been pushed.
   Create a new commit instead.
-- **Push `develop`.** CI runs on the push.
+- **CI runs on the PR**; merge only once every check is green.
 
 After the commit:
 

@@ -48,28 +48,28 @@ truth for what is done versus planned.
 
 ## Branch & merge workflow
 
-Day-to-day work lands on **`develop`**, the working branch — commit directly (or via
-a short-lived feature branch you merge into it); **no PR for normal work**. `main` is
-the protected release line (ruleset "main": no direct commits/pushes, no force-push,
-no deletion, merge-commit-only), updated **only through the release flow**:
+**`main` is the trunk** and the only long-lived branch — protected (ruleset "main": no
+direct commits/pushes, no force-push, no deletion, merge-commit-only), so **every
+change reaches it through a PR**. Never commit on `main` directly.
 
-1. Do the work on `develop`; make the quality gates green and commit. **No PR** —
-   the accumulated `develop` diff is reviewed at the next release.
-2. At release time, cut `release/X.Y.Z` off `develop`, bump the version, push, and
-   open a PR into `main` (`gh pr create`). CI runs on the PR.
-3. Once CI is green, **review the PR with `/code-review`** and resolve every finding —
-   fix it, or, if it's out of this release's scope, file it in
-   `docs/progress_tracker.md` Open Non-Blocking Issues. Never merge with an open,
-   unaddressed finding.
-4. **Confirm every PR check is green (hard gate)** with `gh pr checks <branch> --watch`
+1. Do the work on a **short-lived branch off an up-to-date `main`** (`git switch main &&
+   git pull --ff-only && git switch -c feature/X`); make the quality gates green,
+   commit, push, and open a PR into `main` (`gh pr create --base main`). CI runs on the
+   PR. (A release is the same flow plus a version bump + tag — cut `release/X.Y.Z` off
+   `main`; see `/release`.)
+2. Once CI is green, **review the PR with `/code-review`** and resolve every finding —
+   fix it, or, if it's out of scope, file it in `docs/progress_tracker.md` Open
+   Non-Blocking Issues. Never merge with an open, unaddressed finding.
+3. **Confirm every PR check is green (hard gate)** with `gh pr checks <branch> --watch`
    (must exit 0 — the whole CI matrix, not one workflow; never pipe to `tail`, which
    hides the exit code). A flaky infra failure is re-run to green
    (`gh run rerun <id> --failed`), never bypassed.
-5. **Merge with a merge commit** — `gh pr merge --merge --admin` (squash and rebase
-   are disabled, `allowed_merge_methods: ["merge"]`; GitHub forbids approving your own
-   PR, so `--admin` covers **only** the required-review / last-push approval — never
-   use it to merge past a red or pending check) — then **tag the merged `main`** and
-   fast-forward `develop` to it.
+4. **Merge with a merge commit** — `gh pr merge --merge --admin --delete-branch` (squash
+   and rebase are disabled, `allowed_merge_methods: ["merge"]`; GitHub forbids approving
+   your own PR, so `--admin` covers **only** the required-review / last-push approval —
+   never use it to merge past a red or pending check). For a release, then **tag the
+   merged `main`** to publish (nothing to fast-forward — `main` is the only long-lived
+   branch).
 
 **Defer to a human gate only when the agent cannot safely decide on its own** — the
 `1.0.0` stability sign-off, a security-sensitive or hard-to-reverse change, or

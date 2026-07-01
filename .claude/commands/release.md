@@ -26,16 +26,17 @@ update this skill afterwards.
 
 ## Preconditions (check before doing anything)
 
-1. **A release is the one flow that uses a PR.** Normal work lives on `develop` (the
-   working branch, committed to directly — no PR). A release brings `develop`'s
-   accumulated work onto `main`: `main` is governed by the repository ruleset named
-   "main" (no direct commits/pushes, no force-push, merge-commit-only, one approving
-   review with last-push approval). The release bump lands on `main` through a
-   `release/X.Y.Z` PR (cut off `develop`) that the agent **reviews with `/code-review`
-   and then merges** with `gh pr merge --merge --admin` (step 7 — `--admin` bypasses
-   the self-approval the ruleset would otherwise require); the `X.Y.Z` tag is then
-   created on the resulting merge commit on `main`, and `develop` is fast-forwarded to
-   it. Start from an up-to-date `develop` (`git switch develop && git pull`).
+1. **A release is a PR into `main`, like every change — plus a version bump + tag.**
+   `main` is the trunk: all work already reaches it through PRs off short-lived
+   branches, so at release time `main` already carries the accumulated work. `main` is
+   governed by the repository ruleset named "main" (no direct commits/pushes, no
+   force-push, merge-commit-only, one approving review with last-push approval). The
+   release bump lands on `main` through a `release/X.Y.Z` PR **cut off an up-to-date
+   `main`** that the agent **reviews with `/code-review` and then merges** with
+   `gh pr merge --merge --admin` (step 7 — `--admin` bypasses the self-approval the
+   ruleset would otherwise require); the `X.Y.Z` tag is then created on the resulting
+   merge commit on `main`. There is no `develop` to fast-forward — `main` is the only
+   long-lived branch. Start from an up-to-date `main` (`git switch main && git pull --ff-only`).
 2. **Working tree is clean** (`git status` shows nothing to commit). If dirty, ask
    whether to commit, stash, or abort — never fold stray edits into the release.
 3. **Version is SemVer `X.Y.Z`** (or a pre-release `X.Y.Z-rc.N`), with **no** `v`
@@ -119,15 +120,16 @@ In `docs/progress_tracker.md`:
   `pyproject.toml` + `__init__.py` were bumped. (Absolute dates; never delete
   history.)
 
-### 6. Commit the bump on a `release/X.Y.Z` branch (off `develop`) and open a PR
+### 6. Commit the bump on a `release/X.Y.Z` branch (off `main`) and open a PR
 
 `main` is protected (ruleset "main"), so the bump cannot be pushed to `main`
-directly. Branch off `develop` (so the PR carries develop's accumulated work plus the
-bump), commit, and open a PR into `main`. Stage only the bump + tracker/doc files.
-Single-line subject, project style, **no** `Co-Authored-By`, no emojis:
+directly. Branch off an up-to-date `main` (which already carries the release's
+accumulated work), commit the bump, and open a PR back into `main`. Stage only the
+bump + tracker/doc files. Single-line subject, project style, **no** `Co-Authored-By`,
+no emojis:
 
 ```bash
-git switch develop && git pull --ff-only
+git switch main && git pull --ff-only
 git switch -c release/X.Y.Z
 git commit -m "Release X.Y.Z: <one-line summary of what this release ships>"
 git push -u origin release/X.Y.Z
@@ -207,10 +209,10 @@ git switch main && git pull --ff-only
 python scripts/check_release_version.py --ref refs/tags/X.Y.Z  # re-confirm on merged main
 git tag -a X.Y.Z -m "Release X.Y.Z - <summary>"
 git push origin X.Y.Z
-
-# Carry the release merge back onto the working branch so develop is not left behind.
-git switch develop && git merge --ff-only main && git push origin develop
 ```
+
+(`main` is the only long-lived branch, so there is nothing to fast-forward back —
+delete the merged `release/X.Y.Z` branch, `gh` does this on `--delete-branch`.)
 
 The `X.Y.Z` tag fires `release.yml`: the **build** job runs the guard + `python -m
 build`, then the **publish** job uploads the wheel + sdist to PyPI via OIDC trusted
@@ -257,8 +259,8 @@ Confirm the wheel + sdist are both listed. Surface the release URL
   the release by hand.)
 - The merged `release/X.Y.Z` branch is auto-deleted by `gh pr merge --delete-branch`
   (step 7); delete it manually only if the merge left it behind.
-- Confirm `develop` was fast-forwarded to `main` (step 7b) so the working branch
-  carries the release commit; future work continues on `develop`.
+- `main` now carries the release commit and tag; future work continues on new
+  short-lived branches off `main` (there is no `develop` to sync).
 - State the published version, the PyPI + GitHub Release URLs, and what the next
   milestone/release is (from Current Status -> Next).
 
