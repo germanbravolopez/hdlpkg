@@ -90,6 +90,15 @@ def test_unknown_scheme_raises() -> None:
         ("git+ssh://git@host/org/repo.git", "ssh://git@host/org/repo.git", None),
         ("git+ssh://git@host/org/repo.git@main", "ssh://git@host/org/repo.git", "main"),
         ("git+file:///tmp/reg.git", "file:///tmp/reg.git", None),
+        # A ref may contain '/' (git-flow branches) -- it is kept whole, and an ssh
+        # userinfo '@' in the same URL is still not mistaken for the ref separator.
+        (
+            "git+ssh://git@host/org/repo.git@feature/foo",
+            "ssh://git@host/org/repo.git",
+            "feature/foo",
+        ),
+        ("git+https://host/org/repo.git@release/1.0", "https://host/org/repo.git", "release/1.0"),
+        ("git+file:///tmp/reg.git@develop", "file:///tmp/reg.git", "develop"),
     ],
 )
 def test_parse_git_location_splits_url_and_ref(location: str, url: str, ref: str | None) -> None:

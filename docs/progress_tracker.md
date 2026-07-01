@@ -18,18 +18,17 @@ them to Archive. Convert relative dates to absolute (e.g. "June 2026").
 
 **Active branch**: `main`
 
-**Version**: **`0.15.0`** cut — the **multi-registry consumer flow** (an adopter-driven
-feature that slotted ahead of the planned IP-XACT ports work; plan:
-[docs/design/consumer-flow-multi-registry.md](design/consumer-flow-multi-registry.md)). Five
-phases, all additive — **no `ip.toml`/`ip.lock` format change**: (1) repeatable `--registry`
-builds an ordered search path (`CompositeRegistry`: union versions, first-wins shadowing, skip
-an unreachable backend); (2) `--locked` install/gen fetch each package from the exact `source`
-its lock entry recorded (`LockSourceRegistry`); (3) a `hdlpkg install <vlnv>` one-shot (declare
-+ resolve + lock + cache, the `pip install <name>` shape); (4) a new `hdlpkg vendor` command
-materializes every locked dep into `deps/<vendor>/<library>/<name>/` for Makefile consumers;
-(5) a `hdlpkg-livetest --multi-registry` scenario exercising it end to end. `0.14.1` was a docs
-hotfix over `0.14.0` (Git-registry hardening + richer IP-XACT). **Next**: `0.16.0` — the
-deferred **IP-XACT ports + bus interfaces** (plan:
+**Version**: **`0.16.0`** cut — **consumer-flow follow-ups**, all additive with **no
+`ip.toml`/`ip.lock` format change**: (1) a plain `hdlpkg install` now builds straight from an
+up-to-date `ip.lock` (no `--registry` to repeat), re-resolving only when the lock is missing or
+stale — plus a new `install --update` to force a fresh resolve; (2) `gen --format filelist`
+emits flat, compile-ordered `.f` source lists (one per HDL type) of cache paths, so a
+Makefile flow (QuestaSim, Quartus, …) can build IP straight from the cache without vendoring
+it, with a reusable `examples/integration/hdlpkg.mk` + QuestaSim example; (3) a git-registry
+fix so a `git+` ref may contain `/` (git-flow branches like `@feature/x`, `@release/1.0`); and
+a user-guide reorg of the registry section. `0.15.0` delivered the multi-registry consumer flow
+(plan: [docs/design/consumer-flow-multi-registry.md](design/consumer-flow-multi-registry.md)).
+**Next**: `0.17.0` — the deferred **IP-XACT ports + bus interfaces** (plan:
 [docs/design/0.15.0-ipxact-ports-businterfaces.md](design/0.15.0-ipxact-ports-businterfaces.md)),
 then supply-chain (Sigstore signing) + confidential IP (IEEE 1735) as the backlog matures.
 The project stays **pre-1.0** (formats keep the licence to change), validated continuously via
@@ -181,6 +180,37 @@ the next `0.x` release.
 ---
 
 ## Completed Milestones
+
+### Release 0.16.0 — consumer-flow follow-ups (install-from-lock, filelist, git-ref) — July 2026
+- [x] **Cut `0.16.0`**, additive follow-ups to the 0.15.0 consumer flow — **no
+  `ip.toml`/`ip.lock` format change**. Bumped `pyproject.toml` + `src/hdlpkg/__init__.py` to
+  `0.16.0` and regenerated the man page.
+  - **Plain `install` builds from an up-to-date lock.** `hdlpkg install` (no flags) now checks
+    whether `ip.lock` still satisfies `ip.toml` (a registry-free `lock_satisfies_manifest`
+    check) and, if so, fetches each core from the `source` the lock recorded — no `--registry`
+    to repeat. It re-resolves (needing a registry/search) only when the lock is missing, stale
+    (an added dependency or a tightened constraint — it prints `ip.lock is out of date with
+    ip.toml; re-resolving`), or `--update` is passed. New `install --update` forces a fresh
+    resolve even when the lock is current; `--locked` stays the strict mode and is mutually
+    exclusive with `--update`.
+  - **`gen --format filelist`.** A new `FilelistBackend` emits flat, compile-ordered `.f`
+    source lists (one per HDL type) of absolute cache paths — dependencies first — so a
+    Make-based flow (QuestaSim, Quartus, …) with no native hdlpkg backend can build the IP
+    straight from the cache without vendoring the source. Ships a reusable
+    `examples/integration/hdlpkg.mk` + a worked QuestaSim `Makefile` (smoke-tested with real
+    `make`). "Hidden" here means out-of-repo, not cryptographically unreadable (that needs the
+    roadmap's IEEE 1735 carry).
+  - **Git-registry ref fix.** `_parse_git_location` now takes the `@<ref>` from the URL path
+    (via `urlsplit`), so a ref containing `/` — a git-flow branch like `@feature/x` or
+    `@release/1.0` — is kept whole instead of being folded into the URL; simple refs, tags,
+    SHAs and scp-rejection are unchanged.
+  - **Docs.** Reorganized the user guide's "Sharing over a registry (local, HTTP, OCI or Git)"
+    section (publish/consume, managed OCI, then Resolving-from-a-Git-registry, multi-registry,
+    and a "Getting the dependencies into your build" grouping).
+  - **Tests**: `tests/unit/test_lock_satisfies_manifest.py`, `test_filelist_backend.py`,
+    `test_integration_example.py`, and `tests/integration/test_install_uses_lock_cli.py`,
+    `test_filelist_gen_cli.py`, plus the new git-ref cases in `test_registry_location.py` /
+    `test_git_registry_cli.py`. Full suite green (624).
 
 ### Release 0.15.0 — multi-registry consumer flow — June 2026
 - [x] **Cut `0.15.0`**, the multi-registry consumer flow (design:

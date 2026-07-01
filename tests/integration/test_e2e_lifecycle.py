@@ -90,7 +90,7 @@ def test_full_lifecycle_publish_resolve_gen_install_pull(
     )
     assert rc == 0
     out_install = capsys.readouterr().out
-    assert "locked package(s)" in out_install
+    assert "(from ip.lock)" in out_install  # installed straight from the lockfile
     assert "acme:common:fifo:1.0.0" in out_install
     assert any(cache.rglob("*")), "cache should be populated after install"
 
