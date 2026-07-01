@@ -6,7 +6,7 @@ to a unique one. Pure module (no I/O): it operates on source text passed in, so 
 work stays in the [CLI](cli.md). Full design rationale:
 [docs/design/module-entity-coexistence.md](../design/module-entity-coexistence.md).
 
-- **Source**: [src/hdlpkg/mangle.py](../../src/hdlpkg/mangle.py)
+- **Source**: [src/hdlpkg/mangle.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/mangle.py)
 - **Import**: `from hdlpkg import rewrite_sv_packages, rewrite_vhdl_packages, declared_packages, mangled_name, plan_package_mangling`
 
 ## Why

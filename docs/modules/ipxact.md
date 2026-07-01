@@ -4,7 +4,7 @@ Export a manifest as an IEEE 1685 (IP-XACT) component XML, so a core authored wi
 this packager can be consumed by the wider EDA tool ecosystem (Vivado in particular).
 Pure module.
 
-- **Source**: [src/hdlpkg/ipxact.py](../../src/hdlpkg/ipxact.py)
+- **Source**: [src/hdlpkg/ipxact.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/ipxact.py)
 - **Import**: `from hdlpkg import to_ipxact, IPXACT_NAMESPACE`
 
 ## Purpose

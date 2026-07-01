@@ -4,7 +4,7 @@ Where IP cores live so they can be discovered, fetched, and published. Multiple
 backends coexist behind one `Registry` interface; the resolver and CLI depend only on
 the interface, never a concrete backend.
 
-- **Source**: [src/hdlpkg/registry.py](../../src/hdlpkg/registry.py)
+- **Source**: [src/hdlpkg/registry.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/registry.py)
 - **Import**: `from hdlpkg import Registry, LocalDirectoryRegistry, HttpRegistry, LocalRegistry, OciRegistry, registry_from_location, available_from_registry`
 
 ## Selecting a backend: `registry_from_location`

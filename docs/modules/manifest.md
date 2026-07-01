@@ -4,8 +4,8 @@ The IP core manifest: identity, dependencies, source filesets, and build targets
 The analogue of `Cargo.toml` / `package.json` / a FuseSoC `.core` file. Pure module
 (parsing uses the stdlib `tomllib`, no third-party TOML dependency).
 
-- **Source**: [src/hdlpkg/manifest.py](../../src/hdlpkg/manifest.py),
-  [src/hdlpkg/scaffold.py](../../src/hdlpkg/scaffold.py)
+- **Source**: [src/hdlpkg/manifest.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/manifest.py),
+  [src/hdlpkg/scaffold.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/scaffold.py)
 - **Import**: `from hdlpkg import Manifest, Dependency, Fileset, Target`
 
 ## The `ip.toml` format

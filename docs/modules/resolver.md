@@ -4,7 +4,7 @@ Turns a root manifest plus the set of available core versions into the chosen
 version(s) per package. Pure module (no I/O): the available versions are passed in, so
 the solve is deterministic and fully unit-testable.
 
-- **Source**: [src/hdlpkg/resolver.py](../../src/hdlpkg/resolver.py)
+- **Source**: [src/hdlpkg/resolver.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/resolver.py)
 - **Import**: `from hdlpkg import resolve, Resolution`
 
 ## Purpose

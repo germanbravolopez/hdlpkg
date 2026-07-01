@@ -28,13 +28,13 @@ Two questions from a customer integrating IP at the SoC level:
 - **`--registry` is single-valued** per command (not repeatable).
 - **`install` is already a one-shot:** `hdlpkg install <manifest> --registry …` does **resolve
   + write `ip.lock` + fetch the `.ipkg` into the content-addressed cache** in one command
-  ([`_cmd_install`](../../src/hdlpkg/cli.py)). `resolve` = update the lock *without* fetching;
+  ([`_cmd_install`](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/cli.py)). `resolve` = update the lock *without* fetching;
   `pull <vlnv> --output DIR` = extract **one** core's source tree to disk; `gen <target>` =
   emit ready-to-run tool inputs (extracting deps into `<cache>/src/<digest>/`).
 - **The lockfile already records a per-package `source`** (a free-form string), set at resolve
   from `registry.source_for(vlnv)`: `path:…`, `registry:http://…`, `oci://…`, or
-  `git+<url>@<sha>` ([lockfile.py](../../src/hdlpkg/lockfile.py),
-  [`_build_lock`](../../src/hdlpkg/cli.py)). **So the lock is already heterogeneous-registry
+  `git+<url>@<sha>` ([lockfile.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/lockfile.py),
+  [`_build_lock`](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/cli.py)). **So the lock is already heterogeneous-registry
   capable** — only the single `--registry` on the CLI limits it. No lock-format change is
   needed for multi-registry.
 

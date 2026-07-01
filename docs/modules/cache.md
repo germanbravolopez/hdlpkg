@@ -3,7 +3,7 @@
 The local, on-disk store the packager populates while resolving cores, so repeated
 builds are offline and reproducible.
 
-- **Source**: [src/hdlpkg/cache.py](../../src/hdlpkg/cache.py)
+- **Source**: [src/hdlpkg/cache.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/cache.py)
 - **Import**: `from hdlpkg import ContentAddressedCache, default_cache_root`
 
 ## Purpose & properties

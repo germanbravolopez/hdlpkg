@@ -53,9 +53,9 @@ When a new module lands, add its page there and register it in that index and in
 
 | Document | Purpose |
 |----------|---------|
-| [../README.md](../README.md) | Project overview, install, usage, development workflow |
-| [../tests/README.md](../tests/README.md) | Test suite layout and how to add tests |
-| [../CLAUDE.md](../CLAUDE.md) | Entry point for the Claude Code agent |
+| [../README.md](https://github.com/germanbravolopez/hdlpkg/blob/main/README.md) | Project overview, install, usage, development workflow |
+| [../tests/README.md](https://github.com/germanbravolopez/hdlpkg/blob/main/tests/README.md) | Test suite layout and how to add tests |
+| [../CLAUDE.md](https://github.com/germanbravolopez/hdlpkg/blob/main/CLAUDE.md) | Entry point for the Claude Code agent |
 
 ---
 

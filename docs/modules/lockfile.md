@@ -4,7 +4,7 @@ The generated, committed record of a resolve: the exact `Vlnv` chosen for every
 package, each with an integrity `checksum` and its `source`. Committing it gives
 reproducible, verifiable builds (the Cargo / Orbit / Go model). Pure module.
 
-- **Source**: [src/hdlpkg/lockfile.py](../../src/hdlpkg/lockfile.py)
+- **Source**: [src/hdlpkg/lockfile.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/lockfile.py)
 - **Import**: `from hdlpkg import Lockfile, LockedPackage, sha256_digest`
 
 ## The `ip.lock` format

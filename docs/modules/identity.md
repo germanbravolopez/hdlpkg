@@ -2,7 +2,7 @@
 
 How an IP core is named. Pure module (parsing/formatting only).
 
-- **Source**: [src/hdlpkg/vlnv.py](../../src/hdlpkg/vlnv.py)
+- **Source**: [src/hdlpkg/vlnv.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/vlnv.py)
 - **Import**: `from hdlpkg import PackageRef, Vlnv`
 
 ## Purpose

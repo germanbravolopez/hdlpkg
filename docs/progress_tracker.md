@@ -446,7 +446,7 @@ the next `0.x` release.
   tokenizing" item), and a heuristic rewrite could silently corrupt a design. A VHDL-entity
   subset using the unambiguous `entity work.X` form is feasible parser-free but was
   consciously deferred (it would not cover SV). Sharpened the `_reject_unmangleable`
-  `BackendError` in [`mangle.py`](../src/hdl_ip_packager/mangle.py) to say *why* (instantiation
+  `BackendError` in [`mangle.py`](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/mangle.py) to say *why* (instantiation
   is ambiguous without a parser) and *what to do* (resolve to one version, or expose the shared
   logic as a package); added a test asserting the why-and-remedy guidance. The item stays in
   Open Non-Blocking with the full feasibility analysis; revisit when a parser frontend lands.
@@ -470,7 +470,7 @@ the next `0.x` release.
   SystemVerilog but **invalid VHDL** (consecutive underscores are illegal in an identifier),
   so the name-mangled coexistence designs compiled in SV but **would not analyze in GHDL** —
   a defect the text-only `gen` assertions could never have surfaced. Fixed `mangled_name`
-  ([`mangle.py`](../src/hdl_ip_packager/mangle.py)) to use a single `_v` separator and collapse
+  ([`mangle.py`](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/mangle.py)) to use a single `_v` separator and collapse
   any run of underscores, so the result is a legal identifier in **both** languages
   (`bus_pkg`/`vbus` -> `bus_pkg_v1_1_0` / `vbus_v1_1_0`); a package name maps to one mangled
   name shared by all consumers, so a uniform, both-legal scheme is required. Added a regression

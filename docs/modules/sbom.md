@@ -4,7 +4,7 @@ Generate a Software Bill of Materials in CycloneDX format, recording exactly wha
 released artifact contains — the core plus its resolved dependencies — for provenance
 and licence audit. Pure module.
 
-- **Source**: [src/hdlpkg/sbom.py](../../src/hdlpkg/sbom.py)
+- **Source**: [src/hdlpkg/sbom.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/sbom.py)
 - **Import**: `from hdlpkg import build_cyclonedx, CYCLONEDX_SPEC_VERSION`
 
 ## API

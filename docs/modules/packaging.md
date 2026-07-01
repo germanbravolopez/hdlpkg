@@ -3,7 +3,7 @@
 Build and read the distributable `.ipkg` artifact — the single-file form of an IP
 core used for distribution.
 
-- **Source**: [src/hdlpkg/packaging.py](../../src/hdlpkg/packaging.py)
+- **Source**: [src/hdlpkg/packaging.py](https://github.com/germanbravolopez/hdlpkg/blob/main/src/hdlpkg/packaging.py)
 - **Import**: `from hdlpkg import pack_core, extract_ipkg, manifest_from_ipkg, artifact_filename`
 
 ## What an `.ipkg` is
