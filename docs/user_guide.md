@@ -511,7 +511,7 @@ hdlpkg gen sim --format filelist --locked --output build/hdlpkg
 hdlpkg supplies the dependency IP as ordered `.f` lists; a build reads them (most tools accept
 `-f <filelist>`) and the IP never lands in the repo. A reusable `hdlpkg.mk` and a worked
 QuestaSim example are under
-[`examples/integration/`](../examples/integration).
+[`examples/integration/`](https://github.com/germanbravolopez/hdlpkg/tree/main/examples/integration).
 (`vendor` lays down readable source; `--format filelist` keeps the source in the cache — pick
 whichever your flow prefers.)
 
