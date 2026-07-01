@@ -1,9 +1,9 @@
 # Integrating hdlpkg with a Makefile-based build flow
 
-For a team that already has its own per-tool Makefiles (QuestaSim, QuestaCDC, Quartus,
-Vivado, ...) and just wants hdlpkg to **supply the IP dependencies** — without committing or
-vendoring the IP source into the project — hdlpkg can emit plain, ordered **`.f` filelists**
-that any flow can compile.
+hdlpkg can emit plain, ordered **`.f` filelists** so a Makefile-based build flow (QuestaSim,
+QuestaCDC, Quartus, Vivado, ...) can compile the **IP dependencies** straight from the cache —
+without committing or vendoring the IP source into the project. hdlpkg supplies the IP; the
+build flow compiles it.
 
 ## The idea
 

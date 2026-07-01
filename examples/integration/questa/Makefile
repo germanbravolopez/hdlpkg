@@ -1,8 +1,8 @@
 # Example: compile a project's IP dependencies (from hdlpkg) into a QuestaSim library.
 #
-# This is the shape of a typical per-tool Makefile: it owns the project's own RTL and the
-# vsim run, while hdlpkg supplies the dependency IP as ordered ".f" filelists compiled
-# straight from the cache -- the IP is never vendored into the project tree.
+# The Makefile owns the project's own RTL and the vsim run; hdlpkg supplies the dependency IP
+# as ordered ".f" filelists compiled straight from the cache -- the IP is never vendored into
+# the project tree.
 #
 # QuestaCDC and Quartus integrate the same way: depend on `hdlpkg-filelist` and read the
 # generated $(HDLPKG_OUT)/*.f lists (qverify / quartus_map take filelists too).

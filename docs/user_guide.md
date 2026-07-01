@@ -265,10 +265,10 @@ that matches **no** file is an error (a likely typo), and patterns may not escap
 (`..` or absolute paths are rejected). The manifest still records the patterns you wrote,
 so `ip.lock` and the SBOM are unaffected.
 
-## Sharing over a registry (local, HTTP, or OCI)
+## Sharing over a registry (local, HTTP, OCI or Git)
 
 The `--registry` flag takes a **location**, not just a directory. The same
-publish/consume commands work against three backends, chosen by the location string:
+publish/consume commands work against four backends, chosen by the location string:
 
 | Location | Backend |
 |----------|---------|
@@ -285,46 +285,7 @@ credentials (ssh keys / credential helpers), and the lockfile records each core'
 commit (`git+<url>@<sha>`) for traceability; it is read-only to the tool (consume with
 `resolve` / `install` / `pull`, publish with the other backends).
 
-### Publishing to a Git registry
-
-A Git registry is **read-only to hdlpkg** — `hdlpkg publish --registry git+…` is not
-supported. "Publishing" is just **git**: a Git registry is an ordinary repository holding
-one directory per core, each with its `ip.toml` (and the files its `[filesets]` reference).
-hdlpkg packs each core deterministically on the fly when a consumer fetches it, so the repo
-stores **source**, not packed `.ipkg` blobs. Identity (the VLNV) comes from each manifest's
-contents, not its path, so the folder layout is free (a `vendor/library/name/` convention is
-just tidy):
-
-```text
-ip-registry.git/
-  acme/common/fifo/1.0.0/    ip.toml (version = "1.0.0") + rtl/…
-  acme/common/fifo/1.1.0/    ip.toml (version = "1.1.0") + rtl/…
-```
-
-To add a version, commit the core's directory and push (optionally tag the release):
-
-```bash
-git clone ssh://git@github.com/org/ip-registry.git && cd ip-registry
-mkdir -p acme/common/fifo/1.1.0 && cp -r <fifo source>/* acme/common/fifo/1.1.0/
-git add . && git commit -m "fifo 1.1.0" && git tag v1.1.0 && git push --follow-tags
-```
-
-**Branch / tag / commit pinning.** The cores do **not** have to live on `main`. Add
-`@<ref>` to the location to consume from any ref — a branch (including a git-flow name with
-a slash, e.g. `@feature/x` or `@release/1.0`), a tag, or a commit SHA:
-
-```bash
-hdlpkg resolve  my_soc/ip.toml --registry git+ssh://github.com/org/ip-registry.git@develop
-hdlpkg install  my_soc/ip.toml --registry git+ssh://github.com/org/ip-registry.git@v1.1.0
-```
-
-With **no** `@<ref>`, the registry uses the remote's **default branch** (so a no-pin consume
-needs the cores on that branch). A **tag wins over a same-named branch** (immutable
-provenance), and `gen --locked` against a `@<sha>` pin works fully offline after the first
-install. Since `GitRegistry` checks out **one ref** and scans that tree, every version you
-want resolvable at a given ref must exist as its own directory there — or tag each release
-and let consumers pin `@<tag>`. There is no `yank` on a Git registry: retract by pushing a
-new commit/tag; anyone pinned to the old SHA still gets the old bits (by design).
+### Publish and consume
 
 **Producer — publish a core** (from the machine that has the source):
 
@@ -372,95 +333,6 @@ and several specs may be added at once. Building (`hdlpkg gen`) stays a separate
 To try this end to end without standing up a server, a no-auth [Zot](https://zotregistry.dev)
 binary or `docker run -d -p 5000:5000 registry:2` gives you a real OCI registry on
 `oci+http://127.0.0.1:5000/ip` in one command.
-
-### Resolving across more than one registry
-
-A project's dependencies may not all live in the same place — one core in your company's
-OCI registry, another in a Git repository. Pass `--registry` **more than once** and the
-locations form an ordered **search path** (the order on the command line is the
-precedence). It works on `resolve`, `install`, `gen`, `tree`, and `pull`:
-
-```bash
-hdlpkg install my_soc/ip.toml \
-  --registry oci://harbor.corp.local/ip \
-  --registry git+ssh://bitbucket.org/org/ip-registry.git
-```
-
-- The set of available versions is the **union** across all reachable registries, so the
-  resolver sees every version regardless of which registry hosts it.
-- Each resolved core is fetched from the **first** registry, in order, that offers it, and
-  the lockfile records that registry as the core's `source` — so a resolve spanning several
-  registries pins each core to its true origin with no lockfile-format change.
-- If the **same** version of a core is offered by more than one registry, the first wins and
-  a warning notes the others (the lockfile's checksum still fails closed if a later fetch
-  returns different bytes). An **unreachable** registry is skipped with a warning and the
-  resolve continues from the rest.
-
-Credentials stay per-host (via `hdlpkg login`), so each registry in the path authenticates
-with its own stored credential.
-
-**Vendoring sources for a Makefile.** The cache holds packed `.ipkg` blobs, not loose
-source, so a plain Makefile cannot read a dependency from it. `hdlpkg vendor` extracts every
-locked dependency into a predictable tree — `<DIR>/<vendor>/<library>/<name>/`, the
-`node_modules` of HDL — so an existing Makefile can just include the files:
-
-```bash
-hdlpkg vendor                       # writes ./deps/<vendor>/<library>/<name>/ for each locked core
-hdlpkg vendor --output third_party  # or choose the directory
-```
-
-It needs an `ip.lock` (run `resolve`/`install` first) and, like `--locked`, fetches each core
-from the source the lock recorded (pass `--registry` to override). Re-running replaces each
-core's tree so the vendored copy always matches the lock. Building (`hdlpkg gen`) remains
-independent — use `vendor` when you drive the build yourself, `gen` when you want hdlpkg to
-emit the tool inputs.
-
-**Filelists for a Makefile flow (keep the IP in the cache).** If you'd rather **not** copy the
-IP source into your tree at all — keep it in the cache and just feed your compiler a list —
-use `gen --format filelist`. It writes ordered `.f` lists (one per HDL type) of absolute
-**cache** paths, dependencies first, so a Make-based flow (QuestaSim, Quartus, …) compiles the
-IP straight from the cache:
-
-```bash
-hdlpkg gen sim --format filelist --locked --output build/hdlpkg
-#   build/hdlpkg/<name>.vhdl.f  /  .systemverilog.f  /  .verilog.f   (each: -f-style path list)
-```
-
-This is the right fit for a team with their own per-tool Makefiles: hdlpkg supplies the
-dependency IP, their existing `compile`/`simulate` targets read the `.f` lists (most tools
-accept `-f <filelist>`), and the IP never lands in the repo. A reusable `hdlpkg.mk` and a
-worked QuestaSim example are under
-[`examples/integration/`](https://github.com/germanbravolopez/hdlpkg/tree/main/examples/integration).
-(`vendor` lays down readable source; `--format filelist` keeps the source in the cache — pick
-whichever your flow prefers.)
-
-**Installing straight from the lock.** Once `ip.lock` is written, each package entry records
-the exact registry it came from (its `source`). So you do **not** have to repeat `--registry`
-to install — a plain `install` builds from the lock:
-
-```bash
-hdlpkg resolve my_soc/ip.toml --registry oci://harbor.corp.local/ip   # once: writes ip.lock
-hdlpkg install my_soc/ip.toml                                         # no --registry needed
-```
-
-`hdlpkg install` (no flags) checks for an `ip.lock` that still satisfies `ip.toml`; if it does,
-it fetches each core from the `source` the lock recorded — a lock that spans several registries
-reinstalls with no flags at all. It **re-resolves** (which needs `--registry`/`--search`) only
-when there is no lock, the lock is **stale** (you added a dependency or changed a constraint so
-the locked version no longer fits — it says `ip.lock is out of date with ip.toml; re-resolving`
-and refreshes it), or you pass `--update` to pull the newest compatible versions. The related
-modes:
-
-- **`--locked`** — strict reproducible install: fetch exactly what the lock pins, never
-  re-resolve, and fail if the lock is missing. `gen --locked` mirrors this.
-- **`--update`** — force a fresh resolve even when the lock is current (needs a registry to
-  discover newer versions); equivalent to running `hdlpkg resolve` then `install`.
-- Passing `--registry`/`--search` on a plain `install` always re-resolves from there (it does
-  not consult the lock).
-
-A core already in the local cache is reused untouched, so a repeat install is fully offline.
-(A recorded OCI source assumes HTTPS; for a plaintext `oci+http://` dev registry, pass
-`--registry` explicitly.)
 
 ### Pointing at a managed registry (JFrog Artifactory, Nexus, cloud)
 
@@ -510,6 +382,138 @@ Two gotchas: the repository must be **Docker/OCI** package type (a generic Artif
 has no `/v2/` endpoint and will 404), and a `publish` `401` is almost always a
 permissions / identity-token problem rather than a `hdlpkg` one — confirm `docker push` to
 the same base works first; if Docker works, `hdlpkg` will.
+
+### Resolving from a Git registry
+
+A Git registry is **read-only to hdlpkg** — `hdlpkg publish --registry git+…` is not
+supported, so you consume from it (`resolve` / `install` / `pull`) but populate it with plain
+**git**. It is an ordinary repository holding one directory per core, each with its `ip.toml`
+(and the files its `[filesets]` reference); hdlpkg packs each core deterministically on the
+fly when a consumer fetches it, so the repo stores **source**, not packed `.ipkg` blobs.
+Identity (the VLNV) comes from each manifest's contents, not its path, so the folder layout is
+free (a `vendor/library/name/` convention is just tidy):
+
+```text
+ip-registry.git/
+  acme/common/fifo/1.0.0/    ip.toml (version = "1.0.0") + rtl/…
+  acme/common/fifo/1.1.0/    ip.toml (version = "1.1.0") + rtl/…
+```
+
+To make a version available, commit the core's directory and push (optionally tag the
+release) — there is no hdlpkg publish step:
+
+```bash
+git clone ssh://git@github.com/org/ip-registry.git && cd ip-registry
+mkdir -p acme/common/fifo/1.1.0 && cp -r <fifo source>/* acme/common/fifo/1.1.0/
+git add . && git commit -m "fifo 1.1.0" && git tag v1.1.0 && git push --follow-tags
+```
+
+**Branch / tag / commit pinning.** The cores do **not** have to live on `main`. Add
+`@<ref>` to the location to consume from any ref — a branch (including a git-flow name with
+a slash, e.g. `@feature/x` or `@release/1.0`), a tag, or a commit SHA:
+
+```bash
+hdlpkg resolve  my_soc/ip.toml --registry git+ssh://github.com/org/ip-registry.git@develop
+hdlpkg install  my_soc/ip.toml --registry git+ssh://github.com/org/ip-registry.git@v1.1.0
+```
+
+With **no** `@<ref>`, the registry uses the remote's **default branch** (so a no-pin consume
+needs the cores on that branch). A **tag wins over a same-named branch** (immutable
+provenance), and `gen --locked` against a `@<sha>` pin works fully offline after the first
+install. Since `GitRegistry` checks out **one ref** and scans that tree, every version you
+want resolvable at a given ref must exist as its own directory there — or tag each release
+and let consumers pin `@<tag>`. There is no `yank` on a Git registry: retract by pushing a
+new commit/tag; anyone pinned to the old SHA still gets the old bits (by design).
+
+### Resolving across more than one registry
+
+A project's dependencies may not all live in the same place — one core in your company's
+OCI registry, another in a Git repository. Pass `--registry` **more than once** and the
+locations form an ordered **search path** (the order on the command line is the
+precedence). It works on `resolve`, `install`, `gen`, `tree`, and `pull`:
+
+```bash
+hdlpkg install my_soc/ip.toml \
+  --registry oci://harbor.corp.local/ip \
+  --registry git+ssh://bitbucket.org/org/ip-registry.git
+```
+
+- The set of available versions is the **union** across all reachable registries, so the
+  resolver sees every version regardless of which registry hosts it.
+- Each resolved core is fetched from the **first** registry, in order, that offers it, and
+  the lockfile records that registry as the core's `source` — so a resolve spanning several
+  registries pins each core to its true origin with no lockfile-format change.
+- If the **same** version of a core is offered by more than one registry, the first wins and
+  a warning notes the others (the lockfile's checksum still fails closed if a later fetch
+  returns different bytes). An **unreachable** registry is skipped with a warning and the
+  resolve continues from the rest.
+
+Credentials stay per-host (via `hdlpkg login`), so each registry in the path authenticates
+with its own stored credential.
+
+### Getting the dependencies into your build
+
+**Installing straight from the lock.** Once `ip.lock` is written, each package entry records
+the exact registry it came from (its `source`). So you do **not** have to repeat `--registry`
+to install — a plain `install` builds from the lock:
+
+```bash
+hdlpkg resolve my_soc/ip.toml --registry oci://harbor.corp.local/ip   # once: writes ip.lock
+hdlpkg install my_soc/ip.toml                                         # no --registry needed
+```
+
+`hdlpkg install` (no flags) checks for an `ip.lock` that still satisfies `ip.toml`; if it does,
+it fetches each core from the `source` the lock recorded — a lock that spans several registries
+reinstalls with no flags at all. It **re-resolves** (which needs `--registry`/`--search`) only
+when there is no lock, the lock is **stale** (you added a dependency or changed a constraint so
+the locked version no longer fits — it says `ip.lock is out of date with ip.toml; re-resolving`
+and refreshes it), or you pass `--update` to pull the newest compatible versions. The related
+modes:
+
+- **`--locked`** — strict reproducible install: fetch exactly what the lock pins, never
+  re-resolve, and fail if the lock is missing. `gen --locked` mirrors this.
+- **`--update`** — force a fresh resolve even when the lock is current (needs a registry to
+  discover newer versions); equivalent to running `hdlpkg resolve` then `install`.
+- Passing `--registry`/`--search` on a plain `install` always re-resolves from there (it does
+  not consult the lock).
+
+A core already in the local cache is reused untouched, so a repeat install is fully offline.
+(A recorded OCI source assumes HTTPS; for a plaintext `oci+http://` dev registry, pass
+`--registry` explicitly.)
+
+**Vendoring sources for a Makefile.** The cache holds packed `.ipkg` blobs, not loose
+source, so a plain Makefile cannot read a dependency from it. `hdlpkg vendor` extracts every
+locked dependency into a predictable tree — `<DIR>/<vendor>/<library>/<name>/`, the
+`node_modules` of HDL — so an existing Makefile can just include the files:
+
+```bash
+hdlpkg vendor                       # writes ./deps/<vendor>/<library>/<name>/ for each locked core
+hdlpkg vendor --output third_party  # or choose the directory
+```
+
+It needs an `ip.lock` (run `resolve`/`install` first) and, like `--locked`, fetches each core
+from the source the lock recorded (pass `--registry` to override). Re-running replaces each
+core's tree so the vendored copy always matches the lock. Building (`hdlpkg gen`) remains
+independent — use `vendor` when you drive the build yourself, `gen` when you want hdlpkg to
+emit the tool inputs.
+
+**Filelists that keep the IP in the cache.** If you'd rather **not** copy the IP source into
+your tree at all — keep it in the cache and just feed your compiler a list — use
+`gen --format filelist`. It writes ordered `.f` lists (one per HDL type) of absolute **cache**
+paths, dependencies first, so a Make-based flow (QuestaSim, Quartus, …) compiles the IP
+straight from the cache:
+
+```bash
+hdlpkg gen sim --format filelist --locked --output build/hdlpkg
+#   build/hdlpkg/<name>.vhdl.f  /  .systemverilog.f  /  .verilog.f   (each: -f-style path list)
+```
+
+hdlpkg supplies the dependency IP as ordered `.f` lists; a build reads them (most tools accept
+`-f <filelist>`) and the IP never lands in the repo. A reusable `hdlpkg.mk` and a worked
+QuestaSim example are under
+[`examples/integration/`](../examples/integration).
+(`vendor` lays down readable source; `--format filelist` keeps the source in the cache — pick
+whichever your flow prefers.)
 
 ## Typical workflows
 
